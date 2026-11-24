@@ -1,0 +1,282 @@
+{
+  "version": "0.1.0",
+  "stats": {
+    "might": {
+      "label": "Might",
+      "category": "attribute",
+      "base": 10
+    },
+    "agility": {
+      "label": "Agility",
+      "category": "attribute",
+      "base": 10
+    },
+    "wisdom": {
+      "label": "Wisdom",
+      "category": "attribute",
+      "base": 10
+    },
+    "fortitude": {
+      "label": "Fortitude",
+      "category": "attribute",
+      "base": 10
+    },
+    "max_hp": {
+      "label": "Max Health",
+      "category": "defense",
+      "base": 180
+    },
+    "max_mana": {
+      "label": "Max Mana",
+      "category": "resource",
+      "base": 80
+    },
+    "max_ward": {
+      "label": "Max Ward",
+      "category": "defense",
+      "base": 30
+    },
+    "hp_regen": {
+      "label": "Health Regen /s",
+      "category": "defense",
+      "base": 1.2
+    },
+    "mana_regen": {
+      "label": "Mana Regen /s",
+      "category": "resource",
+      "base": 4
+    },
+    "armor": {
+      "label": "Armor",
+      "category": "defense",
+      "base": 20
+    },
+    "dodge_rating": {
+      "label": "Dodge Rating",
+      "category": "defense",
+      "base": 0
+    },
+    "thorns": {
+      "label": "Thorns",
+      "category": "defense",
+      "base": 0
+    },
+    "crit_chance": {
+      "label": "Crit Chance %",
+      "category": "offense",
+      "base": 5
+    },
+    "crit_multi": {
+      "label": "Crit Multiplier %",
+      "category": "offense",
+      "base": 50
+    },
+    "attack_speed": {
+      "label": "Attack Speed %",
+      "category": "offense",
+      "base": 0
+    },
+    "weapon_min": {
+      "label": "Weapon Min Damage",
+      "category": "offense",
+      "base": 0
+    },
+    "weapon_max": {
+      "label": "Weapon Max Damage",
+      "category": "offense",
+      "base": 0
+    },
+    "ailment_potency": {
+      "label": "Ailment Potency %",
+      "category": "ailment",
+      "base": 0
+    },
+    "res_fire": {
+      "label": "Fire Resistance %",
+      "category": "resistance",
+      "base": 0
+    },
+    "res_frost": {
+      "label": "Frost Resistance %",
+      "category": "resistance",
+      "base": 0
+    },
+    "res_lightning": {
+      "label": "Lightning Resistance %",
+      "category": "resistance",
+      "base": 0
+    },
+    "res_void": {
+      "label": "Void Resistance %",
+      "category": "resistance",
+      "base": 0
+    },
+    "res_physical": {
+      "label": "Physical Resistance %",
+      "category": "resistance",
+      "base": 0
+    },
+    "dmg_physical": {
+      "label": "Physical Damage",
+      "category": "school",
+      "base": 0
+    },
+    "dmg_fire": {
+      "label": "Fire Damage",
+      "category": "school",
+      "base": 0
+    },
+    "dmg_frost": {
+      "label": "Frost Damage",
+      "category": "school",
+      "base": 0
+    },
+    "dmg_lightning": {
+      "label": "Lightning Damage",
+      "category": "school",
+      "base": 0
+    },
+    "dmg_void": {
+      "label": "Void Damage",
+      "category": "school",
+      "base": 0
+    },
+    "dmg_increased": {
+      "label": "Increased Damage %",
+      "category": "offense",
+      "base": 0
+    },
+    "dot_multiplier": {
+      "label": "DoT Multiplier %",
+      "category": "ailment",
+      "base": 0
+    },
+    "area_damage": {
+      "label": "Area Damage %",
+      "category": "offense",
+      "base": 0
+    },
+    "gold_find": {
+      "label": "Gold Find %",
+      "category": "utility",
+      "base": 0
+    },
+    "item_find": {
+      "label": "Item Find %",
+      "category": "utility",
+      "base": 0
+    },
+    "double_hit": {
+      "label": "Double-Hit Chance %",
+      "category": "offense",
+      "base": 0
+    },
+    "cooldown_recovery": {
+      "label": "Cooldown Recovery %",
+      "category": "utility",
+      "base": 0
+    },
+    "life_leech": {
+      "label": "Life Leech %",
+      "category": "utility",
+      "base": 0
+    },
+    "cast_speed": {
+      "label": "Cast Speed %",
+      "category": "offense",
+      "base": 0
+    },
+    "mana_cost": {
+      "label": "Mana Cost %",
+      "category": "resource",
+      "base": 0
+    },
+    "execute_damage": {
+      "label": "Execute Damage %",
+      "category": "offense",
+      "base": 0
+    },
+    "convert_physical_fire": {
+      "label": "Physical to Fire %",
+      "category": "conversion",
+      "base": 0
+    },
+    "trigger_on_crit": {
+      "label": "Trigger on Crit",
+      "category": "utility",
+      "base": 0
+    },
+    "trigger_on_damage": {
+      "label": "Trigger on Damage Taken",
+      "category": "utility",
+      "base": 0
+    },
+    "projectile_count": {
+      "label": "Extra Projectiles",
+      "category": "offense",
+      "base": 0
+    }
+  },
+  "conversions": [
+    {
+      "from": "might",
+      "to": "agility",
+      "percent": 0,
+      "pass": 1
+    },
+    {
+      "from": "agility",
+      "to": "wisdom",
+      "percent": 0,
+      "pass": 1
+    },
+    {
+      "from": "wisdom",
+      "to": "fortitude",
+      "percent": 0,
+      "pass": 1
+    },
+    {
+      "from": "armor",
+      "to": "max_ward",
+      "percent": 0,
+      "pass": 1
+    },
+    {
+      "from": "max_ward",
+      "to": "dodge_rating",
+      "percent": 0,
+      "pass": 1
+    },
+    {
+      "from": "dmg_physical",
+      "to": "dmg_fire",
+      "percent": 0,
+      "pass": 2
+    },
+    {
+      "from": "dmg_physical",
+      "to": "dmg_void",
+      "percent": 0,
+      "pass": 2
+    },
+    {
+      "from": "dmg_fire",
+      "to": "dmg_frost",
+      "percent": 0,
+      "pass": 2
+    },
+    {
+      "from": "dmg_frost",
+      "to": "dmg_lightning",
+      "percent": 0,
+      "pass": 2
+    },
+    {
+      "from": "dmg_lightning",
+      "to": "dmg_void",
+      "percent": 0,
+      "pass": 2
+    }
+  ]
+}

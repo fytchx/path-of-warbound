@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Warbound frame kit</title>
+<style>
+:root{--gold:#D4AF37;--hi:#F0D078;--bg:#07090E;--panel:#0B0E16;--panel2:#131826}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:#d9d2bf;font:14px system-ui,sans-serif;padding:20px;max-width:760px;margin:auto}
+h2{font:600 13px Georgia,serif;color:var(--hi);margin:26px 0 10px;border-bottom:1px solid #3a341e;padding-bottom:4px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+.cap{font-size:11px;color:#7d8190;text-align:center;margin-top:4px}
+svg.s{display:block;overflow:visible}
+/* ornate panel: 4 corner symbols over a plain CSS border */
+.orn{position:relative;width:300px;height:150px;background:var(--panel);border:1px solid #6d5f2e;padding:22px;font:700 14px Georgia,serif;color:var(--hi)}
+.orn .c{position:absolute;width:34px;height:34px;color:var(--gold)}
+.orn .tl{top:-3px;left:-3px}.orn .tr{top:-3px;right:-3px;transform:scaleX(-1)}
+.orn .bl{bottom:-3px;left:-3px;transform:scaleY(-1)}.orn .br{bottom:-3px;right:-3px;transform:scale(-1)}
+.rib{position:relative;width:220px;height:44px}
+.rib span{position:absolute;inset:0;display:grid;place-items:center;font:700 13px Georgia,serif;color:#1a1405;letter-spacing:.08em}
+.btn{position:relative;width:200px;height:44px}
+.btn span{position:absolute;inset:0;display:grid;place-items:center;font:700 13px Georgia,serif;color:var(--hi);letter-spacing:.08em}
+.sock{display:flex;align-items:center}
+</style></head><body>
+
+<!-- ============ SPRITE: copy this block into your app. Colors come from CSS vars ============ -->
+<!--SPRITE-START-->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#F0D078"/><stop offset=".5" stop-color="#D4AF37"/><stop offset="1" stop-color="#8a6b12"/></linearGradient>
+ <linearGradient id="slate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171c2c"/><stop offset="1" stop-color="#0B0E16"/></linearGradient>
+
+ <!-- corner flourish, top-left. Mirror with scaleX/scaleY for other corners. -->
+ <symbol id="w-corner" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 46V12Q2 2 12 2H46" stroke-width="2"/>
+  <path d="M8 46V16Q8 8 16 8H46" stroke-width=".8" opacity=".55"/>
+  <path d="M13 6l7 7-7 7-7-7z" fill="url(#gold)" stroke="#0B0E16" stroke-width=".8"/>
+  <path d="M26 2q3 9 12 7M2 26q9 3 7 12" stroke-width="1.2"/>
+  <circle cx="13" cy="13" r="1.6" fill="#0B0E16" stroke="none"/>
+ </symbol>
+
+ <!-- ribbon banner, 220x44. Put text in HTML on top. -->
+ <symbol id="w-ribbon" viewBox="0 0 220 44">
+  <path d="M0 10H34V44H0L11 27Z" fill="#8a6b12" stroke="#0B0E16"/>
+  <path d="M220 10H186V44H220L209 27Z" fill="#8a6b12" stroke="#0B0E16"/>
+  <path d="M22 2H198V36H22Z" fill="url(#gold)" stroke="#0B0E16"/>
+  <path d="M27 7H193V31H27Z" fill="none" stroke="#6b5210" stroke-width="1"/>
+ </symbol>
+
+ <!-- ring socket, 40x40. CSS var g sets ring color -->
+ <symbol id="w-socket" viewBox="0 0 40 40" fill="none">
+  <circle cx="20" cy="20" r="18" fill="#0B0E16" stroke="var(--g,#D4AF37)" stroke-width="2.2"/>
+  <circle cx="20" cy="20" r="14" stroke="var(--g,#D4AF37)" stroke-width=".8" opacity=".6"/>
+  <path d="M20 0v5M20 35v5M0 20h5M35 20h5" stroke="var(--g,#D4AF37)" stroke-width="2"/>
+ </symbol>
+
+ <!-- link bar between sockets, 28x10 (stretches horizontally) -->
+ <symbol id="w-link" viewBox="0 0 28 10" preserveAspectRatio="none">
+  <rect x="0" y="2" width="28" height="6" fill="url(#gold)" stroke="#0B0E16" stroke-width=".6" vector-effect="non-scaling-stroke"/>
+  <rect x="0" y="4.2" width="28" height="1.6" fill="#fff6" />
+ </symbol>
+
+ <!-- diamond badge, 24x24. CSS var f sets fill (attack=gold-dark, hp=crimson) -->
+ <symbol id="w-diamond" viewBox="0 0 24 24">
+  <path d="M12 1L23 12 12 23 1 12Z" fill="var(--f,#2a2312)" stroke="#D4AF37" stroke-width="1.6"/>
+  <path d="M12 5L19 12 12 19 5 12Z" fill="none" stroke="#D4AF37" stroke-width=".6" opacity=".6"/>
+ </symbol>
+
+ <!-- medallion, 100x100 -->
+ <symbol id="w-medal" viewBox="0 0 100 100" fill="none">
+  <circle cx="50" cy="50" r="48" stroke="#D4AF37" stroke-width="3"/>
+  <circle cx="50" cy="50" r="42" stroke="#D4AF37" stroke-width="5" stroke-dasharray="1.8 7.2" opacity=".85"/>
+  <circle cx="50" cy="50" r="36" stroke="#F0D078" stroke-width="1"/>
+  <circle cx="50" cy="50" r="34" fill="#0B0E16"/>
+  <path d="M50 0l5 6-5 6-5-6z M50 88l5 6-5 6-5-6z" fill="url(#gold)" stroke="none"/>
+ </symbol>
+
+ <!-- divider, 200x10 -->
+ <symbol id="w-divider" viewBox="0 0 200 10" fill="none" stroke="#D4AF37">
+  <path d="M0 5H88M112 5H200" stroke-width="1"/>
+  <path d="M100 0l5 5-5 5-5-5z" fill="url(#gold)" stroke="none"/>
+  <path d="M90 5h-3M110 5h3" stroke-width="2"/>
+ </symbol>
+
+ <!-- vial frame overlay, 36x200. Draw the liquid in HTML behind it. -->
+ <symbol id="w-vial" viewBox="0 0 36 200" fill="none" stroke="#D4AF37" stroke-linejoin="round">
+  <rect x="5" y="14" width="26" height="172" rx="13" stroke-width="2"/>
+  <path d="M3 16Q18-4 33 16L28 22H8Z" fill="url(#gold)" stroke="#0B0E16" stroke-width=".8"/>
+  <path d="M3 184Q18 204 33 184L28 178H8Z" fill="url(#gold)" stroke="#0B0E16" stroke-width=".8"/>
+  <path d="M10 32V168" stroke="#fff" stroke-width="1.4" opacity=".18"/>
+ </symbol>
+
+ <!-- oval monster card frame, 80x104 -->
+ <symbol id="w-oval" viewBox="0 0 80 104" fill="none" stroke="#D4AF37">
+  <ellipse cx="40" cy="52" rx="37" ry="49" stroke-width="2.4"/>
+  <ellipse cx="40" cy="52" rx="33" ry="45" stroke-width=".8" opacity=".6"/>
+  <path d="M40 0l6 6-6 6-6-6zM40 92l6 6-6 6-6-6z" fill="url(#gold)" stroke="#0B0E16" stroke-width=".8"/>
+ </symbol>
+
+ <!-- button frame, 200x44 chamfered. Use at its native ratio. -->
+ <symbol id="w-button" viewBox="0 0 200 44" fill="none">
+  <path d="M10 2H190L198 10V34L190 42H10L2 34V10Z" fill="url(#slate)" stroke="#D4AF37" stroke-width="2"/>
+  <path d="M12 6H188L194 12V32L188 38H12L6 32V12Z" stroke="#D4AF37" stroke-width=".7" opacity=".55"/>
+  <path d="M0 22l4-4v8zM200 22l-4-4v8z" fill="#F0D078"/>
+ </symbol>
+
+ <!-- inventory slot, 48x48. CSS var g = rarity color -->
+ <symbol id="w-slot" viewBox="0 0 48 48" fill="none">
+  <rect x="2" y="2" width="44" height="44" fill="url(#slate)" stroke="var(--g,#555)" stroke-width="1.6"/>
+  <path d="M2 10V2H10M38 2H46V10M46 38V46H38M10 46H2V38" stroke="#D4AF37" stroke-width="2"/>
+ </symbol>
+
+ <!-- tree nodes, centered on 0,0, 40x40. CSS vars g (outline) and fill (allocated) -->
+ <symbol id="w-n-minor" viewBox="-20 -20 40 40">
+  <circle r="7" fill="var(--fill,#0B0E16)" stroke="var(--g,#6d5f2e)" stroke-width="1.8"/>
+ </symbol>
+ <symbol id="w-n-notable" viewBox="-20 -20 40 40" fill="none">
+  <circle r="10" fill="var(--fill,#0B0E16)" stroke="var(--g,#6d5f2e)" stroke-width="2"/>
+  <circle r="14" stroke="var(--g,#6d5f2e)" stroke-width="1.4" stroke-dasharray="3 3.6"/>
+ </symbol>
+ <symbol id="w-n-key" viewBox="-20 -20 40 40" fill="none">
+  <path d="M0-17L15 0 0 17-15 0Z" fill="var(--fill,#0B0E16)" stroke="var(--g,#9B51E0)" stroke-width="2.2"/>
+  <path d="M0-10L9 0 0 10-9 0Z" stroke="var(--g,#9B51E0)" stroke-width="1"/>
+ </symbol>
+ <symbol id="w-n-socket" viewBox="-20 -20 40 40" fill="none">
+  <path d="M0-14L12-7V7L0 14-12 7V-7Z" fill="#0B0E16" stroke="var(--g,#D4AF37)" stroke-width="2"/>
+  <circle r="5" fill="var(--fill,none)" stroke="var(--g,#D4AF37)" stroke-width="1.4"/>
+ </symbol>
+</defs></svg>
+<!--SPRITE-END-->
+
+<h2>Corner + panel</h2>
+<div class="orn">
+ <svg class="c tl s"><use href="#w-corner"/></svg><svg class="c tr s"><use href="#w-corner"/></svg>
+ <svg class="c bl s"><use href="#w-corner"/></svg><svg class="c br s"><use href="#w-corner"/></svg>
+ Plain CSS border + 4 mirrored corners. Resizes freely.</div>
+
+<h2>Ribbon, divider, buttons</h2>
+<div class="row">
+ <div class="rib"><svg class="s" width="220" height="44"><use href="#w-ribbon"/></svg><span>02 | ALTAR</span></div>
+ <svg class="s" width="200" height="10"><use href="#w-divider"/></svg>
+ <div class="btn"><svg class="s" width="200" height="44"><use href="#w-button"/></svg><span>FORGE ITEM</span></div>
+</div>
+
+<h2>Sockets and links (rarity via --g)</h2>
+<div class="row"><div class="sock">
+ <svg class="s" width="34" height="34"><use href="#w-socket"/></svg>
+ <svg class="s" width="14" height="8"><use href="#w-link"/></svg>
+ <svg class="s" width="34" height="34"><use href="#w-socket"/></svg>
+ <svg class="s" width="14" height="8"><use href="#w-link"/></svg>
+ <svg class="s" width="34" height="34" style="--g:#9B51E0"><use href="#w-socket"/></svg></div>
+ <svg class="s" width="24" height="24"><use href="#w-diamond"/></svg>
+ <svg class="s" width="24" height="24" style="--f:#5a1214"><use href="#w-diamond"/></svg>
+</div>
+
+<h2>Medallion, vial, oval card</h2>
+<div class="row">
+ <svg class="s" width="90" height="90"><use href="#w-medal"/></svg>
+ <svg class="s" width="36" height="200"><use href="#w-vial"/></svg>
+ <svg class="s" width="80" height="104"><use href="#w-oval"/></svg>
+</div>
+
+<h2>Inventory slots by rarity</h2>
+<div class="row">
+ <svg class="s" width="48" height="48" style="--g:#8a8a8a"><use href="#w-slot"/></svg>
+ <svg class="s" width="48" height="48" style="--g:#4a7be0"><use href="#w-slot"/></svg>
+ <svg class="s" width="48" height="48" style="--g:#D4AF37"><use href="#w-slot"/></svg>
+ <svg class="s" width="48" height="48" style="--g:#9B51E0"><use href="#w-slot"/></svg>
+</div>
+
+<h2>Tree nodes: unallocated vs allocated</h2>
+<div class="row">
+ <svg class="s" width="40" height="40"><use href="#w-n-minor"/></svg>
+ <svg class="s" width="40" height="40" style="--g:#38D6E8;--fill:#38D6E8"><use href="#w-n-minor"/></svg>
+ <svg class="s" width="40" height="40"><use href="#w-n-notable"/></svg>
+ <svg class="s" width="40" height="40" style="--g:#F0D078;--fill:#D4AF37"><use href="#w-n-notable"/></svg>
+ <svg class="s" width="40" height="40" style="--g:#9B51E0"><use href="#w-n-key"/></svg>
+ <svg class="s" width="40" height="40" style="--g:#9B51E0;--fill:#9B51E0"><use href="#w-n-key"/></svg>
+ <svg class="s" width="40" height="40"><use href="#w-n-socket"/></svg>
+ <svg class="s" width="40" height="40" style="--fill:#38B864"><use href="#w-n-socket"/></svg>
+</div>
+</body></html>

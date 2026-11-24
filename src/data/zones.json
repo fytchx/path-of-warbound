@@ -1,0 +1,35 @@
+[
+  {
+    "id": "zone_ashen_graveyard",
+    "name": "Ashen Graveyard",
+    "assetId": "bg_ashen_graveyard",
+    "tiers": 10,
+    "monsterIds": ["mob_ghoul", "mob_slime", "mob_reaper", "elite_skeleton_champion"],
+    "eliteChance": 0.12,
+    "keyDropChance": 0.18,
+    "rewardMultiplier": 1.0,
+    "flavour": "The first field. The soil is more ash than earth, and the markers have no names."
+  },
+  {
+    "id": "zone_ember_canyon",
+    "name": "Ember Canyon",
+    "assetId": "bg_ember_canyon",
+    "tiers": 10,
+    "monsterIds": ["mob_imp", "mob_golem", "mob_wolf", "elite_horned_brute", "elite_demon_sovereign"],
+    "eliteChance": 0.16,
+    "keyDropChance": 0.2,
+    "rewardMultiplier": 1.25,
+    "flavour": "The canyon breathes heat. Somewhere below, something is still being forged."
+  },
+  {
+    "id": "zone_frozen_cathedral",
+    "name": "Frozen Cathedral",
+    "assetId": "bg_frozen_cathedral",
+    "tiers": 10,
+    "monsterIds": ["mob_specter", "mob_wolf", "mob_reaper", "elite_void_lich", "elite_skeleton_champion"],
+    "eliteChance": 0.2,
+    "keyDropChance": 0.22,
+    "rewardMultiplier": 1.5,
+    "flavour": "The hymns are still in the ice. The congregation is not."
+  }
+]

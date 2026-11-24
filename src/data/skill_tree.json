@@ -1,0 +1,2131 @@
+{
+  "version": "0.1.0",
+  "rootId": "hub_0",
+  "nodes": [
+    {
+      "id": "hub_0",
+      "name": "Soul-Spark",
+      "kind": "hub",
+      "sector": "core",
+      "x": 0,
+      "y": 0,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 4
+        },
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 4
+        },
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 4
+        },
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 4
+        }
+      ],
+      "description": "The spark that binds. All paths begin here."
+    },
+    {
+      "id": "sec_might",
+      "name": "Might Ring",
+      "kind": "minor",
+      "sector": "might",
+      "x": 0,
+      "y": -50.6,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 10
+        }
+      ],
+      "description": "A ring of might carved into the tree's first tier."
+    },
+    {
+      "id": "sec_might_side_l",
+      "name": "might Sigil",
+      "kind": "minor",
+      "sector": "might",
+      "x": -16.6,
+      "y": -82.9,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor might and ward node."
+    },
+    {
+      "id": "sec_might_side_r",
+      "name": "might Sigil",
+      "kind": "minor",
+      "sector": "might",
+      "x": 16.6,
+      "y": -82.9,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor might and ward node."
+    },
+    {
+      "id": "p_might_0_entry",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -29.1,
+      "y": -65.6,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one might."
+    },
+    {
+      "id": "p_might_0_l",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -45.3,
+      "y": -86.7,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_0_r",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -34.4,
+      "y": -93.2,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_0_notable",
+      "name": "Executioner's Poise",
+      "kind": "notable",
+      "sector": "might",
+      "x": -53.6,
+      "y": -120.9,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 12
+        }
+      ],
+      "description": "Notable. Executioner's Poise empowers might."
+    },
+    {
+      "id": "p_might_1_entry",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -10,
+      "y": -72.7,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one might."
+    },
+    {
+      "id": "p_might_1_l",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -19.8,
+      "y": -98.6,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_1_r",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": -7.7,
+      "y": -100.8,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_1_notable",
+      "name": "Warborn Sinew",
+      "kind": "notable",
+      "sector": "might",
+      "x": -18.5,
+      "y": -134,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 12
+        }
+      ],
+      "description": "Notable. Warborn Sinew empowers might."
+    },
+    {
+      "id": "p_might_2_entry",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 10,
+      "y": -72.7,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one might."
+    },
+    {
+      "id": "p_might_2_l",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 7.7,
+      "y": -100.8,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_2_r",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 19.8,
+      "y": -98.6,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_2_notable",
+      "name": "Sunder Grip",
+      "kind": "notable",
+      "sector": "might",
+      "x": 18.5,
+      "y": -134,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 12
+        }
+      ],
+      "description": "Notable. Sunder Grip empowers might."
+    },
+    {
+      "id": "p_might_3_entry",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 29.1,
+      "y": -65.6,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one might."
+    },
+    {
+      "id": "p_might_3_l",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 34.4,
+      "y": -93.2,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_3_r",
+      "name": "might Minor",
+      "kind": "minor",
+      "sector": "might",
+      "x": 45.3,
+      "y": -86.7,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching might minor."
+    },
+    {
+      "id": "p_might_3_notable",
+      "name": "Red Remembrance",
+      "kind": "notable",
+      "sector": "might",
+      "x": 53.6,
+      "y": -120.9,
+      "mods": [
+        {
+          "stat": "might",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "dmg_physical",
+          "layer": "increased",
+          "value": 12
+        }
+      ],
+      "description": "Notable. Red Remembrance empowers might."
+    },
+    {
+      "id": "ks_pendulum",
+      "name": "Pendulum",
+      "kind": "keystone",
+      "sector": "might",
+      "x": -108,
+      "y": -148,
+      "mods": [],
+      "assetId": "ks_pendulum",
+      "excludes": [
+        "ks_hollow_fist"
+      ],
+      "description": "Auto-swaps skill bars every 5s; 30% more damage for 3s after a swap. Manual swapping disabled."
+    },
+    {
+      "id": "ks_hollow_fist",
+      "name": "Hollow Fist",
+      "kind": "keystone",
+      "sector": "might",
+      "x": 108,
+      "y": -148,
+      "mods": [],
+      "assetId": "ks_hollow_fist",
+      "excludes": [
+        "ks_pendulum"
+      ],
+      "description": "Weapon auto-attack implicits are doubled and deal 40% more damage. Active skills deal 25% less and cost 50% more mana."
+    },
+    {
+      "id": "sec_agility",
+      "name": "Agility Ring",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 44,
+      "y": 0,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 10
+        }
+      ],
+      "description": "A ring of agility carved into the tree's first tier."
+    },
+    {
+      "id": "sec_agility_side_l",
+      "name": "agility Sigil",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 72.1,
+      "y": -19.1,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor agility and ward node."
+    },
+    {
+      "id": "sec_agility_side_r",
+      "name": "agility Sigil",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 72.1,
+      "y": 19.1,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor agility and ward node."
+    },
+    {
+      "id": "p_agility_0_entry",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 57,
+      "y": -33.4,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one agility."
+    },
+    {
+      "id": "p_agility_0_l",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 75.4,
+      "y": -52.1,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_0_r",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 81,
+      "y": -39.5,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_0_notable",
+      "name": "Ghost Step",
+      "kind": "notable",
+      "sector": "agility",
+      "x": 105.1,
+      "y": -61.6,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "attack_speed",
+          "layer": "increased",
+          "value": 8
+        }
+      ],
+      "description": "Notable. Ghost Step empowers agility."
+    },
+    {
+      "id": "p_agility_1_entry",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 63.2,
+      "y": -11.5,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one agility."
+    },
+    {
+      "id": "p_agility_1_l",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 85.7,
+      "y": -22.8,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_1_r",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 87.7,
+      "y": -8.8,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_1_notable",
+      "name": "Quickened Pulse",
+      "kind": "notable",
+      "sector": "agility",
+      "x": 116.5,
+      "y": -21.2,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "attack_speed",
+          "layer": "increased",
+          "value": 8
+        }
+      ],
+      "description": "Notable. Quickened Pulse empowers agility."
+    },
+    {
+      "id": "p_agility_2_entry",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 63.2,
+      "y": 11.5,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one agility."
+    },
+    {
+      "id": "p_agility_2_l",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 87.7,
+      "y": 8.8,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_2_r",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 85.7,
+      "y": 22.8,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_2_notable",
+      "name": "Hunters' Cadence",
+      "kind": "notable",
+      "sector": "agility",
+      "x": 116.5,
+      "y": 21.2,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "attack_speed",
+          "layer": "increased",
+          "value": 8
+        }
+      ],
+      "description": "Notable. Hunters' Cadence empowers agility."
+    },
+    {
+      "id": "p_agility_3_entry",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 57,
+      "y": 33.4,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one agility."
+    },
+    {
+      "id": "p_agility_3_l",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 81,
+      "y": 39.5,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_3_r",
+      "name": "agility Minor",
+      "kind": "minor",
+      "sector": "agility",
+      "x": 75.4,
+      "y": 52.1,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching agility minor."
+    },
+    {
+      "id": "p_agility_3_notable",
+      "name": "Flicker Guard",
+      "kind": "notable",
+      "sector": "agility",
+      "x": 105.1,
+      "y": 61.6,
+      "mods": [
+        {
+          "stat": "agility",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "attack_speed",
+          "layer": "increased",
+          "value": 8
+        }
+      ],
+      "description": "Notable. Flicker Guard empowers agility."
+    },
+    {
+      "id": "ks_ghostframe",
+      "name": "Ghostframe",
+      "kind": "keystone",
+      "sector": "agility",
+      "x": 128.7,
+      "y": -124.2,
+      "mods": [],
+      "assetId": "ks_ghostframe",
+      "excludes": [
+        "ks_lattice_skin"
+      ],
+      "description": "Dodge Rating cap is doubled. Dodging releases a Thorns burst equal to 15% of Dodge Rating. Max HP -40%."
+    },
+    {
+      "id": "ks_crowd_sovereign",
+      "name": "Crowd Sovereign",
+      "kind": "keystone",
+      "sector": "agility",
+      "x": 128.7,
+      "y": 124.2,
+      "mods": [],
+      "assetId": "ks_crowd_sovereign",
+      "excludes": [
+        "ks_zealots_mandate"
+      ],
+      "description": "Pack Size is forced to at least 4. 25% more damage and 15% more damage taken per enemy, up to 5. Elite chance doubled."
+    },
+    {
+      "id": "sec_wisdom",
+      "name": "Wisdom Ring",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 0,
+      "y": 50.6,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 10
+        }
+      ],
+      "description": "A ring of wisdom carved into the tree's first tier."
+    },
+    {
+      "id": "sec_wisdom_side_l",
+      "name": "wisdom Sigil",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 16.6,
+      "y": 82.9,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor wisdom and ward node."
+    },
+    {
+      "id": "sec_wisdom_side_r",
+      "name": "wisdom Sigil",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -16.6,
+      "y": 82.9,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor wisdom and ward node."
+    },
+    {
+      "id": "p_wisdom_0_entry",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 29.1,
+      "y": 65.6,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one wisdom."
+    },
+    {
+      "id": "p_wisdom_0_l",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 45.3,
+      "y": 86.7,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_0_r",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 34.4,
+      "y": 93.2,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_0_notable",
+      "name": "Deep Well",
+      "kind": "notable",
+      "sector": "wisdom",
+      "x": 53.6,
+      "y": 120.9,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "ailment_potency",
+          "layer": "increased",
+          "value": 15
+        }
+      ],
+      "description": "Notable. Deep Well empowers wisdom."
+    },
+    {
+      "id": "p_wisdom_1_entry",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 10,
+      "y": 72.7,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one wisdom."
+    },
+    {
+      "id": "p_wisdom_1_l",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 19.8,
+      "y": 98.6,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_1_r",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": 7.7,
+      "y": 100.8,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_1_notable",
+      "name": "Runic Patience",
+      "kind": "notable",
+      "sector": "wisdom",
+      "x": 18.5,
+      "y": 134,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "ailment_potency",
+          "layer": "increased",
+          "value": 15
+        }
+      ],
+      "description": "Notable. Runic Patience empowers wisdom."
+    },
+    {
+      "id": "p_wisdom_2_entry",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -10,
+      "y": 72.7,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one wisdom."
+    },
+    {
+      "id": "p_wisdom_2_l",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -7.7,
+      "y": 100.8,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_2_r",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -19.8,
+      "y": 98.6,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_2_notable",
+      "name": "Ward Whisper",
+      "kind": "notable",
+      "sector": "wisdom",
+      "x": -18.5,
+      "y": 134,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "ailment_potency",
+          "layer": "increased",
+          "value": 15
+        }
+      ],
+      "description": "Notable. Ward Whisper empowers wisdom."
+    },
+    {
+      "id": "p_wisdom_3_entry",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -29.1,
+      "y": 65.6,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one wisdom."
+    },
+    {
+      "id": "p_wisdom_3_l",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -34.4,
+      "y": 93.2,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_3_r",
+      "name": "wisdom Minor",
+      "kind": "minor",
+      "sector": "wisdom",
+      "x": -45.3,
+      "y": 86.7,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching wisdom minor."
+    },
+    {
+      "id": "p_wisdom_3_notable",
+      "name": "Bitter Insight",
+      "kind": "notable",
+      "sector": "wisdom",
+      "x": -53.6,
+      "y": 120.9,
+      "mods": [
+        {
+          "stat": "wisdom",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "ailment_potency",
+          "layer": "increased",
+          "value": 15
+        }
+      ],
+      "description": "Notable. Bitter Insight empowers wisdom."
+    },
+    {
+      "id": "ks_festering_wound",
+      "name": "Festering Wound",
+      "kind": "keystone",
+      "sector": "wisdom",
+      "x": 108,
+      "y": 148,
+      "mods": [],
+      "assetId": "ks_festering_wound",
+      "excludes": [
+        "ks_void_tithe"
+      ],
+      "description": "Ailments stack up to 3 instances at 40% potency each. Ailment duration -30%."
+    },
+    {
+      "id": "ks_void_tithe",
+      "name": "Void Tithe",
+      "kind": "keystone",
+      "sector": "wisdom",
+      "x": -108,
+      "y": 148,
+      "mods": [],
+      "assetId": "ks_void_tithe",
+      "excludes": [
+        "ks_festering_wound"
+      ],
+      "description": "50% of Physical damage is converted to Void. Corruption potency +50%. Take self-Corruption: 3% max HP over 5s, ward-absorbable."
+    },
+    {
+      "id": "sec_fortitude",
+      "name": "Fortitude Ring",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -44,
+      "y": 0,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 10
+        }
+      ],
+      "description": "A ring of fortitude carved into the tree's first tier."
+    },
+    {
+      "id": "sec_fortitude_side_l",
+      "name": "fortitude Sigil",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -72.1,
+      "y": 19.1,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor fortitude and ward node."
+    },
+    {
+      "id": "sec_fortitude_side_r",
+      "name": "fortitude Sigil",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -72.1,
+      "y": -19.1,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_ward",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "Minor fortitude and ward node."
+    },
+    {
+      "id": "p_fortitude_0_entry",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -57,
+      "y": 33.4,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one fortitude."
+    },
+    {
+      "id": "p_fortitude_0_l",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -75.4,
+      "y": 52.1,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_0_r",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -81,
+      "y": 39.5,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_0_notable",
+      "name": "Grave Stance",
+      "kind": "notable",
+      "sector": "fortitude",
+      "x": -105.1,
+      "y": 61.6,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 10
+        }
+      ],
+      "description": "Notable. Grave Stance empowers fortitude."
+    },
+    {
+      "id": "p_fortitude_1_entry",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -63.2,
+      "y": 11.5,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one fortitude."
+    },
+    {
+      "id": "p_fortitude_1_l",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -85.7,
+      "y": 22.8,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_1_r",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -87.7,
+      "y": 8.8,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_1_notable",
+      "name": "Bulwark Blood",
+      "kind": "notable",
+      "sector": "fortitude",
+      "x": -116.5,
+      "y": 21.2,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 10
+        }
+      ],
+      "description": "Notable. Bulwark Blood empowers fortitude."
+    },
+    {
+      "id": "p_fortitude_2_entry",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -63.2,
+      "y": -11.5,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one fortitude."
+    },
+    {
+      "id": "p_fortitude_2_l",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -87.7,
+      "y": -8.8,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_2_r",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -85.7,
+      "y": -22.8,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_2_notable",
+      "name": "Unbroken Ribs",
+      "kind": "notable",
+      "sector": "fortitude",
+      "x": -116.5,
+      "y": -21.2,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 10
+        }
+      ],
+      "description": "Notable. Unbroken Ribs empowers fortitude."
+    },
+    {
+      "id": "p_fortitude_3_entry",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -57,
+      "y": -33.4,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        }
+      ],
+      "description": "Tier one fortitude."
+    },
+    {
+      "id": "p_fortitude_3_l",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -81,
+      "y": -39.5,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "dmg_void",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_3_r",
+      "name": "fortitude Minor",
+      "kind": "minor",
+      "sector": "fortitude",
+      "x": -75.4,
+      "y": -52.1,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 6
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 4
+        }
+      ],
+      "description": "A branching fortitude minor."
+    },
+    {
+      "id": "p_fortitude_3_notable",
+      "name": "Thorn Mantle",
+      "kind": "notable",
+      "sector": "fortitude",
+      "x": -105.1,
+      "y": -61.6,
+      "mods": [
+        {
+          "stat": "fortitude",
+          "layer": "flat",
+          "value": 14
+        },
+        {
+          "stat": "max_hp",
+          "layer": "increased",
+          "value": 10
+        }
+      ],
+      "description": "Notable. Thorn Mantle empowers fortitude."
+    },
+    {
+      "id": "ks_lattice_skin",
+      "name": "Lattice Skin",
+      "kind": "keystone",
+      "sector": "fortitude",
+      "x": -128.7,
+      "y": 124.2,
+      "mods": [],
+      "assetId": "ks_lattice_skin",
+      "excludes": [
+        "ks_ghostframe"
+      ],
+      "description": "Armor no longer mitigates. Gain max Ward equal to 60% of Armor. Ward delay fixed at 2.0s."
+    },
+    {
+      "id": "ks_zealots_mandate",
+      "name": "Zealot's Mandate",
+      "kind": "keystone",
+      "sector": "fortitude",
+      "x": -128.7,
+      "y": -124.2,
+      "mods": [],
+      "assetId": "ks_zealots_mandate",
+      "excludes": [
+        "ks_crowd_sovereign"
+      ],
+      "description": "Locked to your chosen Doctrine, doubling its perks and weights. The other four Doctrines are disabled."
+    },
+    {
+      "id": "socket_0",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": 106.1,
+      "y": -122,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    },
+    {
+      "id": "socket_1",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": 106.1,
+      "y": 122,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    },
+    {
+      "id": "socket_2",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": -106.1,
+      "y": 122,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    },
+    {
+      "id": "socket_3",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": -106.1,
+      "y": -122,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    },
+    {
+      "id": "socket_4",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": 150,
+      "y": 0,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    },
+    {
+      "id": "socket_5",
+      "name": "Jewel Socket",
+      "kind": "socket",
+      "sector": "core",
+      "x": -150,
+      "y": 0,
+      "mods": [],
+      "description": "A socket for a support gem. Socketing a gem here applies its modifiers loadout-wide."
+    }
+  ],
+  "edges": [
+    [
+      "hub_0",
+      "sec_might"
+    ],
+    [
+      "sec_might",
+      "sec_might_side_l"
+    ],
+    [
+      "sec_might",
+      "sec_might_side_r"
+    ],
+    [
+      "sec_might",
+      "p_might_0_entry"
+    ],
+    [
+      "p_might_0_entry",
+      "p_might_0_l"
+    ],
+    [
+      "p_might_0_entry",
+      "p_might_0_r"
+    ],
+    [
+      "p_might_0_l",
+      "p_might_0_notable"
+    ],
+    [
+      "p_might_0_r",
+      "p_might_0_notable"
+    ],
+    [
+      "sec_might",
+      "p_might_1_entry"
+    ],
+    [
+      "p_might_1_entry",
+      "p_might_1_l"
+    ],
+    [
+      "p_might_1_entry",
+      "p_might_1_r"
+    ],
+    [
+      "p_might_1_l",
+      "p_might_1_notable"
+    ],
+    [
+      "p_might_1_r",
+      "p_might_1_notable"
+    ],
+    [
+      "sec_might",
+      "p_might_2_entry"
+    ],
+    [
+      "p_might_2_entry",
+      "p_might_2_l"
+    ],
+    [
+      "p_might_2_entry",
+      "p_might_2_r"
+    ],
+    [
+      "p_might_2_l",
+      "p_might_2_notable"
+    ],
+    [
+      "p_might_2_r",
+      "p_might_2_notable"
+    ],
+    [
+      "sec_might",
+      "p_might_3_entry"
+    ],
+    [
+      "p_might_3_entry",
+      "p_might_3_l"
+    ],
+    [
+      "p_might_3_entry",
+      "p_might_3_r"
+    ],
+    [
+      "p_might_3_l",
+      "p_might_3_notable"
+    ],
+    [
+      "p_might_3_r",
+      "p_might_3_notable"
+    ],
+    [
+      "p_might_0_notable",
+      "ks_pendulum"
+    ],
+    [
+      "p_might_3_notable",
+      "ks_hollow_fist"
+    ],
+    [
+      "hub_0",
+      "sec_agility"
+    ],
+    [
+      "sec_agility",
+      "sec_agility_side_l"
+    ],
+    [
+      "sec_agility",
+      "sec_agility_side_r"
+    ],
+    [
+      "sec_agility",
+      "p_agility_0_entry"
+    ],
+    [
+      "p_agility_0_entry",
+      "p_agility_0_l"
+    ],
+    [
+      "p_agility_0_entry",
+      "p_agility_0_r"
+    ],
+    [
+      "p_agility_0_l",
+      "p_agility_0_notable"
+    ],
+    [
+      "p_agility_0_r",
+      "p_agility_0_notable"
+    ],
+    [
+      "sec_agility",
+      "p_agility_1_entry"
+    ],
+    [
+      "p_agility_1_entry",
+      "p_agility_1_l"
+    ],
+    [
+      "p_agility_1_entry",
+      "p_agility_1_r"
+    ],
+    [
+      "p_agility_1_l",
+      "p_agility_1_notable"
+    ],
+    [
+      "p_agility_1_r",
+      "p_agility_1_notable"
+    ],
+    [
+      "sec_agility",
+      "p_agility_2_entry"
+    ],
+    [
+      "p_agility_2_entry",
+      "p_agility_2_l"
+    ],
+    [
+      "p_agility_2_entry",
+      "p_agility_2_r"
+    ],
+    [
+      "p_agility_2_l",
+      "p_agility_2_notable"
+    ],
+    [
+      "p_agility_2_r",
+      "p_agility_2_notable"
+    ],
+    [
+      "sec_agility",
+      "p_agility_3_entry"
+    ],
+    [
+      "p_agility_3_entry",
+      "p_agility_3_l"
+    ],
+    [
+      "p_agility_3_entry",
+      "p_agility_3_r"
+    ],
+    [
+      "p_agility_3_l",
+      "p_agility_3_notable"
+    ],
+    [
+      "p_agility_3_r",
+      "p_agility_3_notable"
+    ],
+    [
+      "p_agility_0_notable",
+      "ks_ghostframe"
+    ],
+    [
+      "p_agility_3_notable",
+      "ks_crowd_sovereign"
+    ],
+    [
+      "hub_0",
+      "sec_wisdom"
+    ],
+    [
+      "sec_wisdom",
+      "sec_wisdom_side_l"
+    ],
+    [
+      "sec_wisdom",
+      "sec_wisdom_side_r"
+    ],
+    [
+      "sec_wisdom",
+      "p_wisdom_0_entry"
+    ],
+    [
+      "p_wisdom_0_entry",
+      "p_wisdom_0_l"
+    ],
+    [
+      "p_wisdom_0_entry",
+      "p_wisdom_0_r"
+    ],
+    [
+      "p_wisdom_0_l",
+      "p_wisdom_0_notable"
+    ],
+    [
+      "p_wisdom_0_r",
+      "p_wisdom_0_notable"
+    ],
+    [
+      "sec_wisdom",
+      "p_wisdom_1_entry"
+    ],
+    [
+      "p_wisdom_1_entry",
+      "p_wisdom_1_l"
+    ],
+    [
+      "p_wisdom_1_entry",
+      "p_wisdom_1_r"
+    ],
+    [
+      "p_wisdom_1_l",
+      "p_wisdom_1_notable"
+    ],
+    [
+      "p_wisdom_1_r",
+      "p_wisdom_1_notable"
+    ],
+    [
+      "sec_wisdom",
+      "p_wisdom_2_entry"
+    ],
+    [
+      "p_wisdom_2_entry",
+      "p_wisdom_2_l"
+    ],
+    [
+      "p_wisdom_2_entry",
+      "p_wisdom_2_r"
+    ],
+    [
+      "p_wisdom_2_l",
+      "p_wisdom_2_notable"
+    ],
+    [
+      "p_wisdom_2_r",
+      "p_wisdom_2_notable"
+    ],
+    [
+      "sec_wisdom",
+      "p_wisdom_3_entry"
+    ],
+    [
+      "p_wisdom_3_entry",
+      "p_wisdom_3_l"
+    ],
+    [
+      "p_wisdom_3_entry",
+      "p_wisdom_3_r"
+    ],
+    [
+      "p_wisdom_3_l",
+      "p_wisdom_3_notable"
+    ],
+    [
+      "p_wisdom_3_r",
+      "p_wisdom_3_notable"
+    ],
+    [
+      "p_wisdom_0_notable",
+      "ks_festering_wound"
+    ],
+    [
+      "p_wisdom_3_notable",
+      "ks_void_tithe"
+    ],
+    [
+      "hub_0",
+      "sec_fortitude"
+    ],
+    [
+      "sec_fortitude",
+      "sec_fortitude_side_l"
+    ],
+    [
+      "sec_fortitude",
+      "sec_fortitude_side_r"
+    ],
+    [
+      "sec_fortitude",
+      "p_fortitude_0_entry"
+    ],
+    [
+      "p_fortitude_0_entry",
+      "p_fortitude_0_l"
+    ],
+    [
+      "p_fortitude_0_entry",
+      "p_fortitude_0_r"
+    ],
+    [
+      "p_fortitude_0_l",
+      "p_fortitude_0_notable"
+    ],
+    [
+      "p_fortitude_0_r",
+      "p_fortitude_0_notable"
+    ],
+    [
+      "sec_fortitude",
+      "p_fortitude_1_entry"
+    ],
+    [
+      "p_fortitude_1_entry",
+      "p_fortitude_1_l"
+    ],
+    [
+      "p_fortitude_1_entry",
+      "p_fortitude_1_r"
+    ],
+    [
+      "p_fortitude_1_l",
+      "p_fortitude_1_notable"
+    ],
+    [
+      "p_fortitude_1_r",
+      "p_fortitude_1_notable"
+    ],
+    [
+      "sec_fortitude",
+      "p_fortitude_2_entry"
+    ],
+    [
+      "p_fortitude_2_entry",
+      "p_fortitude_2_l"
+    ],
+    [
+      "p_fortitude_2_entry",
+      "p_fortitude_2_r"
+    ],
+    [
+      "p_fortitude_2_l",
+      "p_fortitude_2_notable"
+    ],
+    [
+      "p_fortitude_2_r",
+      "p_fortitude_2_notable"
+    ],
+    [
+      "sec_fortitude",
+      "p_fortitude_3_entry"
+    ],
+    [
+      "p_fortitude_3_entry",
+      "p_fortitude_3_l"
+    ],
+    [
+      "p_fortitude_3_entry",
+      "p_fortitude_3_r"
+    ],
+    [
+      "p_fortitude_3_l",
+      "p_fortitude_3_notable"
+    ],
+    [
+      "p_fortitude_3_r",
+      "p_fortitude_3_notable"
+    ],
+    [
+      "p_fortitude_0_notable",
+      "ks_lattice_skin"
+    ],
+    [
+      "p_fortitude_3_notable",
+      "ks_zealots_mandate"
+    ],
+    [
+      "p_might_3_notable",
+      "socket_0"
+    ],
+    [
+      "p_agility_3_notable",
+      "socket_1"
+    ],
+    [
+      "p_wisdom_3_notable",
+      "socket_2"
+    ],
+    [
+      "p_might_0_notable",
+      "socket_3"
+    ],
+    [
+      "p_agility_1_notable",
+      "socket_4"
+    ],
+    [
+      "p_fortitude_1_notable",
+      "socket_5"
+    ]
+  ]
+}

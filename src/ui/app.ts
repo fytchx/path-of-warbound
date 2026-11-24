@@ -1,0 +1,298 @@
+import type { DoctrineId, ItemSlot } from '../data/types';
+import type { GemInstance } from '../game/types';
+import { xpNeeded } from '../game/state';
+import { escapeHtml, titleCase } from './dom';
+import { renderModal } from './modals';
+import { altarScreen } from './screens/altar';
+import { bagScreen } from './screens/bag';
+import { combatScreen } from './screens/combat';
+import { forgeScreen } from './screens/forge';
+import { treeScreen } from './screens/tree';
+import type { BagFilter, GameStore, ScreenId } from './store';
+
+const TICK_MS = 200;
+
+const SCREENS: Record<ScreenId, (store: GameStore) => string> = {
+  combat: combatScreen,
+  altar: altarScreen,
+  tree: treeScreen,
+  bag: bagScreen,
+  forge: forgeScreen,
+};
+
+const TABS: { id: ScreenId; label: string; icon: string }[] = [
+  {
+    id: 'combat',
+    label: 'Combat',
+    icon: '<path d="M4 4l7 7M20 4l-7 7M4 20l7-7M20 20l-7-7M8 16l-4 4M16 8l4-4"/>',
+  },
+  {
+    id: 'altar',
+    label: 'Altar',
+    icon: '<path d="M12 3c3 2 5 4 5 8a5 5 0 0 1-10 0c0-4 2-6 5-8z"/><path d="M4 21h16M6 17h12"/>',
+  },
+  {
+    id: 'tree',
+    label: 'Tree',
+    icon: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v5M12 12.5L5 16.5M12 12.5l7 4"/>',
+  },
+  {
+    id: 'bag',
+    label: 'Bag',
+    icon: '<path d="M5 8h14l-1 12H6z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
+  },
+  {
+    id: 'forge',
+    label: 'Forge',
+    icon: '<path d="M3 21l7-7M14 4l6 6-3 3-6-6z"/><path d="M9 5l10 10"/>',
+  },
+];
+
+const TAB_ICONS = Object.fromEntries(TABS.map((tab) => [tab.id, tab.icon])) as Record<ScreenId, string>;
+
+function tabbar(store: GameStore): string {
+  return TABS.map(
+    (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[tab.id]}</svg>
+      <span>${tab.label}</span>
+    </button>`,
+  ).join('');
+}
+
+function topbar(store: GameStore): string {
+  const save = store.save;
+  const need = xpNeeded(save.level);
+  const xpPercent = Math.min(100, Math.round((save.xp / Math.max(1, need)) * 100));
+  return `<div class="medal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l10 10M20 4L10 14M3 21l4-4M21 21l-4-4M6 15l3 3M18 15l-3 3"/></svg>
+    </div>
+    <div>
+      <div class="title">PATH OF WARBOUND</div>
+      <div class="sub">${titleCase(save.doctrine)} Doctrine</div>
+      <div class="xp">Lv. ${save.level}<i><b style="width:${xpPercent}%"></b></i>${xpPercent}%</div>
+    </div>
+    <button class="gear" data-action="modal-stats" aria-label="Character stats" title="Character stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+    </button>`;
+}
+
+interface PanState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  viewX: number;
+  viewY: number;
+  svg: SVGSVGElement;
+  group: SVGGElement;
+  moved: boolean;
+}
+
+export function mountApp(root: HTMLElement, store: GameStore): void {
+  let pan: PanState | null = null;
+  let renderedScreen: ScreenId | null = null;
+  let renderedModal: unknown = undefined;
+  let renderedToast: number | null = null;
+
+  const paint = (dynamic: boolean): void => {
+    const topbarEl = root.querySelector<HTMLElement>('#topbar');
+    if (topbarEl) topbarEl.innerHTML = topbar(store);
+
+    const screenHost = root.querySelector<HTMLElement>('#screen-host');
+    const shouldPaintScreen = !dynamic || renderedScreen !== store.ui.screen || store.ui.screen === 'combat';
+    if (screenHost && shouldPaintScreen) {
+      const scrollTop = screenHost.scrollTop;
+      screenHost.innerHTML = SCREENS[store.ui.screen](store);
+      screenHost.scrollTop = scrollTop;
+      renderedScreen = store.ui.screen;
+    }
+
+    const tabbarEl = root.querySelector<HTMLElement>('#tabbar');
+    if (tabbarEl && !dynamic) tabbarEl.innerHTML = tabbar(store);
+
+    const modalRoot = root.querySelector<HTMLElement>('#modal-root');
+    if (modalRoot && (!dynamic || renderedModal !== store.ui.modal)) {
+      modalRoot.innerHTML = store.ui.modal ? renderModal(store, store.ui.modal) : '';
+      modalRoot.style.display = store.ui.modal ? 'grid' : 'none';
+      renderedModal = store.ui.modal;
+    }
+
+    const toastRoot = root.querySelector<HTMLElement>('#toast-root');
+    const toast = store.ui.toast;
+    if (toastRoot && (toast?.id ?? null) !== renderedToast) {
+      renderedToast = toast?.id ?? null;
+      toastRoot.innerHTML = toast ? `<div class="toast" role="status">${escapeHtml(toast.text)}</div>` : '';
+    }
+  };
+
+  root.innerHTML = `
+    <header class="top" id="topbar">${topbar(store)}</header>
+    <main id="screen-host">${SCREENS[store.ui.screen](store)}</main>
+    <nav class="tabbar" id="tabbar" aria-label="Screens">${tabbar(store)}</nav>
+    <div class="modal-root" id="modal-root" aria-live="polite" style="display:none"></div>
+    <div class="toast-root" id="toast-root"></div>`;
+  renderedScreen = store.ui.screen;
+  renderedModal = store.ui.modal;
+
+  const act = (el: HTMLElement): void => {
+    const nav = el.dataset.nav as ScreenId | undefined;
+    if (nav) {
+      store.navigate(nav);
+      return;
+    }
+    const data = el.dataset;
+    switch (el.dataset.action) {
+      case 'pause':
+        store.togglePause();
+        break;
+      case 'tier-prev':
+        store.setTier(-1);
+        break;
+      case 'tier-next':
+        store.setTier(1);
+        break;
+      case 'pack-prev':
+        store.setPackSize(-1);
+        break;
+      case 'pack-next':
+        store.setPackSize(1);
+        break;
+      case 'next-tier':
+        store.nextTier();
+        break;
+      case 'bar':
+        store.setBar(data.bar === 'bar_2' ? 'bar_2' : 'bar_1');
+        break;
+      case 'cast':
+        if (data.skill) store.cast(data.skill);
+        break;
+      case 'zone':
+        if (data.zone) store.setZone(data.zone);
+        break;
+      case 'modal-stats':
+        store.openModal({ kind: 'stats' });
+        break;
+      case 'close-modal':
+        store.closeModal();
+        break;
+      case 'open-item':
+        if (data.uid) store.openModal({ kind: 'item', uid: data.uid });
+        break;
+      case 'open-slot':
+        store.toast(`${store.itemSlotLabel(data.slot as ItemSlot)} is empty.`);
+        break;
+      case 'equip':
+        if (data.uid && data.slot) store.equip(data.uid, data.slot as ItemSlot);
+        break;
+      case 'unequip':
+        if (data.slot) store.unequip(data.slot as ItemSlot);
+        break;
+      case 'salvage':
+        if (data.uid) store.salvage(data.uid);
+        break;
+      case 'socket':
+        if (data.uid) store.beginSocket(data.uid, Number(data.index ?? 0));
+        break;
+      case 'pick-gem':
+        store.socketFromStash(Number(data.index ?? 0));
+        break;
+      case 'node':
+        if (data.node) store.previewNode(data.node);
+        break;
+      case 'refund':
+        if (data.node) store.refundNode(data.node);
+        break;
+      case 'allocate':
+        store.confirmAllocation();
+        break;
+      case 'doctrine':
+        if (data.doctrine) store.setDoctrine(data.doctrine as DoctrineId);
+        break;
+      case 'bag-filter':
+        if (data.filter) store.setBagFilter(data.filter as BagFilter);
+        break;
+      case 'forge-select':
+        if (data.uid) store.selectForge(data.uid);
+        break;
+      case 'craft':
+        if (data.craft) store.craft(data.craft as 'upgrade' | 'reforge' | 'socket' | 'corrupt' | 'promote');
+        break;
+      case 'gem-bar': {
+        const gem = store.save.gemStash[Number(data.index ?? 0)] as GemInstance | undefined;
+        if (gem) store.cycleGemBar(gem);
+        break;
+      }
+      case 'tree-refund':
+        store.toggleRefundMode();
+        break;
+      case 'tree-zoom-in':
+        store.zoomTree(1.15);
+        break;
+      case 'tree-zoom-out':
+        store.zoomTree(1 / 1.15);
+        break;
+      case 'tree-reset':
+        store.resetTree();
+        break;
+      case 'claim-offline':
+        store.claimOffline();
+        break;
+      default:
+        break;
+    }
+  };
+
+  root.addEventListener('click', (event) => {
+    const el = (event.target as Element | null)?.closest<HTMLElement>('[data-action], [data-nav]');
+    if (!el || el.hasAttribute('disabled')) return;
+    act(el);
+  });
+
+  root.addEventListener('pointerdown', (event) => {
+    const target = event.target as Element | null;
+    if (!target || target.closest('[data-action="node"]')) return;
+    const svg = target.closest<SVGSVGElement>('.tree-svg');
+    const group = svg?.querySelector<SVGGElement>('g');
+    if (!svg || !group) return;
+    pan = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      viewX: store.ui.treeView.x,
+      viewY: store.ui.treeView.y,
+      svg,
+      group,
+      moved: false,
+    };
+    svg.setPointerCapture(event.pointerId);
+  });
+
+  root.addEventListener('pointermove', (event) => {
+    if (!pan || event.pointerId !== pan.pointerId) return;
+    const rect = pan.svg.getBoundingClientRect();
+    const scale = rect.width > 0 ? 390 / rect.width : 1;
+    const dx = (event.clientX - pan.startX) * scale;
+    const dy = (event.clientY - pan.startY) * scale;
+    if (Math.abs(dx) + Math.abs(dy) > 2) pan.moved = true;
+    const view = store.ui.treeView;
+    pan.group.setAttribute('transform', `translate(${195 + view.x + dx} ${215 + view.y + dy}) scale(${view.scale})`);
+  });
+
+  const endPan = (event: PointerEvent): void => {
+    if (!pan || event.pointerId !== pan.pointerId) return;
+    const rect = pan.svg.getBoundingClientRect();
+    const scale = rect.width > 0 ? 390 / rect.width : 1;
+    const dx = (event.clientX - pan.startX) * scale;
+    const dy = (event.clientY - pan.startY) * scale;
+    const moved = pan.moved;
+    pan.svg.releasePointerCapture?.(pan.pointerId);
+    pan = null;
+    if (moved) store.setTreeView({ x: store.ui.treeView.x + dx, y: store.ui.treeView.y + dy, scale: store.ui.treeView.scale });
+  };
+  root.addEventListener('pointerup', endPan);
+  root.addEventListener('pointercancel', endPan);
+
+  store.subscribe(paint);
+  paint(false);
+
+  window.setInterval(() => store.tick(), TICK_MS);
+}

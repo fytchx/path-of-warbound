@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tactician",
+    "name": "Tactician",
+    "assetId": "doctrine_tactician",
+    "guardThreshold": 45,
+    "description": "Balanced execution. Guards at 45% health; no wasted casts, no reckless spend.",
+    "perks": ["Neutral utility weighting", "Guard at 45% health", "Mana reserved for the guard"]
+  },
+  {
+    "id": "blitz",
+    "name": "Blitz",
+    "assetId": "doctrine_blitz",
+    "guardThreshold": 20,
+    "description": "Front-loads every buff, guards only below 20% health, and skips telegraph penalties.",
+    "perks": ["+15% speed for 3s on kill", "Ignores telegraph penalty", "Guard at 20% health"]
+  },
+  {
+    "id": "bastion",
+    "name": "Bastion",
+    "assetId": "doctrine_bastion",
+    "guardThreshold": 75,
+    "description": "Guards proactively at 75% health or on windups. +25% defensive cooldown recovery, 5% resource on block.",
+    "perks": ["Guard at 75% health", "+25% defensive CDR", "5% resource on block"]
+  },
+  {
+    "id": "weaver",
+    "name": "Weaver",
+    "assetId": "doctrine_weaver",
+    "guardThreshold": 45,
+    "description": "Holds DoT payoffs until debuffs are active and never overwrites a long ailment.",
+    "perks": ["+20% ailment damage at 3+ debuffs", "Never overwrites >15% duration", "Guard at 45% health"]
+  },
+  {
+    "id": "entropy",
+    "name": "Entropy",
+    "assetId": "doctrine_entropy",
+    "guardThreshold": 35,
+    "description": "Utility economy is disabled and score variance swings ±35%. Triggers may ignore ICD.",
+    "perks": ["M_econ fixed at 1.0", "±35% score variance", "20% chance triggers double-fire"]
+  }
+]

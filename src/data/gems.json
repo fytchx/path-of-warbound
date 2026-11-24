@@ -1,0 +1,229 @@
+[
+  {
+    "id": "gem_cleave",
+    "name": "Cleave",
+    "kind": "active",
+    "assetId": "skill_crossed_slash",
+    "school": "physical",
+    "tags": ["attack", "melee", "area"],
+    "description": "A wide two-handed sweep that strikes every enemy in the pack.",
+    "manaCost": 6,
+    "cooldown": 0,
+    "castTime": 0.6,
+    "damage": { "min": 12, "max": 20, "effectiveness": 1.15 },
+    "ailment": { "id": "bleed", "chance": 0.35, "dps": 6, "duration": 4 },
+    "mods": []
+  },
+  {
+    "id": "gem_ember_bolt",
+    "name": "Ember Bolt",
+    "kind": "active",
+    "assetId": "skill_vital_flame",
+    "school": "fire",
+    "tags": ["spell", "projectile", "fire"],
+    "description": "Hurls a mote of the first flame. High ignite chance, poor against wards.",
+    "manaCost": 9,
+    "cooldown": 0.4,
+    "castTime": 0.7,
+    "damage": { "min": 16, "max": 24, "effectiveness": 1.25 },
+    "ailment": { "id": "ignite", "chance": 0.6, "dps": 9, "duration": 3 },
+    "mods": []
+  },
+  {
+    "id": "gem_frost_shard",
+    "name": "Frost Shard",
+    "kind": "active",
+    "assetId": "skill_ice_burst",
+    "school": "frost",
+    "tags": ["spell", "area", "frost"],
+    "description": "Shatters a shard of grave-ice, chilling the pack. Frozen enemies take double crit.",
+    "manaCost": 10,
+    "cooldown": 1.2,
+    "castTime": 0.8,
+    "damage": { "min": 14, "max": 22, "effectiveness": 1.1 },
+    "ailment": { "id": "chill", "chance": 0.5, "dps": 3, "duration": 3 },
+    "mods": []
+  },
+  {
+    "id": "gem_storm_bolt",
+    "name": "Storm Bolt",
+    "kind": "active",
+    "assetId": "skill_storm_bolt",
+    "school": "lightning",
+    "tags": ["spell", "projectile", "lightning"],
+    "description": "A cracking arc that shocks the target, widening every other wound.",
+    "manaCost": 11,
+    "cooldown": 0.8,
+    "castTime": 0.55,
+    "damage": { "min": 10, "max": 30, "effectiveness": 1.2 },
+    "ailment": { "id": "shock", "chance": 0.45, "dps": 2, "duration": 4 },
+    "mods": []
+  },
+  {
+    "id": "gem_void_lance",
+    "name": "Void Lance",
+    "kind": "active",
+    "assetId": "skill_void_rift",
+    "school": "void",
+    "tags": ["spell", "projectile", "void"],
+    "description": "Pierces the veil. Corruption bypasses armor and starves enemy healing.",
+    "manaCost": 13,
+    "cooldown": 1.4,
+    "castTime": 0.9,
+    "damage": { "min": 18, "max": 28, "effectiveness": 1.3 },
+    "ailment": { "id": "corruption", "chance": 0.55, "dps": 8, "duration": 5 },
+    "mods": []
+  },
+  {
+    "id": "gem_ward_barrier",
+    "name": "Ward Barrier",
+    "kind": "active",
+    "assetId": "skill_ward_barrier",
+    "school": "frost",
+    "tags": ["guard", "spell"],
+    "description": "Raises a lattice of ward. Instantly restores 18% of maximum ward.",
+    "manaCost": 14,
+    "cooldown": 6,
+    "castTime": 0.5,
+    "damage": { "min": 0, "max": 0, "effectiveness": 0 },
+    "mods": [{ "stat": "max_ward", "layer": "increased", "value": 8 }]
+  },
+  {
+    "id": "gem_plague_skull",
+    "name": "Plague Skull",
+    "kind": "active",
+    "assetId": "skill_plague_skull",
+    "school": "void",
+    "tags": ["curse", "spell", "area"],
+    "description": "Hexes the pack, amplifying ailment damage by 20% for six seconds.",
+    "manaCost": 12,
+    "cooldown": 8,
+    "castTime": 0.6,
+    "damage": { "min": 4, "max": 8, "effectiveness": 0.5 },
+    "ailment": { "id": "corruption", "chance": 0.3, "dps": 4, "duration": 6 },
+    "mods": []
+  },
+  {
+    "id": "gem_bloodlust_aura",
+    "name": "Bloodlust Aura",
+    "kind": "active",
+    "assetId": "skill_bloodlust_aura",
+    "school": "physical",
+    "tags": ["aura", "reservation"],
+    "description": "Reserves 20% of mana. Grants 12% attack speed and 8% physical damage.",
+    "manaCost": 0,
+    "cooldown": 0,
+    "castTime": 0,
+    "damage": { "min": 0, "max": 0, "effectiveness": 0 },
+    "mods": [
+      { "stat": "attack_speed", "layer": "increased", "value": 12 },
+      { "stat": "dmg_physical", "layer": "increased", "value": 8 }
+    ]
+  },
+  {
+    "id": "support_multistrike",
+    "name": "Multistrike",
+    "kind": "support",
+    "assetId": "skill_x_thunder_hammer",
+    "tags": ["support", "attack"],
+    "description": "Supported attacks echo for 70% damage and can trigger on-hit effects.",
+    "mods": [{ "stat": "double_hit", "layer": "flat", "value": 12 }],
+    "support": { "allowedTags": ["attack"], "note": "+12% double-hit chance to linked attacks." }
+  },
+  {
+    "id": "support_school_shift",
+    "name": "School Shift",
+    "kind": "support",
+    "assetId": "skill_x_sunburst",
+    "tags": ["support", "spell"],
+    "description": "Converts 25% of physical damage to fire. Forward-only, one axis at a time.",
+    "mods": [{ "stat": "convert_physical_fire", "layer": "flat", "value": 25 }],
+    "support": { "allowedTags": ["attack", "spell", "projectile"], "note": "25% physical converted to fire." }
+  },
+  {
+    "id": "support_cast_on_crit",
+    "name": "Cast on Crit",
+    "kind": "support",
+    "assetId": "skill_x_all_seeing_eye",
+    "tags": ["support", "trigger"],
+    "description": "Triggers the linked spell when the auto-attack crits. One trigger source per gem.",
+    "mods": [{ "stat": "trigger_on_crit", "layer": "flat", "value": 1 }],
+    "support": { "note": "Highest-priority event trigger." }
+  },
+  {
+    "id": "support_cast_when_damage_taken",
+    "name": "Cast when Damage Taken",
+    "kind": "support",
+    "assetId": "skill_x_winged_shield",
+    "tags": ["support", "trigger"],
+    "description": "Triggers the linked guard when a hit exceeds 8% of maximum health.",
+    "mods": [{ "stat": "trigger_on_damage", "layer": "flat", "value": 1 }],
+    "support": { "note": "Defensive trigger; shares the one-trigger-source rule." }
+  },
+  {
+    "id": "support_life_leech",
+    "name": "Life Leech",
+    "kind": "support",
+    "assetId": "skill_x_blood_drop",
+    "tags": ["support"],
+    "description": "Recovers 2% of damage dealt as health, capped at 6% maximum health per second.",
+    "mods": [{ "stat": "life_leech", "layer": "flat", "value": 2 }],
+    "support": { "note": "Leech is capped to prevent sustain loops." }
+  },
+  {
+    "id": "support_ailment_proliferation",
+    "name": "Ailment Proliferation",
+    "kind": "support",
+    "assetId": "skill_x_poison_flask",
+    "tags": ["support", "ailment"],
+    "description": "Ailments spread to one nearby enemy at 50% remaining duration.",
+    "mods": [{ "stat": "ailment_potency", "layer": "increased", "value": 10 }],
+    "support": { "note": "Proliferation respects pack size." }
+  },
+  {
+    "id": "support_concussive",
+    "name": "Concussive Force",
+    "kind": "support",
+    "assetId": "skill_x_rockfall",
+    "tags": ["support", "area"],
+    "description": "15% more area damage, 3% less cast speed.",
+    "mods": [
+      { "stat": "area_damage", "layer": "more", "value": 15 },
+      { "stat": "cast_speed", "layer": "increased", "value": -3 }
+    ],
+    "support": { "allowedTags": ["area"], "note": "For pack-clearing skills." }
+  },
+  {
+    "id": "support_echo",
+    "name": "Echo",
+    "kind": "support",
+    "assetId": "skill_x_time_hourglass",
+    "tags": ["support", "spell"],
+    "description": "Spells cast 25% faster but cost 10% more mana.",
+    "mods": [
+      { "stat": "cast_speed", "layer": "increased", "value": 25 },
+      { "stat": "mana_cost", "layer": "increased", "value": 10 }
+    ],
+    "support": { "allowedTags": ["spell"], "note": "Cast-speed support." }
+  },
+  {
+    "id": "support_pierce",
+    "name": "Pierce",
+    "kind": "support",
+    "assetId": "skill_x_nature_arrow",
+    "tags": ["support", "projectile"],
+    "description": "Projectiles strike a second target for 60% damage.",
+    "mods": [{ "stat": "projectile_count", "layer": "flat", "value": 1 }],
+    "support": { "allowedTags": ["projectile"], "note": "Extra projectile." }
+  },
+  {
+    "id": "support_executioner",
+    "name": "Executioner",
+    "kind": "support",
+    "assetId": "skill_x_shadow_dagger",
+    "tags": ["support", "attack"],
+    "description": "20% more damage against enemies below 35% health.",
+    "mods": [{ "stat": "execute_damage", "layer": "more", "value": 20 }],
+    "support": { "allowedTags": ["attack", "melee"], "note": "Finisher support." }
+  }
+]

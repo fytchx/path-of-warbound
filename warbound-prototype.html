@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Path of Warbound UI prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+ --bg:#07090E;--panel:#0B0E16;--panel2:#131826;
+ --gold:#D4AF37;--gold-hi:#F0D078;--gold-dim:#E5C170;
+ --hp:#D9383A;--mana:#2E7BE6;--ward:#38D6E8;--xp:#38B864;--fire:#E87A24;--void:#9B51E0;
+ --text:#d9d2bf;--mute:#7d8190;
+ --serif:'Cinzel',Georgia,serif;--sans:'Alegreya Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);display:grid;place-items:center;min-height:100vh;font-family:var(--sans);color:var(--text)}
+.phone{width:390px;height:844px;max-width:100vw;max-height:100vh;display:flex;flex-direction:column;background:linear-gradient(#0B0E16,#07090E);border:1px solid var(--gold);position:relative;overflow:hidden}
+svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.frame{border:1px solid var(--gold);background:var(--panel);position:relative;box-shadow:inset 0 0 0 2px #0B0E16,inset 0 0 0 3px rgba(212,175,55,.35)}
+.gbtn{font:700 12px var(--serif);color:var(--gold-hi);background:linear-gradient(#2a2312,#14110a);border:1px solid var(--gold);padding:9px 10px;cursor:pointer;letter-spacing:.06em;text-align:center}
+.gbtn:active{background:#3a3016}
+/* top chrome */
+.top{display:grid;grid-template-columns:52px 1fr 40px;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--gold)}
+.medal{width:50px;height:50px;border-radius:50%;border:2px solid var(--gold);background:radial-gradient(circle,#bff 0 10%,#2c8fb0 30%,#0b1a2a 70%);display:grid;place-items:center;color:var(--gold-hi);font-size:26px;box-shadow:0 0 12px rgba(56,214,232,.5)}
+.title{text-align:center;font:700 17px var(--serif);color:var(--gold-hi);letter-spacing:.08em}
+.sub{text-align:center;font-size:12px;color:var(--xp);margin-top:-1px}
+.xp{display:flex;align-items:center;gap:6px;font-size:10px;margin-top:3px}
+.xp i{flex:1;height:7px;border:1px solid var(--gold);background:#0a0a0a}.xp i b{display:block;width:64%;height:100%;background:linear-gradient(90deg,#8a6b12,var(--gold-hi))}
+.gear{width:38px;height:38px;border:1px solid var(--gold);background:var(--panel2);color:var(--gold);display:grid;place-items:center;font-size:22px}
+/* screens */
+main{flex:1;overflow-y:auto;position:relative;scrollbar-width:none}
+.screen{display:none;padding:8px;gap:8px;flex-direction:column}
+.screen.on{display:flex}
+/* nav */
+nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--gold);background:var(--panel)}
+nav button{background:none;border:0;border-right:1px solid rgba(212,175,55,.25);color:var(--gold-dim);font:600 10px var(--serif);letter-spacing:.08em;padding:8px 0 6px;display:grid;gap:3px;justify-items:center;cursor:pointer}
+nav button .i{font-size:22px}
+nav button.on{background:rgba(212,175,55,.14);box-shadow:inset 0 0 0 1px var(--gold),0 0 12px rgba(212,175,55,.35);color:var(--gold-hi)}
+/* combat */
+.arena{height:290px;background:radial-gradient(ellipse at 50% 20%,#2b3a55 0,#10141f 55%,#07090E);overflow:hidden}
+.banner{position:absolute;top:6px;left:50%;transform:translateX(-50%);padding:3px 14px;font:700 11px var(--serif);color:var(--gold-hi);border:1px solid var(--gold);background:#0B0E16ee;white-space:nowrap;z-index:2}
+.badges{position:absolute;top:30px;left:0;right:0;display:flex;justify-content:center;gap:6px;font-size:10px;z-index:2}
+.badges span{border:1px solid var(--gold);padding:0 6px;background:#0B0E16cc}
+.vial{position:absolute;top:34px;bottom:56px;width:22px;border:1px solid var(--gold);background:#05060a;border-radius:11px;overflow:hidden}
+.vial.l{left:8px}.vial.r{right:8px}
+.vial b{position:absolute;bottom:0;left:0;right:0}
+.vial.l b{height:84%;background:linear-gradient(90deg,#7c1517,var(--hp),#7c1517);border-top:6px solid var(--ward)}
+.vial.r b{height:72%;background:linear-gradient(90deg,#123a7a,var(--mana),#123a7a)}
+.vnum{position:absolute;top:18px;font-size:11px;font-weight:700}
+.vnum.l{left:6px}.vnum.r{right:6px}
+.mobs{position:absolute;left:40px;right:40px;top:110px;display:flex;justify-content:space-between}
+.mob{width:48px;text-align:center;position:relative}
+.oval{width:48px;height:64px;border-radius:50%;border:2px solid var(--gold);background:radial-gradient(circle at 50% 35%,var(--c),#0a0c12 75%);display:grid;place-items:center;font:700 18px var(--serif);color:#fff8}
+.mob .a,.mob .h{position:absolute;bottom:14px;width:17px;height:17px;transform:rotate(45deg);display:grid;place-items:center;border:1px solid var(--gold)}
+.mob .a{left:-5px;background:#2a2312}.mob .h{right:-5px;background:#5a1214}
+.mob .a s,.mob .h s{transform:rotate(-45deg);text-decoration:none;font-size:8px;font-weight:700}
+.dot{font-size:9px;margin-top:4px}.dot em{font-style:normal}
+.dmg{position:absolute;font:700 18px var(--serif);color:var(--gold-hi);text-shadow:0 0 8px #e87a24}
+.skills{position:absolute;left:0;right:0;bottom:6px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.pill{font:700 10px var(--serif);border:1px solid var(--gold);padding:1px 14px;border-radius:9px;background:#14110a;color:var(--gold-hi)}
+.slots{display:flex;gap:6px}
+.slot{width:36px;height:36px;border:1px solid #5b5130;background:var(--panel2);display:grid;place-items:center;color:var(--gold-dim);font-size:19px;position:relative}
+.slot.hot{border-color:var(--gold-hi);box-shadow:0 0 10px var(--gold);color:#fff}
+.swing{width:200px;height:7px;border:1px solid var(--gold);background:#050505}.swing b{display:block;width:55%;height:100%;background:var(--gold)}
+.pan{padding:7px 9px;font-size:11px}
+.pan h4{font:700 11px var(--serif);color:var(--gold-hi);margin-bottom:5px;display:flex;justify-content:space-between}
+.pan h4 span{font-family:var(--sans)}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{color:var(--mute);font-weight:500;text-align:right;border-bottom:1px solid #2a2a2a}th:first-child,td:first-child{text-align:left}
+td{text-align:right;padding:2px 0;font-variant-numeric:tabular-nums}
+.d{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bar{height:6px;background:#050505;border:1px solid #3a341e;margin:2px 0 6px}.bar b{display:block;height:100%}
+.row{display:flex;justify-content:space-between;line-height:1.5}
+.pills{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pills div{border:1px solid var(--gold);background:var(--panel);text-align:center;padding:3px 0;font-size:9px;color:var(--mute)}
+.pills b{display:block;font:700 13px var(--serif);color:var(--text)}
+.log{font-size:10px;line-height:1.5;color:var(--mute)}
+/* altar */
+.attrs{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;font-size:10px;color:var(--mute)}
+.attrs b{display:block;font:700 18px var(--serif);color:var(--text)}
+.sub-h{display:flex;justify-content:space-between;align-items:center}
+.sub-h h2{font:700 15px var(--serif);color:var(--gold-hi)}
+.grid{display:grid;grid-template-columns:1.05fr 1fr 1fr 1fr;grid-template-rows:repeat(3,92px);gap:7px;padding:8px;background:var(--panel)}
+.eq{border:1px solid #6d5f2e;background:linear-gradient(#171c2c,#0d1019);display:grid;place-items:center;color:var(--gold-dim);font-size:30px;position:relative;cursor:pointer}
+.eq small{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:8px;color:var(--mute)}
+.eq .pips{position:absolute;top:3px;right:3px;display:flex;gap:2px}
+.pips i{width:6px;height:6px;border-radius:50%;border:1px solid var(--gold);background:#0b0e16}
+.eq.m{border-color:var(--void);box-shadow:0 0 12px rgba(155,81,224,.45) inset;color:#7ff}
+.eq.w{grid-row:span 2}
+.eq.r{border-color:#b8962e}
+.eq .sk{position:absolute;right:3px;top:18px;bottom:18px;width:8px;display:flex;flex-direction:column;justify-content:space-between}
+.sk i{width:8px;height:8px;border-radius:50%;border:1px solid var(--gold);background:#0b0e16}
+/* modal */
+.scrim{position:absolute;inset:0;background:rgba(11,14,22,.75);backdrop-filter:blur(3px);display:none;place-items:center;z-index:10;padding:16px}
+.scrim.on{display:grid}
+.modal{width:100%;padding:12px;background:#0d111b;font-size:12px}
+.modal h3{font:700 14px var(--serif);color:var(--gold-hi);text-align:center;margin-bottom:8px}
+.x{position:absolute;top:4px;right:8px;color:var(--gold);cursor:pointer;font-size:18px}
+.sec{font:700 10px var(--serif);color:var(--gold);border-bottom:1px solid #3a341e;margin:8px 0 3px}
+.cols{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}
+.foot{text-align:center;font-style:italic;font-size:10px;color:var(--mute);margin-top:8px}
+.affix{border:1px solid #2c3246;background:#0a0d15;padding:5px 8px;margin:4px 0;display:flex;justify-content:space-between;align-items:center}
+.affix i{color:var(--gold);font-style:normal;font-size:10px}
+.links{display:flex;align-items:center;justify-content:center;margin:8px 0}
+.links b{width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);background:#161a28;display:grid;place-items:center;font-size:8px;text-align:center;line-height:1}
+.links u{width:10px;height:3px;background:var(--gold)}
+/* tree */
+.tree{height:520px;background:radial-gradient(circle,#161c2e,#07090E 70%);overflow:hidden}
+.tree svg{width:100%;height:100%}
+/* bag */
+.cur{display:flex;justify-content:space-between;font-size:10px;padding:5px 8px}
+.filt{display:flex;gap:5px;align-items:center}
+.filt .gbtn{padding:4px 8px;font-size:10px}
+.filt .on{background:var(--gold);color:#000}
+.bag{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.cell{aspect-ratio:1;background:var(--panel2);border:1px solid var(--c,#555);display:grid;place-items:center;color:var(--c);font-size:24px;position:relative}
+.cell::after{content:'';position:absolute;top:2px;left:2px;width:6px;height:6px;border-top:1px solid var(--gold);border-left:1px solid var(--gold)}
+.cell.up::before{content:'▲';position:absolute;right:3px;bottom:1px;font-size:8px;color:var(--xp)}
+/* forge */
+.anvil{height:240px;display:grid;grid-template-columns:1fr 1.2fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:8px;background:radial-gradient(ellipse at 50% 60%,#2a1a44,#0B0E16 70%)}
+.anvil .mid{grid-column:2;grid-row:1/3;display:grid;place-items:center;text-align:center;font:700 11px var(--serif);color:var(--gold-hi)}
+.anvil .mid .i{font-size:70px;color:var(--void);filter:drop-shadow(0 0 12px var(--void))}
+.fc{border:1px solid var(--gold);background:var(--panel);padding:6px;text-align:center;font-size:9px;color:var(--mute);display:grid;place-content:center;gap:2px;cursor:pointer}
+.fc b{font:700 11px var(--serif);color:var(--gold-hi)}.fc .i{font-size:22px;color:var(--gold);justify-self:center}
+</style></head><body>
+
+<!-- SVG sprite: swap these for your generated assets -->
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="swords" viewBox="0 0 24 24"><path d="M4 4l10 10M20 4L10 14M3 21l4-4M21 21l-4-4M6 15l3 3M18 15l-3 3"/></symbol>
+<symbol id="chest" viewBox="0 0 24 24"><path d="M6 4l-3 4v5l4 2v5h10v-5l4-2V8l-3-4-3 2h-6zM12 6v14"/></symbol>
+<symbol id="node" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="12" cy="13" r="1.5"/><path d="M12 7v4.5M11 14l-5 3M13 14l5 3"/></symbol>
+<symbol id="bag" viewBox="0 0 24 24"><path d="M7 8h10l2 12H5zM9 8V6a3 3 0 016 0v2M9 13h6"/></symbol>
+<symbol id="anvil" viewBox="0 0 24 24"><path d="M3 7h13c0 3-2 4-4 4v3h3l2 4H6l2-4h3v-3C8 11 5 10 3 7zM16 7l5 1"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+<symbol id="axe" viewBox="0 0 24 24"><path d="M6 21L17 4M17 4c3 0 5 2 5 5-3 0-5-1-6-3M17 4c-3 1-5 4-4 8"/></symbol>
+<symbol id="helm" viewBox="0 0 24 24"><path d="M5 20V10a7 7 0 0114 0v10h-4v-5H9v5zM3 8l3 2M21 8l-3 2"/></symbol>
+<symbol id="ring" viewBox="0 0 24 24"><circle cx="12" cy="15" r="6"/><path d="M9 6l3-3 3 3-3 3z"/></symbol>
+<symbol id="amulet" viewBox="0 0 24 24"><path d="M5 3c0 8 3 10 7 10s7-2 7-10M12 13v3"/><path d="M12 16l3 3-3 3-3-3z"/></symbol>
+<symbol id="glove" viewBox="0 0 24 24"><path d="M7 21v-6L5 9l2-1 2 4V4h2v7V3h2v8V5h2v8V8h2v8l-3 5z"/></symbol>
+<symbol id="boot" viewBox="0 0 24 24"><path d="M8 3h6v9l6 3v5H5v-5l3-3z"/></symbol>
+<symbol id="legs" viewBox="0 0 24 24"><path d="M5 3h14l-1 8-3 10h-2l-1-9-1 9H9L6 11z"/></symbol>
+<symbol id="hour" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 6 5 6 5 9s-5 3-5 9M17 3c0 6-5 6-5 9s5 3 5 9"/></symbol>
+<symbol id="gem" viewBox="0 0 24 24"><path d="M6 4h12l4 6-10 11L2 10zM2 10h20M9 4l-2 6 5 11 5-11-2-6"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><path d="M11 11l9 9M16 16l3-3M14 14l2-2"/></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M12 20V6M6 12l6-6 6 6"/></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/></symbol>
+<symbol id="sock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></symbol>
+</defs></svg>
+
+<div class="phone">
+ <div class="top">
+  <div class="medal"><svg class="i"><use href="#swords"/></svg></div>
+  <div><div class="title">PATH OF WARBOUND</div><div class="sub">Blitz Doctrine</div>
+   <div class="xp">Lv. 27<i><b></b></i>64%</div></div>
+  <div class="gear"><svg class="i"><use href="#gear"/></svg></div>
+ </div>
+
+ <main>
+ <!-- COMBAT -->
+ <section class="screen on" id="combat">
+  <div class="arena frame">
+   <div class="banner">ASHEN OUTSKIRTS • TIER 4</div>
+   <div class="badges"><span>PACK 5/5</span><span>KEYS 2/3</span></div>
+   <div class="vnum l">2140</div><div class="vial l"><b></b></div>
+   <div class="vnum r">808</div><div class="vial r"><b></b></div>
+   <span class="dmg" style="left:150px;top:78px">412!</span>
+   <span class="dmg" style="left:210px;top:60px;font-size:13px">186</span>
+   <div class="mobs" id="mobs"></div>
+   <div class="skills">
+    <span class="pill">BAR I / II</span>
+    <div class="slots" id="slots"></div>
+    <div class="swing"><b></b></div>
+   </div>
+  </div>
+  <div class="frame pan"><h4>DAMAGE METER <span style="color:var(--gold-hi)">1,303 DPS</span></h4>
+   <table><tr><th>SOURCE</th><th>DMG</th><th>%</th><th>HITS</th><th>CRIT</th><th>AVG</th><th>DPS</th></tr>
+   <tr><td><i class="d" style="background:var(--hp)"></i>Cleave</td><td>41.2K</td><td>41</td><td>88</td><td>31%</td><td>468</td><td>534</td></tr>
+   <tr><td><i class="d" style="background:var(--void)"></i>Void Shift</td><td>28.9K</td><td>29</td><td>52</td><td>24%</td><td>556</td><td>378</td></tr>
+   <tr><td><i class="d" style="background:var(--fire)"></i>Ignite</td><td>18.0K</td><td>18</td><td>140</td><td>-</td><td>129</td><td>235</td></tr>
+   <tr><td><i class="d" style="background:var(--xp)"></i>Poison</td><td>11.7K</td><td>12</td><td>96</td><td>-</td><td>122</td><td>156</td></tr>
+   <tr style="color:var(--gold-hi)"><td>Total</td><td>99.8K</td><td>100</td><td>376</td><td>27%</td><td>265</td><td>1,303</td></tr></table></div>
+  <div class="two">
+   <div class="frame pan"><h4>TIMERS</h4>
+    <div class="row"><span>Bloodlust</span><span>12s</span></div><div class="bar"><b style="width:70%;background:var(--hp)"></b></div>
+    <div class="row"><span>Veil</span><span>4s</span></div><div class="bar"><b style="width:30%;background:var(--void)"></b></div>
+    <div class="row"><span>Ward</span><span>7s</span></div><div class="bar"><b style="width:50%;background:var(--ward)"></b></div></div>
+   <div class="frame pan"><h4>STATS</h4>
+    <div class="row"><span>Crit</span><span>17.4%</span></div><div class="row"><span>Multi</span><span>265%</span></div>
+    <div class="row"><span>Haste</span><span>22%</span></div><div class="row"><span>DoT</span><span>91%</span></div></div>
+  </div>
+  <div class="pills"><div>XP/HR<b>184K</b></div><div>GOLD/HR<b>3.2K</b></div><div>KILLS/HR<b>412</b></div><div>DROPS/HR<b>38</b></div></div>
+  <div class="two">
+   <div class="frame pan log"><h4>COMBAT LOG</h4>14:02 Cleave <span style="color:var(--hp)">-1,234</span><br>14:02 Ignite <span style="color:var(--fire)">-42</span><br>14:01 Taken <span style="color:var(--hp)">-125</span></div>
+   <div class="frame pan log"><h4>LOOT LOG</h4>14:01 Gold <span style="color:var(--xp)">+42</span><br>14:02 <span style="color:#e5c170">Bone Sword</span><br>14:00 <span style="color:#6a9cff">Rift Key</span></div>
+  </div>
+ </section>
+
+ <!-- ALTAR -->
+ <section class="screen" id="altar">
+  <div class="sub-h"><h2>GEARSCORE: 4,820</h2><span class="gbtn" style="padding:4px 8px">Blitz Doctrine ▾</span><span class="gbtn" style="padding:4px 8px" onclick="openM('stats')">STATS</span></div>
+  <div class="frame attrs" style="padding:6px"><div>MIGHT<b>142</b></div><div>AGILITY<b>98</b></div><div>WISDOM<b>64</b></div><div>FORTITUDE<b>115</b></div></div>
+  <div class="frame grid" id="grid"></div>
+ </section>
+
+ <!-- TREE -->
+ <section class="screen" id="tree"><div class="frame tree"><svg id="tsvg" viewBox="-200 -260 400 520"></svg></div>
+  <div class="pan frame" style="font-size:11px">Tap a node to preview path. Tap again to confirm. (Placeholder: ring of 4 sectors, 3 tiers.)</div></section>
+
+ <!-- BAG -->
+ <section class="screen" id="bag">
+  <div class="frame cur"><span>Gold 48.2K</span><span>Scrap 1,420</span><span>Flux 86</span><span>Thread 19</span><span>Essence 4</span></div>
+  <div class="filt"><span class="gbtn on">ALL</span><span class="gbtn">GEAR</span><span class="gbtn">GEMS</span><span class="gbtn">KEYS</span><span class="gbtn" style="margin-left:auto">AUTO-SALVAGE: ON</span></div>
+  <div class="bag" id="bagg"></div>
+  <div class="gbtn" style="padding:12px;font-size:13px">SALVAGE MAGIC &amp; COMMON</div>
+ </section>
+
+ <!-- FORGE -->
+ <section class="screen" id="forge">
+  <div class="frame cur"><span>Scrap 1,420</span><span>Flux 86</span><span>Thread 19</span><span>Essence 4</span></div>
+  <div class="frame anvil">
+   <div class="fc"><svg class="i"><use href="#up"/></svg><b>UPGRADE</b>Scrap x45<br>+8 → +9</div>
+   <div class="mid"><div><svg class="i"><use href="#axe"/></svg><br>SOUL-REND CLEAVER +8</div></div>
+   <div class="fc"><svg class="i"><use href="#anvil"/></svg><b>REFORGE</b>Flux x3<br>Reroll unlocked</div>
+   <div class="fc"><svg class="i"><use href="#sock"/></svg><b>SOCKETS</b>Thread x2<br>Fuse 5/6</div>
+   <div class="fc"><svg class="i"><use href="#lock"/></svg><b>ESSENCE LOCK</b>Essence x1<br>Lock 1 affix</div>
+  </div>
+  <div class="frame pan"><h4>ITEM AFFIXES (1 LOCKED)</h4>
+   <div class="affix">+48 Might<i>LOCKED</i></div><div class="affix">+22% Attack Speed<i>open</i></div>
+   <div class="affix">+34% Crit Multiplier<i>open</i></div><div class="affix">25% Phys as Void<i>open</i></div></div>
+  <div class="gbtn" style="padding:12px;font-size:14px">FORGE ITEM</div>
+ </section>
+ </main>
+
+ <nav id="nav"></nav>
+
+ <!-- overlays -->
+ <div class="scrim" id="stats" onclick="if(event.target===this)closeM()"><div class="frame modal"><span class="x" onclick="closeM()">×</span>
+  <h3>DETAILED COMBAT STATS</h3>
+  <div class="sec">OFFENSE</div><div class="cols"><div class="row"><span>Weapon Dmg</span><span>340–512</span></div><div class="row"><span>Crit Chance</span><span>42.5%</span></div><div class="row"><span>Ability Power</span><span>285</span></div><div class="row"><span>Crit Multi</span><span>265%</span></div><div class="row"><span>Attack Speed</span><span>1.85/s</span></div><div class="row"><span>Double-Hit</span><span>34%</span></div></div>
+  <div class="sec">AILMENTS</div><div class="cols"><div class="row"><span>Bleed DPS</span><span>410</span></div><div class="row"><span>Tick Speed</span><span>+48%</span></div><div class="row"><span>Ignite DPS</span><span>290</span></div><div class="row"><span>Potency</span><span>+62%</span></div><div class="row"><span>Void DPS</span><span>620</span></div></div>
+  <div class="sec">DEFENSES</div><div class="cols"><div class="row"><span>Max HP</span><span>2,140</span></div><div class="row"><span>Max Ward</span><span>680</span></div><div class="row"><span>HP Regen</span><span>64/s</span></div><div class="row"><span>Dodge</span><span>38%</span></div><div class="row"><span>Armor</span><span>1,420</span></div><div class="row"><span>Thorns</span><span>195</span></div></div>
+  <div class="sec">RESISTANCES</div>
+  <div class="row"><span>Fire 75%</span></div><div class="bar"><b style="width:75%;background:var(--fire)"></b></div>
+  <div class="row"><span>Frost 62%</span></div><div class="bar"><b style="width:62%;background:var(--ward)"></b></div>
+  <div class="row"><span>Lightning 68%</span></div><div class="bar"><b style="width:68%;background:#e8d838"></b></div>
+  <div class="row"><span>Void 45%</span></div><div class="bar"><b style="width:45%;background:var(--void)"></b></div>
+  <div class="foot">Tap outside to close</div></div></div>
+
+ <div class="scrim" id="inspect" onclick="if(event.target===this)closeM()"><div class="frame modal" style="border-color:var(--void)"><span class="x" onclick="closeM()">×</span>
+  <h3 style="text-align:left;font-size:13px">SOUL-REND CLEAVER +8<br><small style="font:12px var(--sans);color:var(--void)">Mythic Two-Handed Axe • Gearscore 1,140</small></h3>
+  <div class="affix" style="border-color:var(--void)">AUTO-ATTACK: Inflicts Bleed on crit; +25% damage to Bleeding targets.</div>
+  <div class="affix">[T1] +48 Might</div><div class="affix">[T1] +22% Attack Speed</div><div class="affix">[T2] +34% Crit Multiplier</div><div class="affix">[T1] 25% Phys Converted to Void</div>
+  <div class="links"><b>Cleave</b><u></u><b>Multi</b><u></u><b>Void</b><u></u><b>Blood</b><u></u><b>Crit</b><u></u><b>Ruth</b></div>
+  <div class="two" style="grid-template-columns:repeat(3,1fr)"><span class="gbtn">SWAP</span><span class="gbtn" onclick="closeM();go('forge')">FORGE</span><span class="gbtn">GEMS</span></div></div></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const ic=(n,s)=>`<svg class="i"${s?` style="${s}"`:''}><use href="#${n}"/></svg>`;
+// nav
+const tabs=[['combat','swords','COMBAT'],['altar','chest','ALTAR'],['tree','node','TREE'],['bag','bag','BAG'],['forge','anvil','FORGE']];
+$('#nav').innerHTML=tabs.map(t=>`<button data-t="${t[0]}">${ic(t[1])}${t[2]}</button>`).join('');
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===id));$('main').scrollTop=0}
+$('#nav').onclick=e=>{const b=e.target.closest('button');if(b)go(b.dataset.t)};
+function openM(id){closeM();$('#'+id).classList.add('on')}
+function closeM(){document.querySelectorAll('.scrim').forEach(s=>s.classList.remove('on'))}
+go('combat');
+// monsters
+const mc=['#4ba84b','#c0402c','#9aa','#7a46c8','#6b8f5b'],ah=[[3,12],[5,44],[4,31],[2,37],[6,55]],dt=['#38B864','#E87A24','#38B864','#9B51E0','#E87A24'];
+$('#mobs').innerHTML=mc.map((c,i)=>`<div class="mob"><div class="oval" style="--c:${c}">${'SDRVG'[i]}</div><div class="a"><s>${ah[i][0]}</s></div><div class="h"><s>${ah[i][1]}</s></div><div class="dot" style="color:${dt[i]}">-${12+i*7}</div></div>`).join('');
+$('#slots').innerHTML=['swords','node','axe','shield','gem'].map((n,i)=>`<div class="slot${i==1?' hot':''}">${ic(n)}</div>`).join('');
+// altar grid
+const G=[['amulet','Amulet',1,'r'],['helm','Helmet',4,'r'],['hour','Trinket',1,'m'],['glove','Gloves',4,'r'],['chest','Chest',6,'m'],['ring','Ring 1',1,'r'],['boot','Boots',4,'r'],['legs','Legs',4,'r'],['ring','Ring 2',1,'r']];
+const pip=n=>`<span class="pips">${'<i></i>'.repeat(n>3?3:n)}</span>`;
+let h=`<div class="eq w m" onclick="openM('inspect')" style="font-size:44px">${ic('axe')}<span class="sk">${'<i></i>'.repeat(6)}</span><small>+8</small></div>`;
+h+=G.slice(0,3).map(g=>`<div class="eq ${g[3]}">${ic(g[0])}${pip(g[2])}<small>${g[1]}</small></div>`).join('');
+h+=`<div class="eq">${ic('shield')}${pip(3)}<small>Offhand</small></div>`;
+h+=G.slice(3).map(g=>`<div class="eq ${g[3]}">${ic(g[0])}${pip(g[2])}<small>${g[1]}</small></div>`).join('');
+$('#grid').innerHTML=h;
+// bag
+const rar=['#8a8a8a','#4a7be0','#d4af37','#9B51E0'],ics=['axe','chest','ring','gem','key','helm','boot','glove','amulet','shield'];
+let b='';for(let i=0;i<30;i++){b+=`<div class="cell${i%7==2?' up':''}" style="--c:${rar[(i*5+i%3)%4]}">${ic(ics[(i*3)%10])}</div>`}
+$('#bagg').innerHTML=b;
+// tree: generated radial constellation
+(function(){const S=$('#tsvg'),cols=['#D9383A','#38D6E8','#2E7BE6','#38B864'];let e='',n='';
+ const pts=[];
+ for(let s=0;s<4;s++)for(let t=0;t<3;t++)for(let k=0;k<3;k++){
+  const a=(s*90-45+(k-1)*22+t*4)*Math.PI/180,r=55+t*55+(k==1?8:0);
+  pts.push({x:Math.cos(a)*r,y:Math.sin(a)*r*1.2,s,t,k})}
+ pts.forEach((p,i)=>{
+  const prev=p.t==0?{x:0,y:0}:pts[i-3];
+  e+=`<line x1="${prev.x}" y1="${prev.y}" x2="${p.x}" y2="${p.y}" stroke="#6d5f2e" stroke-width="1.5"/>`;
+  if(p.k<2&&p.t>0){const q=pts[i+1];e+=`<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="#3a341e"/>`}
+  const big=p.k==1&&p.t==2;
+  n+=`<circle cx="${p.x}" cy="${p.y}" r="${big?9:5}" fill="${p.t==0?cols[p.s]:'#0B0E16'}" stroke="${big?'#F0D078':cols[p.s]}" stroke-width="${big?2:1.4}" onclick="this.setAttribute('fill','${cols[p.s]}')"/>`});
+ const ks=[[0,-235],[110,-170],[110,170],[0,235],[-110,170],[-110,-170]];
+ ks.forEach(k=>n+=`<path d="M${k[0]} ${k[1]-12}l10 12-10 12-10-12z" fill="#0B0E16" stroke="#9B51E0" stroke-width="2"/>`);
+ S.innerHTML=e+n+`<circle r="14" fill="#2c8fb0" stroke="#D4AF37" stroke-width="2"/>`})();
+</script>
+</body></html>

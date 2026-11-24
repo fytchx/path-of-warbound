@@ -1,0 +1,302 @@
+[
+  {
+    "id": "aff_tempered",
+    "name": "Tempered",
+    "kind": "prefix",
+    "slotTags": ["armour", "shield"],
+    "stat": "armor",
+    "layer": "flat",
+    "values": [18, 34, 58, 92, 140],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_vital",
+    "name": "Vital",
+    "kind": "prefix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "max_hp",
+    "layer": "flat",
+    "values": [20, 38, 62, 96, 145],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_warded",
+    "name": "Warded",
+    "kind": "prefix",
+    "slotTags": ["armour", "jewellery", "focus"],
+    "stat": "max_ward",
+    "layer": "flat",
+    "values": [8, 15, 26, 42, 64],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_mighty",
+    "name": "Mighty",
+    "kind": "prefix",
+    "slotTags": ["weapon", "armour", "jewellery"],
+    "stat": "might",
+    "layer": "flat",
+    "values": [4, 8, 13, 20, 29],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_swift",
+    "name": "Swift",
+    "kind": "prefix",
+    "slotTags": ["weapon", "armour", "jewellery"],
+    "stat": "agility",
+    "layer": "flat",
+    "values": [4, 8, 13, 20, 29],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_wise",
+    "name": "Wise",
+    "kind": "prefix",
+    "slotTags": ["weapon", "armour", "jewellery"],
+    "stat": "wisdom",
+    "layer": "flat",
+    "values": [4, 8, 13, 20, 29],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_stout",
+    "name": "Stout",
+    "kind": "prefix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "fortitude",
+    "layer": "flat",
+    "values": [4, 8, 13, 20, 29],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_sharp",
+    "name": "Sharp",
+    "kind": "suffix",
+    "slotTags": ["weapon", "gloves"],
+    "stat": "crit_chance",
+    "layer": "flat",
+    "values": [2, 4, 6, 9, 13],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_brutal",
+    "name": "Brutal",
+    "kind": "suffix",
+    "slotTags": ["weapon"],
+    "stat": "crit_multi",
+    "layer": "increased",
+    "values": [8, 15, 24, 36, 52],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_haste",
+    "name": "of Haste",
+    "kind": "suffix",
+    "slotTags": ["weapon", "gloves"],
+    "stat": "attack_speed",
+    "layer": "increased",
+    "values": [4, 7, 11, 16, 22],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_cinder",
+    "name": "Cinder",
+    "kind": "prefix",
+    "slotTags": ["weapon", "jewellery"],
+    "stat": "dmg_fire",
+    "layer": "increased",
+    "values": [8, 15, 24, 36, 52],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_rime",
+    "name": "Rime",
+    "kind": "prefix",
+    "slotTags": ["weapon", "jewellery"],
+    "stat": "dmg_frost",
+    "layer": "increased",
+    "values": [8, 15, 24, 36, 52],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_storm",
+    "name": "Storm",
+    "kind": "prefix",
+    "slotTags": ["weapon", "jewellery"],
+    "stat": "dmg_lightning",
+    "layer": "increased",
+    "values": [8, 15, 24, 36, 52],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_void",
+    "name": "Voidbound",
+    "kind": "prefix",
+    "slotTags": ["weapon", "jewellery"],
+    "stat": "dmg_void",
+    "layer": "increased",
+    "values": [8, 15, 24, 36, 52],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_bloodletting",
+    "name": "Bloodletting",
+    "kind": "prefix",
+    "slotTags": ["weapon"],
+    "stat": "dmg_physical",
+    "layer": "increased",
+    "values": [9, 16, 26, 40, 58],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_venom",
+    "name": "of the Bitter Root",
+    "kind": "suffix",
+    "slotTags": ["weapon", "jewellery"],
+    "stat": "ailment_potency",
+    "layer": "increased",
+    "values": [6, 11, 18, 27, 39],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_regen",
+    "name": "of Mending",
+    "kind": "suffix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "hp_regen",
+    "layer": "flat",
+    "values": [0.6, 1.1, 1.8, 2.8, 4],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_mana",
+    "name": "of the Deep Well",
+    "kind": "suffix",
+    "slotTags": ["jewellery", "focus"],
+    "stat": "max_mana",
+    "layer": "flat",
+    "values": [12, 22, 38, 58, 85],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_insight",
+    "name": "of Insight",
+    "kind": "suffix",
+    "slotTags": ["jewellery", "focus"],
+    "stat": "mana_regen",
+    "layer": "flat",
+    "values": [0.8, 1.4, 2.3, 3.5, 5],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_emberward",
+    "name": "of the Ember Ward",
+    "kind": "suffix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "res_fire",
+    "layer": "flat",
+    "values": [5, 9, 14, 20, 27],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_frostward",
+    "name": "of the Rime Ward",
+    "kind": "suffix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "res_frost",
+    "layer": "flat",
+    "values": [5, 9, 14, 20, 27],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_grounding",
+    "name": "of Grounding",
+    "kind": "suffix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "res_lightning",
+    "layer": "flat",
+    "values": [5, 9, 14, 20, 27],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_purity",
+    "name": "of Purity",
+    "kind": "suffix",
+    "slotTags": ["armour", "jewellery"],
+    "stat": "res_void",
+    "layer": "flat",
+    "values": [4, 8, 12, 18, 24],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_greed",
+    "name": "of Greed",
+    "kind": "suffix",
+    "slotTags": ["jewellery"],
+    "stat": "gold_find",
+    "layer": "increased",
+    "values": [6, 11, 18, 27, 38],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_plunder",
+    "name": "of Plunder",
+    "kind": "suffix",
+    "slotTags": ["jewellery"],
+    "stat": "item_find",
+    "layer": "increased",
+    "values": [5, 9, 15, 23, 33],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_thorns",
+    "name": "Barbed",
+    "kind": "prefix",
+    "slotTags": ["armour", "shield"],
+    "stat": "thorns",
+    "layer": "flat",
+    "values": [4, 8, 14, 22, 34],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_dodge",
+    "name": "of Evasion",
+    "kind": "suffix",
+    "slotTags": ["armour", "boots"],
+    "stat": "dodge_rating",
+    "layer": "flat",
+    "values": [10, 18, 30, 46, 68],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_area",
+    "name": "Sweeping",
+    "kind": "prefix",
+    "slotTags": ["weapon"],
+    "stat": "area_damage",
+    "layer": "increased",
+    "values": [6, 11, 18, 27, 39],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_leech",
+    "name": "of Thirst",
+    "kind": "suffix",
+    "slotTags": ["weapon", "gloves"],
+    "stat": "life_leech",
+    "layer": "flat",
+    "values": [0.4, 0.8, 1.3, 2, 3],
+    "itemLevel": 1
+  },
+  {
+    "id": "aff_execute",
+    "name": "of the Last Word",
+    "kind": "suffix",
+    "slotTags": ["weapon"],
+    "stat": "execute_damage",
+    "layer": "more",
+    "values": [5, 9, 14, 20, 28],
+    "itemLevel": 1
+  }
+]

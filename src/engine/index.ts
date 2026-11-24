@@ -1,29 +1,30 @@
-export interface StatValue {
-  base: number;
-  flat: number;
-  increased: number;
-  more: number;
-}
-
-export type DamageSchool = 'physical' | 'fire' | 'frost' | 'lightning' | 'void';
-
-export interface StatEntity {
-  name: string;
-  base?: number;
-  flat?: number;
-  increased?: number;
-  more?: number;
-}
-
-/**
- * Resolves a value using the project's deterministic pipeline.
- * Increased values are additive and More values are multiplicative.
- */
-export function resolveStat(stat: StatValue): number {
-  const flatValue = stat.base + stat.flat;
-  const increasedValue = flatValue * (1 + stat.increased);
-  return increasedValue * (1 + stat.more);
-}
+export { resolveStat } from './stats';
+export type { StatValue, PlayerStats, CombatSkill, TriggerType } from './stats';
+export { aggregateStats, baseStats, computePlayerStats, equippedWeapon } from './stats';
+export {
+  buildTreeGraph,
+  canAllocate,
+  pathTo,
+  strandedAfterRemoval,
+  getArticulationPoints,
+  neighborCount,
+} from './treeGraph';
+export type { TreeGraph, AllocationCheck } from './treeGraph';
+export {
+  TICK_SECONDS,
+  createCombat,
+  tickCombat,
+  runCombat,
+  recentDps,
+} from './combatEngine';
+export type {
+  CombatState,
+  CombatEnemy,
+  CombatEvent,
+  CombatRewards,
+  CreateCombatOptions,
+  AilmentInstance,
+} from './combatEngine';
 
 export interface CombatEntity {
   name: string;
@@ -37,14 +38,15 @@ export interface CombatTick {
   defenderHealth: number;
 }
 
+/**
+ * Characterisation of the original tick helper, kept for the v0.1 slice's
+ * deterministic damage tests: damage is applied per tick and health clamps at 0.
+ */
 export function runCombatTick(attacker: CombatEntity, defender: CombatEntity, ticks = 1): CombatTick {
   const safeTicks = Math.max(0, Math.floor(ticks));
   const attackerDamage = attacker.damage * safeTicks;
   const defenderHealth = Math.max(0, defender.health - attackerDamage);
-
-  return {
-    ticks: safeTicks,
-    attackerDamage,
-    defenderHealth,
-  };
+  return { ticks: safeTicks, attackerDamage, defenderHealth };
 }
+
+export type DamageSchool = 'physical' | 'fire' | 'frost' | 'lightning' | 'void';

@@ -1,0 +1,1997 @@
+{
+ "version": "0.1",
+ "count": 154,
+ "assets": [
+  {
+   "id": "bg_ashen_graveyard",
+   "file": "assets/backdrops/bg_ashen_graveyard.webp",
+   "category": "backdrop",
+   "w": 1376,
+   "h": 768,
+   "alpha": false,
+   "tags": [
+    "backdrop"
+   ],
+   "note": "16:9 1376x768; crop with object-fit:cover for the 3:2 arena"
+  },
+  {
+   "id": "bg_ember_canyon",
+   "file": "assets/backdrops/bg_ember_canyon.webp",
+   "category": "backdrop",
+   "w": 1376,
+   "h": 768,
+   "alpha": false,
+   "tags": [
+    "backdrop"
+   ],
+   "note": "16:9 1376x768; crop with object-fit:cover for the 3:2 arena"
+  },
+  {
+   "id": "bg_frozen_cathedral",
+   "file": "assets/backdrops/bg_frozen_cathedral.webp",
+   "category": "backdrop",
+   "w": 1376,
+   "h": 768,
+   "alpha": false,
+   "tags": [
+    "backdrop"
+   ],
+   "note": "16:9 1376x768; crop with object-fit:cover for the 3:2 arena"
+  },
+  {
+   "id": "fx_fire_00",
+   "file": "assets/fx/fx_fire_00.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_01",
+   "file": "assets/fx/fx_fire_01.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_02",
+   "file": "assets/fx/fx_fire_02.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_03",
+   "file": "assets/fx/fx_fire_03.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_04",
+   "file": "assets/fx/fx_fire_04.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_05",
+   "file": "assets/fx/fx_fire_05.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_06",
+   "file": "assets/fx/fx_fire_06.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_07",
+   "file": "assets/fx/fx_fire_07.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_08",
+   "file": "assets/fx/fx_fire_08.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_09",
+   "file": "assets/fx/fx_fire_09.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_10",
+   "file": "assets/fx/fx_fire_10.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_11",
+   "file": "assets/fx/fx_fire_11.png",
+   "category": "fx",
+   "w": 246,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "frame of fire burst, transparent, PIXEL ART style"
+  },
+  {
+   "id": "fx_fire_strip",
+   "file": "assets/fx/fx_fire_strip.png",
+   "category": "fx",
+   "w": 2952,
+   "h": 246,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "12 frames of 246px, horizontal; step through for animation"
+  },
+  {
+   "id": "fx_soulspark",
+   "file": "assets/fx/fx_soulspark.png",
+   "category": "fx",
+   "w": 512,
+   "h": 512,
+   "alpha": true,
+   "tags": [
+    "fx"
+   ],
+   "note": "transparent glow; use for header medallion"
+  },
+  {
+   "id": "gear_amulet_a",
+   "file": "assets/gear/gear_amulet_a.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "amulet_a"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_amulet_b",
+   "file": "assets/gear/gear_amulet_b.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "amulet_b"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_boots",
+   "file": "assets/gear/gear_boots.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "boots"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_chest",
+   "file": "assets/gear/gear_chest.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "chest"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_cowl",
+   "file": "assets/gear/gear_cowl.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "cowl"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_focus_orb",
+   "file": "assets/gear/gear_focus_orb.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "focus_orb"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_gloves",
+   "file": "assets/gear/gear_gloves.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "gloves"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_helm",
+   "file": "assets/gear/gear_helm.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "helm"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_legs",
+   "file": "assets/gear/gear_legs.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "legs"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_ring_ruby_a",
+   "file": "assets/gear/gear_ring_ruby_a.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "ring_ruby_a"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_ring_ruby_b",
+   "file": "assets/gear/gear_ring_ruby_b.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "ring_ruby_b"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_ring_sapphire_a",
+   "file": "assets/gear/gear_ring_sapphire_a.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "ring_sapphire_a"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_ring_sapphire_b",
+   "file": "assets/gear/gear_ring_sapphire_b.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "ring_sapphire_b"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_shield",
+   "file": "assets/gear/gear_shield.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "shield"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_trinket_hourglass_a",
+   "file": "assets/gear/gear_trinket_hourglass_a.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "trinket_hourglass_a"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gear_trinket_hourglass_b",
+   "file": "assets/gear/gear_trinket_hourglass_b.png",
+   "category": "gear",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "gear",
+    "trinket_hourglass_b"
+   ],
+   "note": "neutral colors; tint rarity with CSS glow/border"
+  },
+  {
+   "id": "gem_hexagon",
+   "file": "assets/gems/gem_hexagon.png",
+   "category": "gem",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "gem"
+   ],
+   "note": "neutral pale crystal, transparent; recolor with CSS hue-rotate"
+  },
+  {
+   "id": "gem_round",
+   "file": "assets/gems/gem_round.png",
+   "category": "gem",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "gem"
+   ],
+   "note": "neutral pale crystal, transparent; recolor with CSS hue-rotate"
+  },
+  {
+   "id": "gem_square",
+   "file": "assets/gems/gem_square.png",
+   "category": "gem",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "gem"
+   ],
+   "note": "neutral pale crystal, transparent; recolor with CSS hue-rotate"
+  },
+  {
+   "id": "gem_teardrop",
+   "file": "assets/gems/gem_teardrop.png",
+   "category": "gem",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "gem"
+   ],
+   "note": "neutral pale crystal, transparent; recolor with CSS hue-rotate"
+  },
+  {
+   "id": "gem_triangle",
+   "file": "assets/gems/gem_triangle.png",
+   "category": "gem",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "gem"
+   ],
+   "note": "neutral pale crystal, transparent; recolor with CSS hue-rotate"
+  },
+  {
+   "id": "ailment_bleed",
+   "file": "assets/icons/ailment_bleed.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "ailment",
+    "ailment_bleed"
+   ],
+   "note": ""
+  },
+  {
+   "id": "ailment_chill",
+   "file": "assets/icons/ailment_chill.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "ailment",
+    "ailment_chill"
+   ],
+   "note": ""
+  },
+  {
+   "id": "ailment_corruption",
+   "file": "assets/icons/ailment_corruption.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "ailment",
+    "ailment_corruption"
+   ],
+   "note": ""
+  },
+  {
+   "id": "ailment_ignite",
+   "file": "assets/icons/ailment_ignite.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "ailment",
+    "ailment_ignite"
+   ],
+   "note": ""
+  },
+  {
+   "id": "ailment_shock",
+   "file": "assets/icons/ailment_shock.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "ailment",
+    "ailment_shock"
+   ],
+   "note": ""
+  },
+  {
+   "id": "attr_agility",
+   "file": "assets/icons/attr_agility.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "attr",
+    "attr_agility"
+   ],
+   "note": ""
+  },
+  {
+   "id": "attr_fortitude",
+   "file": "assets/icons/attr_fortitude.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "attr",
+    "attr_fortitude"
+   ],
+   "note": ""
+  },
+  {
+   "id": "attr_might",
+   "file": "assets/icons/attr_might.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "attr",
+    "attr_might"
+   ],
+   "note": ""
+  },
+  {
+   "id": "attr_wisdom",
+   "file": "assets/icons/attr_wisdom.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "attr",
+    "attr_wisdom"
+   ],
+   "note": ""
+  },
+  {
+   "id": "currency_gold",
+   "file": "assets/icons/currency_gold.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "currency",
+    "currency_gold"
+   ],
+   "note": ""
+  },
+  {
+   "id": "doctrine_bastion",
+   "file": "assets/icons/doctrine_bastion.png",
+   "category": "icon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "doctrine",
+    "bastion"
+   ],
+   "note": "PIXEL ART style, circular alpha"
+  },
+  {
+   "id": "doctrine_blitz",
+   "file": "assets/icons/doctrine_blitz.png",
+   "category": "icon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "doctrine",
+    "blitz"
+   ],
+   "note": "PIXEL ART style, circular alpha"
+  },
+  {
+   "id": "doctrine_entropy",
+   "file": "assets/icons/doctrine_entropy.png",
+   "category": "icon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "doctrine",
+    "entropy"
+   ],
+   "note": "PIXEL ART style, circular alpha"
+  },
+  {
+   "id": "doctrine_tactician",
+   "file": "assets/icons/doctrine_tactician.png",
+   "category": "icon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "doctrine",
+    "tactician"
+   ],
+   "note": "PIXEL ART style, circular alpha"
+  },
+  {
+   "id": "doctrine_weaver",
+   "file": "assets/icons/doctrine_weaver.png",
+   "category": "icon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "doctrine",
+    "weaver"
+   ],
+   "note": "PIXEL ART style, circular alpha"
+  },
+  {
+   "id": "key_rift",
+   "file": "assets/icons/key_rift.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "key",
+    "key_rift"
+   ],
+   "note": ""
+  },
+  {
+   "id": "mat_essence",
+   "file": "assets/icons/mat_essence.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "mat",
+    "mat_essence"
+   ],
+   "note": ""
+  },
+  {
+   "id": "mat_flux",
+   "file": "assets/icons/mat_flux.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "mat",
+    "mat_flux"
+   ],
+   "note": ""
+  },
+  {
+   "id": "mat_scrap",
+   "file": "assets/icons/mat_scrap.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "mat",
+    "mat_scrap"
+   ],
+   "note": ""
+  },
+  {
+   "id": "mat_thread",
+   "file": "assets/icons/mat_thread.png",
+   "category": "icon",
+   "w": 179,
+   "h": 190,
+   "alpha": false,
+   "tags": [
+    "mat",
+    "mat_thread"
+   ],
+   "note": ""
+  },
+  {
+   "id": "school_fire",
+   "file": "assets/icons/school_fire.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "school",
+    "school_fire"
+   ],
+   "note": ""
+  },
+  {
+   "id": "school_frost",
+   "file": "assets/icons/school_frost.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "school",
+    "school_frost"
+   ],
+   "note": ""
+  },
+  {
+   "id": "school_lightning",
+   "file": "assets/icons/school_lightning.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "school",
+    "school_lightning"
+   ],
+   "note": ""
+  },
+  {
+   "id": "school_physical",
+   "file": "assets/icons/school_physical.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "school",
+    "school_physical"
+   ],
+   "note": ""
+  },
+  {
+   "id": "school_void",
+   "file": "assets/icons/school_void.png",
+   "category": "icon",
+   "w": 183,
+   "h": 196,
+   "alpha": false,
+   "tags": [
+    "school",
+    "school_void"
+   ],
+   "note": ""
+  },
+  {
+   "id": "ks_crowd_sovereign",
+   "file": "assets/keystones/ks_crowd_sovereign.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "crowd_sovereign"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_festering_wound",
+   "file": "assets/keystones/ks_festering_wound.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "festering_wound"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_ghostframe",
+   "file": "assets/keystones/ks_ghostframe.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "ghostframe"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_hollow_fist",
+   "file": "assets/keystones/ks_hollow_fist.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "hollow_fist"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_lattice_skin",
+   "file": "assets/keystones/ks_lattice_skin.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "lattice_skin"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_pendulum",
+   "file": "assets/keystones/ks_pendulum.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "pendulum"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_void_tithe",
+   "file": "assets/keystones/ks_void_tithe.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "void_tithe"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "ks_zealots_mandate",
+   "file": "assets/keystones/ks_zealots_mandate.png",
+   "category": "keystone",
+   "w": 254,
+   "h": 350,
+   "alpha": false,
+   "tags": [
+    "keystone",
+    "zealots_mandate"
+   ],
+   "note": "diamond frame baked in; cell is 254x350 portrait"
+  },
+  {
+   "id": "elite_demon_sovereign",
+   "file": "assets/monsters/elite_demon_sovereign.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "elite",
+    "demon_sovereign"
+   ],
+   "note": "PIXEL ART style, does not match painted set"
+  },
+  {
+   "id": "elite_horned_brute",
+   "file": "assets/monsters/elite_horned_brute.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "elite",
+    "horned_brute"
+   ],
+   "note": "PIXEL ART style, does not match painted set"
+  },
+  {
+   "id": "elite_skeleton_champion",
+   "file": "assets/monsters/elite_skeleton_champion.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "elite",
+    "skeleton_champion"
+   ],
+   "note": "PIXEL ART style, does not match painted set"
+  },
+  {
+   "id": "elite_void_lich",
+   "file": "assets/monsters/elite_void_lich.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "elite",
+    "void_lich"
+   ],
+   "note": "PIXEL ART style, does not match painted set"
+  },
+  {
+   "id": "mob_boss",
+   "file": "assets/monsters/mob_boss.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "boss"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_ghoul",
+   "file": "assets/monsters/mob_ghoul.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "ghoul"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_golem",
+   "file": "assets/monsters/mob_golem.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "golem"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_imp",
+   "file": "assets/monsters/mob_imp.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "imp"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_reaper",
+   "file": "assets/monsters/mob_reaper.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "reaper"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_slime",
+   "file": "assets/monsters/mob_slime.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "slime"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_specter",
+   "file": "assets/monsters/mob_specter.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "specter"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "mob_wolf",
+   "file": "assets/monsters/mob_wolf.png",
+   "category": "monster",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "monster",
+    "wolf"
+   ],
+   "note": "framed crop removed; display inside oval mask"
+  },
+  {
+   "id": "skill_axe_whirl",
+   "file": "assets/skills/skill_axe_whirl.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "axe_whirl"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_bloodlust_aura",
+   "file": "assets/skills/skill_bloodlust_aura.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "bloodlust_aura"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_bloody_stab",
+   "file": "assets/skills/skill_bloody_stab.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "bloody_stab"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_bone_claw",
+   "file": "assets/skills/skill_bone_claw.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "bone_claw"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_chain_lightning",
+   "file": "assets/skills/skill_chain_lightning.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "chain_lightning"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_claw_rend",
+   "file": "assets/skills/skill_claw_rend.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "claw_rend"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_corruption_skull",
+   "file": "assets/skills/skill_corruption_skull.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "corruption_skull"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_crossed_slash",
+   "file": "assets/skills/skill_crossed_slash.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "crossed_slash"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_demon_eye",
+   "file": "assets/skills/skill_demon_eye.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "demon_eye"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_flame_blade",
+   "file": "assets/skills/skill_flame_blade.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "flame_blade"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_frost_shield",
+   "file": "assets/skills/skill_frost_shield.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "frost_shield"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_holy_shield",
+   "file": "assets/skills/skill_holy_shield.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "holy_shield"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_ice_burst",
+   "file": "assets/skills/skill_ice_burst.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "ice_burst"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_mace_smash",
+   "file": "assets/skills/skill_mace_smash.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "mace_smash"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_phoenix",
+   "file": "assets/skills/skill_phoenix.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "phoenix"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_plague_skull",
+   "file": "assets/skills/skill_plague_skull.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "plague_skull"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_rally_arrows",
+   "file": "assets/skills/skill_rally_arrows.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "rally_arrows"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_regrowth",
+   "file": "assets/skills/skill_regrowth.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "regrowth"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_shadow_assassin",
+   "file": "assets/skills/skill_shadow_assassin.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "shadow_assassin"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_shadow_grasp",
+   "file": "assets/skills/skill_shadow_grasp.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "shadow_grasp"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_shield_bash",
+   "file": "assets/skills/skill_shield_bash.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "shield_bash"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_sigil_circle",
+   "file": "assets/skills/skill_sigil_circle.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "sigil_circle"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_stone_burst",
+   "file": "assets/skills/skill_stone_burst.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "stone_burst"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_storm_bolt",
+   "file": "assets/skills/skill_storm_bolt.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "storm_bolt"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_swift_boots",
+   "file": "assets/skills/skill_swift_boots.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "swift_boots"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_venom_dagger",
+   "file": "assets/skills/skill_venom_dagger.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "venom_dagger"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_vital_flame",
+   "file": "assets/skills/skill_vital_flame.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "vital_flame"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_void_rift",
+   "file": "assets/skills/skill_void_rift.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "void_rift"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_void_vortex",
+   "file": "assets/skills/skill_void_vortex.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "void_vortex"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_volley",
+   "file": "assets/skills/skill_volley.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "volley"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_ward_barrier",
+   "file": "assets/skills/skill_ward_barrier.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "ward_barrier"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_whirlwind",
+   "file": "assets/skills/skill_whirlwind.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "whirlwind"
+   ],
+   "note": "gold rounded frame baked in"
+  },
+  {
+   "id": "skill_x_all_seeing_eye",
+   "file": "assets/skills/skill_x_all_seeing_eye.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "all_seeing_eye"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_blizzard",
+   "file": "assets/skills/skill_x_blizzard.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "blizzard"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_blood_drop",
+   "file": "assets/skills/skill_x_blood_drop.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "blood_drop"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_crystal_cluster",
+   "file": "assets/skills/skill_x_crystal_cluster.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "crystal_cluster"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_ghost_wail",
+   "file": "assets/skills/skill_x_ghost_wail.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "ghost_wail"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_holy_cross",
+   "file": "assets/skills/skill_x_holy_cross.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "holy_cross"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_lion_roar",
+   "file": "assets/skills/skill_x_lion_roar.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "lion_roar"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_meteor",
+   "file": "assets/skills/skill_x_meteor.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "meteor"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_nature_arrow",
+   "file": "assets/skills/skill_x_nature_arrow.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "nature_arrow"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_phoenix_rebirth",
+   "file": "assets/skills/skill_x_phoenix_rebirth.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "phoenix_rebirth"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_poison_flask",
+   "file": "assets/skills/skill_x_poison_flask.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "poison_flask"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_rockfall",
+   "file": "assets/skills/skill_x_rockfall.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "rockfall"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_shadow_dagger",
+   "file": "assets/skills/skill_x_shadow_dagger.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "shadow_dagger"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_spellbook",
+   "file": "assets/skills/skill_x_spellbook.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "spellbook"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_spirit_wolf",
+   "file": "assets/skills/skill_x_spirit_wolf.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "spirit_wolf"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_sunburst",
+   "file": "assets/skills/skill_x_sunburst.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "sunburst"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_thorn_vines",
+   "file": "assets/skills/skill_x_thorn_vines.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "thorn_vines"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_thunder_hammer",
+   "file": "assets/skills/skill_x_thunder_hammer.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "thunder_hammer"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_time_hourglass",
+   "file": "assets/skills/skill_x_time_hourglass.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "time_hourglass"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_tornado",
+   "file": "assets/skills/skill_x_tornado.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "tornado"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_volcano",
+   "file": "assets/skills/skill_x_volcano.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "volcano"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_voodoo_doll",
+   "file": "assets/skills/skill_x_voodoo_doll.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "voodoo_doll"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_water_orb",
+   "file": "assets/skills/skill_x_water_orb.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "water_orb"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_wind_boots",
+   "file": "assets/skills/skill_x_wind_boots.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "wind_boots"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "skill_x_winged_shield",
+   "file": "assets/skills/skill_x_winged_shield.png",
+   "category": "skill",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "skill",
+    "extra",
+    "winged_shield"
+   ],
+   "note": "extra generic skill, gold frame baked in"
+  },
+  {
+   "id": "tex_gold",
+   "file": "assets/textures/tex_gold.jpg",
+   "category": "texture",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "texture"
+   ],
+   "note": "seamless tile 512px; use as background-image with blend"
+  },
+  {
+   "id": "tex_obsidian",
+   "file": "assets/textures/tex_obsidian.jpg",
+   "category": "texture",
+   "w": 512,
+   "h": 512,
+   "alpha": false,
+   "tags": [
+    "texture"
+   ],
+   "note": "seamless tile 512px; use as background-image with blend"
+  },
+  {
+   "id": "weapon_axe",
+   "file": "assets/weapons/weapon_axe.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_axe_solid",
+   "file": "assets/weapons/weapon_axe_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  },
+  {
+   "id": "weapon_bow",
+   "file": "assets/weapons/weapon_bow.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_bow_solid",
+   "file": "assets/weapons/weapon_bow_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  },
+  {
+   "id": "weapon_dagger",
+   "file": "assets/weapons/weapon_dagger.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_dagger_solid",
+   "file": "assets/weapons/weapon_dagger_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  },
+  {
+   "id": "weapon_mace",
+   "file": "assets/weapons/weapon_mace.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_mace_solid",
+   "file": "assets/weapons/weapon_mace_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  },
+  {
+   "id": "weapon_staff",
+   "file": "assets/weapons/weapon_staff.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_staff_solid",
+   "file": "assets/weapons/weapon_staff_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  },
+  {
+   "id": "weapon_sword",
+   "file": "assets/weapons/weapon_sword.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": true,
+   "tags": [
+    "weapon"
+   ],
+   "note": "transparent cutout, neutral steel; tint rarity in CSS"
+  },
+  {
+   "id": "weapon_sword_solid",
+   "file": "assets/weapons/weapon_sword_solid.png",
+   "category": "weapon",
+   "w": 256,
+   "h": 256,
+   "alpha": false,
+   "tags": [
+    "weapon"
+   ],
+   "note": "solid dark background variant (no cutout)"
+  }
+ ]
+}

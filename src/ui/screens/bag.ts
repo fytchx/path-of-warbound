@@ -1,0 +1,106 @@
+import { gemById } from '../../data';
+import { itemBase, RARITY_COLOR, RARITY_LABEL } from '../../game/items';
+import { MATERIAL_ASSET, MATERIAL_IDS, type MaterialId } from '../../game/types';
+import type { BagFilter, GameStore } from '../store';
+import { assetImg, escapeHtml, fmt } from '../dom';
+
+const FILTERS: { id: BagFilter; label: string }[] = [
+  { id: 'all', label: 'ALL' },
+  { id: 'weapon', label: 'WEAPONS' },
+  { id: 'armour', label: 'ARMOUR' },
+  { id: 'jewellery', label: 'JEWELS' },
+];
+
+const MATERIAL_LABEL: Record<MaterialId, string> = {
+  mat_scrap: 'Scrap',
+  mat_flux: 'Flux',
+  mat_thread: 'Thread',
+  mat_essence: 'Essence',
+  gem_dust: 'Gem Dust',
+};
+
+const CURRENCY: MaterialId[] = ['mat_scrap', 'mat_flux', 'mat_thread', 'mat_essence'];
+
+function matchesFilter(store: GameStore, uid: string, filter: BagFilter): boolean {
+  if (filter === 'all') return true;
+  const location = store.findItem(uid);
+  if (!location) return false;
+  const tags = itemBase(location.item).slotTags;
+  if (filter === 'weapon') return tags.includes('weapon');
+  if (filter === 'jewellery') return tags.includes('jewellery');
+  return tags.includes('armour') || tags.includes('focus');
+}
+
+function gemBarLabel(bar: 'bar_1' | 'bar_2' | 'both'): string {
+  return bar === 'both' ? 'BOTH' : bar === 'bar_1' ? 'BAR I' : 'BAR II';
+}
+
+export function bagScreen(store: GameStore): string {
+  const filter = store.ui.bagFilter;
+  const items = store.save.inventory.filter((item) => matchesFilter(store, item.uid, filter));
+
+  const grid = items.length
+    ? `<div class="bag">${items
+        .map((item) => {
+          const base = itemBase(item);
+          return `<button class="cell" data-action="open-item" data-uid="${escapeHtml(item.uid)}" data-rarity="${item.rarity}" style="--c:${RARITY_COLOR[item.rarity]}" title="${escapeHtml(base.name)} · ${RARITY_LABEL[item.rarity]}">
+            ${assetImg(base.assetId, base.name)}
+            <span class="gs">${store.itemGearscore(item)}</span>
+          </button>`;
+        })
+        .join('')}</div>`
+    : `<div class="empty-note">No ${filter === 'all' ? 'spare' : filter.toLowerCase()} items in the bag. Salvage spoils or clear a tier to find more.</div>`;
+
+  const materials = MATERIAL_IDS.map(
+    (id) => `<div class="material" title="${escapeHtml(MATERIAL_LABEL[id])}">
+      ${assetImg(MATERIAL_ASSET[id], MATERIAL_LABEL[id])}
+      <b>${fmt(store.save.materials[id] ?? 0)}</b>
+      <span>${escapeHtml(MATERIAL_LABEL[id])}</span>
+    </div>`,
+  ).join('');
+
+  const gems = store.save.gemStash.length
+    ? `<div class="gem-list">${store.save.gemStash
+        .map((gem, index) => {
+          const def = gemById.get(gem.gemId);
+          if (!def) return '';
+          return `<div class="gem-row">
+            ${assetImg(def.assetId, def.name)}
+            <div>
+              <div class="gem-name">${escapeHtml(def.name)} <span class="muted tiny">Lv ${gem.level}</span></div>
+              <div class="gem-meta">${escapeHtml(def.kind)} · ${gem.xp} XP · ${gemBarLabel(gem.bar)}</div>
+            </div>
+            <button class="gbtn sm" data-action="gem-bar" data-index="${index}">${gemBarLabel(gem.bar)}</button>
+          </div>`;
+        })
+        .join('')}</div>`
+    : `<div class="empty-note">The gem pouch is empty. Unsocket a gem or salvage a duplicate to refill it.</div>`;
+
+  return `<section class="screen" data-screen="bag" aria-label="Bag">
+    <div class="frame cur">
+      <span>${assetImg('currency_gold', 'Gold')}<b>${fmt(store.save.gold)}</b></span>
+      ${CURRENCY.map(
+        (id) => `<span>${assetImg(MATERIAL_ASSET[id], MATERIAL_LABEL[id])}<b>${fmt(store.save.materials[id] ?? 0)}</b></span>`,
+      ).join('')}
+    </div>
+
+    <div class="filt">
+      ${FILTERS.map(
+        (entry) => `<button class="gbtn sm ${filter === entry.id ? 'on' : ''}" data-action="bag-filter" data-filter="${entry.id}">${entry.label}</button>`,
+      ).join('')}
+      <span class="tiny muted" style="margin-left:auto">${store.save.inventory.length} items · ${store.save.keys} keys</span>
+    </div>
+
+    ${grid}
+
+    <div class="frame pan">
+      <h4>Reagents<span>${fmt(store.save.materials.gem_dust ?? 0)} gem dust</span></h4>
+      <div class="material-row">${materials}</div>
+    </div>
+
+    <div class="frame pan">
+      <h4>Gem Pouch<span>${store.save.gemStash.length} held · tap to swap bar</span></h4>
+      ${gems}
+    </div>
+  </section>`;
+}
