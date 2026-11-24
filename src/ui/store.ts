@@ -8,6 +8,7 @@ import {
 import {
   createCombat,
   manualCast,
+  summonBoss as triggerSummonBoss,
   tickCombat,
   type CombatEnemy,
   type CombatRewards,
@@ -25,9 +26,11 @@ import {
   evaluateProgression,
   loadSave,
   persistSave,
+  processKillDrops,
   refundNode,
   salvageItem,
   socketGem,
+  unlockAllSystems,
   unspentPoints,
   unequipItem,
   unsocketGem,
@@ -70,6 +73,10 @@ export interface UIState {
   forgeUid: string | null;
   treeView: TreeView;
   craftMessage: string | null;
+  unvisitedTabs: ScreenId[];
+  whisperOverride: string | null;
+  keyPulseAt: number;
+  lastTickAt: number;
 }
 
 export interface ItemLocation {
@@ -83,10 +90,20 @@ let unlockNoticeId = 0;
 
 const SYSTEM_LABEL: Record<UnlockableSystem, string> = {
   altar: 'Altar',
+  bag: 'Bag',
   tree: 'Tree',
   forge: 'Forge',
   bar_2: 'Bar II',
+  doctrines: 'Doctrines',
+  auto_boss: 'Auto-Advance Boss',
+  pack_2: 'Pack Size 1–2',
+  pack_full: 'Pack Size 1–5',
+  forge_full: 'Full Forge',
+  auto_salvage: 'Auto-Salvage',
+  keystones: 'Keystones',
 };
+
+const NAV_SYSTEMS: ScreenId[] = ['altar', 'bag', 'tree', 'forge'];
 
 export class GameStore {
   save: CharacterSave;
@@ -119,6 +136,10 @@ export class GameStore {
       forgeUid: this.save.equipment.main_hand?.uid ?? this.save.inventory[0]?.uid ?? null,
       treeView: { x: 0, y: 0, scale: 1 },
       craftMessage: null,
+      unvisitedTabs: [],
+      whisperOverride: null,
+      keyPulseAt: 0,
+      lastTickAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
     };
     this.combat = this.buildCombat();
     this.appliedRewards = { ...this.combat.rewards };
@@ -133,15 +154,24 @@ export class GameStore {
     for (const listener of this.listeners) listener(dynamic);
   }
 
+  private allowedMonstersForStep(): string[] | undefined {
+    if (this.save.settings.guideSkipped || this.save.onboardingStep >= 4) return undefined;
+    if (this.save.onboardingStep === 0) return ['mob_slime'];
+    return ['mob_slime', 'mob_wolf'];
+  }
+
   private buildCombat(): CombatState {
     return createCombat({
       seed: Math.floor(Math.random() * 1_000_000),
       zoneId: this.save.zoneId,
       tier: this.save.tier,
-      packSize: this.save.packSize,
+      packSize: Math.min(this.maxPackSize(), this.save.packSize),
       doctrine: this.save.doctrine,
       activeBar: this.save.activeBar,
       startingKeys: this.save.keys,
+      autoSummonBoss: this.save.autoAdvanceBoss,
+      suppressRandomKeys: this.save.starterKillsClaimed < 10,
+      allowedMonsterIds: this.allowedMonstersForStep(),
       playerStats: this.stats,
     });
   }
@@ -169,8 +199,53 @@ export class GameStore {
   }
 
   isSystemUnlocked(system: ScreenId | UnlockableSystem): boolean {
-    if (system === 'combat' || system === 'bag') return true;
+    if (system === 'combat') return true;
     return this.save.unlockedSystems.includes(system);
+  }
+
+  maxPackSize(): number {
+    if (this.isSystemUnlocked('pack_full')) return 5;
+    if (this.isSystemUnlocked('pack_2')) return 2;
+    return 1;
+  }
+
+  whisperText(): string | null {
+    if (this.ui.whisperOverride) return this.ui.whisperOverride;
+    if (this.save.settings.guideSkipped || this.save.onboardingStep >= 6) return null;
+    switch (this.save.onboardingStep) {
+      case 0:
+        return 'Soul-Spark Whisper: Your spark flickers. Slay the slimes to draw your first armor.';
+      case 1:
+        return 'Soul-Spark Whisper: New armor awaits in [ALTAR] or [BAG]. Equip it to raise Health & Armor.';
+      case 2:
+        return 'Soul-Spark Whisper: Support gem found! Tap your 2-linked Chest in [ALTAR] to link Cleave + Multistrike.';
+      case 3:
+        return this.save.level >= 2
+          ? 'Soul-Spark Whisper: Level 2! Open [TREE] to preview a constellation path and spend your point.'
+          : 'Soul-Spark Whisper: Rift Key #1 & Scrap found! Reach Level 2 to awaken the Skill Tree.';
+      case 4:
+        return 'Soul-Spark Whisper: Forge & Pack 1–2 unlocked! Temper gear with War-Scrap or collect 3 Rift Keys.';
+      case 5:
+        return 'Soul-Spark Whisper: 3 Rift Keys burn bright! Tap SUMMON ZONE BOSS to challenge the tier boss.';
+      default:
+        return null;
+    }
+  }
+
+  dismissWhisper(): void {
+    if (!this.ui.whisperOverride) return;
+    this.ui.whisperOverride = null;
+    this.notify();
+  }
+
+  private markNewlyUnlockedTabs(before: Set<string>): void {
+    for (const tab of NAV_SYSTEMS) {
+      if (!before.has(tab) && this.save.unlockedSystems.includes(tab) && this.ui.screen !== tab) {
+        if (!this.ui.unvisitedTabs.includes(tab)) {
+          this.ui.unvisitedTabs = [...this.ui.unvisitedTabs, tab];
+        }
+      }
+    }
   }
 
   private announceUnlocks(entries: ProgressionEntry[]): void {
@@ -205,6 +280,8 @@ export class GameStore {
   }
 
   private syncCombat(): void {
+    const prevUnlocked = new Set(this.save.unlockedSystems);
+    const prevKeys = this.combat.keys;
     const rewards = this.combat.rewards;
     const delta: CombatRewards = {
       gold: rewards.gold - this.appliedRewards.gold,
@@ -221,13 +298,52 @@ export class GameStore {
       unlocked.push(...applyCombatRewards(this.save, delta));
       this.appliedRewards = { ...rewards };
     }
+
+    if (delta.kills > 0) {
+      const drops = processKillDrops(this.save, delta.kills, this.combat.tier);
+      if (drops.keysAdded > 0) {
+        this.combat.keys += drops.keysAdded;
+      }
+      if (drops.itemsAdded.length > 0) {
+        const names = drops.itemsAdded.map((item) => this.itemBaseName(item)).join(', ');
+        this.toast(`Found: ${names}`);
+      }
+      if (drops.gemsAdded.length > 0) {
+        const names = drops.gemsAdded.map((id) => gemById.get(id)?.name ?? id).join(', ');
+        this.toast(`${names} added to Gem Pouch`);
+      }
+      if (drops.awakened) {
+        this.ui.whisperOverride = 'Soul-Spark Awakened! Doctrines, Bar II, Keystones, Full Forge & Pack 1–5 unlocked.';
+        this.toast('Soul-Spark Awakened!');
+      }
+    }
+
+    if (delta.deaths > 0 && this.combat.tier <= 1 && this.save.onboardingStep < 6) {
+      this.ui.whisperOverride = 'Your vessel shattered. Reinforce gear with War-Scrap at the Forge or lower Pack Size.';
+    }
+
     this.save.keys = this.combat.keys;
     this.save.tier = this.combat.tier;
+    if (this.save.keys >= 3 && this.combat.tier <= 1 && this.save.onboardingStep < 5) {
+      this.save.onboardingStep = 5;
+    }
+
     if (this.save.level !== this.lastLevel) {
       this.lastLevel = this.save.level;
       unlocked.push(...evaluateProgression(this.save));
       this.resyncStats();
     }
+
+    this.combat.suppressRandomKeys = this.save.starterKillsClaimed < 10;
+    this.combat.allowedMonsterIds = this.allowedMonstersForStep();
+    this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
+
+    if (this.combat.keys > prevKeys) {
+      this.ui.keyPulseAt = Date.now();
+    }
+
+    this.markNewlyUnlockedTabs(prevUnlocked);
+
     if (unlocked.length) {
       this.resyncStats();
       this.announceUnlocks(unlocked);
@@ -250,6 +366,9 @@ export class GameStore {
     if (!this.isSystemUnlocked(screen)) return;
     this.ui.screen = screen;
     this.ui.modal = null;
+    if (this.ui.unvisitedTabs.includes(screen)) {
+      this.ui.unvisitedTabs = this.ui.unvisitedTabs.filter((tab) => tab !== screen);
+    }
     this.notify();
   }
 
@@ -283,7 +402,8 @@ export class GameStore {
   }
 
   setPackSize(delta: number): void {
-    const size = Math.max(1, Math.min(5, this.save.packSize + delta)) as CharacterSave['packSize'];
+    const maxPack = this.maxPackSize();
+    const size = Math.max(1, Math.min(maxPack, this.save.packSize + delta)) as CharacterSave['packSize'];
     if (size === this.save.packSize) return;
     this.save.packSize = size;
     this.restartCombat();
@@ -292,6 +412,57 @@ export class GameStore {
 
   togglePause(): void {
     this.ui.paused = !this.ui.paused;
+    this.notify();
+  }
+
+  summonBoss(): void {
+    if (!triggerSummonBoss(this.combat)) {
+      this.toast('Collect 3 Rift Keys first.');
+      return;
+    }
+    this.save.keys = this.combat.keys;
+    this.schedulePersist();
+    this.toast(`${this.combat.zone.name} Boss summoned!`);
+    this.notify();
+  }
+
+  toggleAutoAdvanceBoss(): void {
+    if (!this.isSystemUnlocked('auto_boss')) return;
+    this.save.autoAdvanceBoss = !this.save.autoAdvanceBoss;
+    this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
+    this.schedulePersist();
+    this.notify();
+  }
+
+  toggleAutoSalvage(): void {
+    if (!this.isSystemUnlocked('auto_salvage')) return;
+    this.save.autoSalvage = !this.save.autoSalvage;
+    this.schedulePersist();
+    this.toast(`Auto-Salvage Common drops ${this.save.autoSalvage ? 'enabled' : 'disabled'}.`);
+    this.notify();
+  }
+
+  skipGuide(): void {
+    this.save.settings.guideSkipped = true;
+    unlockAllSystems(this.save);
+    this.ui.whisperOverride = null;
+    this.ui.unvisitedTabs = [];
+    this.combat.suppressRandomKeys = false;
+    this.combat.allowedMonsterIds = undefined;
+    this.schedulePersist();
+    this.toast('Onboarding guide skipped — all systems unlocked.');
+    this.notify();
+  }
+
+  toggleLogCombat(): void {
+    this.save.settings.logCombat = !this.save.settings.logCombat;
+    this.schedulePersist();
+    this.notify();
+  }
+
+  toggleReducedMotion(): void {
+    this.save.settings.reducedMotion = !this.save.settings.reducedMotion;
+    this.schedulePersist();
     this.notify();
   }
 
@@ -308,6 +479,7 @@ export class GameStore {
   }
 
   setDoctrine(doctrine: DoctrineId): void {
+    if (!this.isSystemUnlocked('doctrines')) return;
     if (this.save.doctrine === doctrine) return;
     if (this.stats.keystones.has('ks_zealots_mandate')) {
       this.toast("Zealot's Mandate locks this doctrine in place.");
@@ -334,6 +506,11 @@ export class GameStore {
       this.openModal({ kind: 'node', nodeId });
       return;
     }
+    const targetNode = skillTree.nodes.find((n) => n.id === nodeId);
+    if (targetNode?.kind === 'keystone' && !this.isSystemUnlocked('keystones')) {
+      this.toast('Keystones unlock after your first Tier 2 kill.');
+      return;
+    }
     const check = canAllocate(this.save.allocated, nodeId, treeGraph, this.unspent());
     if (!check.ok) {
       this.ui.previewNode = null;
@@ -348,6 +525,13 @@ export class GameStore {
       this.notify();
       return;
     }
+    if (
+      !this.isSystemUnlocked('keystones') &&
+      check.path.some((id) => skillTree.nodes.find((n) => n.id === id)?.kind === 'keystone')
+    ) {
+      this.toast('Keystones unlock after your first Tier 2 kill.');
+      return;
+    }
     this.ui.previewNode = nodeId;
     this.ui.previewPath = check.path;
     this.notify();
@@ -356,6 +540,13 @@ export class GameStore {
   confirmAllocation(): void {
     const nodeId = this.ui.previewNode;
     if (!nodeId) return;
+    if (
+      !this.isSystemUnlocked('keystones') &&
+      this.ui.previewPath.some((id) => skillTree.nodes.find((n) => n.id === id)?.kind === 'keystone')
+    ) {
+      this.toast('Keystones unlock after your first Tier 2 kill.');
+      return;
+    }
     const result = allocateNode(this.save, nodeId);
     if (!result.ok) {
       this.toast(result.reason === 'not-enough-points' ? 'Not enough points.' : 'Allocation failed.');
@@ -532,6 +723,10 @@ export class GameStore {
   }
 
   craft(action: 'upgrade' | 'reforge' | 'socket' | 'corrupt' | 'promote'): void {
+    if (action !== 'upgrade' && !this.isSystemUnlocked('forge_full')) {
+      this.toast('Unlocks after your first Tier 2 kill.');
+      return;
+    }
     const item = this.forgeItem();
     if (!item) {
       this.toast('Select an item on the anvil first.');
@@ -559,10 +754,12 @@ export class GameStore {
 
   claimOffline(): void {
     if (!this.offline) return;
+    const prevUnlocked = new Set(this.save.unlockedSystems);
     const unlocked = claimOffline(this.save, this.offline);
     this.offline = null;
     this.ui.modal = null;
     this.lastLevel = this.save.level;
+    this.markNewlyUnlockedTabs(prevUnlocked);
     this.resyncStats();
     this.restartCombat();
     if (unlocked.length) this.announceUnlocks(unlocked);
@@ -582,7 +779,12 @@ export class GameStore {
     if (this.ui.paused || this.ui.modal?.kind === 'offline') return;
     tickCombat(this.combat);
     tickCombat(this.combat);
-    if (this.combat.tickCount % 5 === 0 || this.combat.rewards.deaths !== this.appliedRewards.deaths) {
+    this.ui.lastTickAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (
+      this.combat.tickCount % 5 === 0 ||
+      this.combat.rewards.kills !== this.appliedRewards.kills ||
+      this.combat.rewards.deaths !== this.appliedRewards.deaths
+    ) {
       this.syncCombat();
     }
     if (this.combat.status === 'victory' && !this.victorySynced) {

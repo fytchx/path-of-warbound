@@ -22,15 +22,15 @@
 > **Maintainer Note:** Update the fields below whenever advancing phases or versions. AI assistants must treat this block as the single source of truth for what to build right now.
 
 * **ACTIVE VERSION:** `v0.1 — Core Playable Slice`
-* **CURRENT PHASE:** `v0.1 Onboarding Slice: progressive skill unlocks`
+* **CURRENT PHASE:** `v0.1 Tier 1 → Tier 2 Onboarding Loop, Combat Feel & Repo Cleanup`
 * **PRIMARY INSTRUCTION FILE:** `docs/ACTIVE_INSTRUCTIONS.md`
 * **REFERENCE SPECS:** `docs/GAME_DESIGN_BIBLE.md` | `docs/DATA_SCHEMAS.md`
 
 ### Phase Checklist
-- [ ] **Phase 1:** Pure headless stat aggregator (`Base -> Flat -> Increased -> More -> 2-Pass DAG Convert`), radial skill tree BFS/Tarjan engine, utility-scored combat tick loop, and CLI balance simulator.
-- [ ] **Phase 2:** JSON data registries (`gems`, `items`, `affixes`, `skill_tree`, `zones`, `doctrines`) + build-time schema validator.
-- [ ] **Phase 3:** Mobile-portrait UI (`390px` target width) — Combat Arena screen, `Weapon + Offhand + 3x3` Equipment Altar, translucent Stats/Item popups, and Radial Constellation Skill Tree canvas.
-- [ ] **Phase 4:** Local save serialization, offline progress calculator, and `v0.1` polish.
+- [x] **Phase 1:** Pure headless stat aggregator (`Base -> Flat -> Increased -> More -> 2-Pass DAG Convert`), radial skill tree BFS/Tarjan engine, utility-scored combat tick loop, and CLI balance simulator.
+- [x] **Phase 2:** JSON data registries (`gems`, `items`, `affixes`, `skill_tree`, `zones`, `doctrines`, `progression`) + build-time schema validator.
+- [x] **Phase 3:** Mobile-portrait UI (`390px` target width) — Combat Arena screen, `Weapon + Offhand + 3x3` Equipment Altar, translucent Stats/Item popups, and Radial Constellation Skill Tree canvas.
+- [x] **Phase 4:** Local save serialization, offline progress calculator, Tier 1 → Tier 2 progressive onboarding loop, combat game-feel polish, and `v0.1` verification.
 
 ---
 

@@ -51,6 +51,16 @@ function statsModal(store: GameStore): string {
       <div class="panel-title"><span>Keystones</span><span class="muted tiny">${stats.keystones.size} bound</span></div>
       ${keystoneList || '<div class="tiny muted">No keystones allocated yet.</div>'}
     </div>
+    <div class="panel" style="margin-top:10px">
+      <div class="panel-title"><span>Settings</span><span class="muted tiny">v0.1</span></div>
+      <div class="modal-actions" style="margin-top:4px">
+        <button class="btn ${save.settings.logCombat ? 'primary' : ''}" data-action="toggle-log">Log: ${save.settings.logCombat ? 'On' : 'Off'}</button>
+        <button class="btn ${save.settings.reducedMotion ? 'primary' : ''}" data-action="toggle-motion">Motion: ${save.settings.reducedMotion ? 'Reduced' : 'Full'}</button>
+        ${save.onboardingStep < 6 && !save.settings.guideSkipped
+          ? '<button class="btn" data-action="skip-guide">Skip Guide</button>'
+          : ''}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -77,12 +87,15 @@ function itemModal(store: GameStore, uid: string): string {
 
   const implicit = base.implicit.map((mod) => `<div class="affix-line"><span class="affix-name">Implicit</span><span class="affix-val">${modLine(mod)}</span></div>`).join('');
 
+  const linkedCount = item.linkedSockets ?? 0;
+  const highlightLink = store.save.onboardingStep === 2 && !store.save.settings.guideSkipped && linkedCount >= 2;
   const sockets = item.sockets
     .map((gem, index) => {
       const def = gem ? gems.find((entry) => entry.id === gem.gemId) : null;
-      return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(item.uid)}" data-index="${index}" title="Socket ${index + 1}${gem ? ` · ${escapeHtml(def?.name ?? '')}` : ''}">
+      const linkedToNext = index + 1 < linkedCount && index + 1 < item.sockets.length;
+      return `<button class="socket-btn ${gem ? 'filled' : ''} ${highlightLink && index < linkedCount ? 'link-hint' : ''}" data-action="socket" data-uid="${escapeHtml(item.uid)}" data-index="${index}" title="Socket ${index + 1}${gem ? ` · ${escapeHtml(def?.name ?? '')}` : ''}">
         ${def ? assetImg(def.assetId, def.name) : ''}
-      </button>`;
+      </button>${linkedToNext ? '<span class="socket-link" aria-hidden="true"></span>' : ''}`;
     })
     .join('');
 
@@ -112,6 +125,7 @@ function itemModal(store: GameStore, uid: string): string {
     </div>
     <div class="affix-list">${implicit}${affixes || '<div class="tiny muted">No affixes. Reforge or promote it at the Forge.</div>'}</div>
     <div class="socket-row">${sockets || '<span class="tiny muted">No sockets.</span>'}</div>
+    ${highlightLink ? '<div class="tiny gold" style="margin-top:4px">2-Link active: combine an Active Skill + Support Gem here.</div>' : ''}
     ${base.uniqueEffect ? `<div class="panel" style="padding:8px"><div class="tiny gold">${escapeHtml(base.uniqueEffect)}</div></div>` : ''}
     <div class="modal-actions">${equipButtons}${salvage}</div>
   </div>`;
@@ -141,9 +155,12 @@ function nodeModal(store: GameStore, nodeId: string): string {
     : `<p class="tiny" style="line-height:1.5;color:var(--text)">${escapeHtml(node.description)}</p>
        <div class="affix-list">${mods || '<div class="tiny muted">A path node with no effect of its own.</div>'}</div>`;
 
+  const keystoneLocked = isKeystone && !allocated && !store.isSystemUnlocked('keystones');
   const action = allocated
     ? `<button class="btn" data-action="refund" data-node="${escapeHtml(node.id)}">Refund Point</button>`
-    : `<button class="btn primary" data-action="allocate" data-node="${escapeHtml(node.id)}">Allocate · 1 point</button>`;
+    : keystoneLocked
+      ? `<button class="btn" disabled>Unlocks at Tier 2</button>`
+      : `<button class="btn primary" data-action="allocate" data-node="${escapeHtml(node.id)}">Allocate · 1 point</button>`;
 
   return `<div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(node.name)}">
     ${closeButton()}

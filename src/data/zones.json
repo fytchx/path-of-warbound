@@ -4,9 +4,9 @@
     "name": "Ashen Graveyard",
     "assetId": "bg_ashen_graveyard",
     "tiers": 10,
-    "monsterIds": ["mob_ghoul", "mob_slime", "mob_reaper", "elite_skeleton_champion"],
-    "eliteChance": 0.12,
-    "keyDropChance": 0.18,
+    "monsterIds": ["mob_slime", "mob_wolf", "mob_ghoul", "elite_horned_brute", "elite_skeleton_champion"],
+    "eliteChance": 0.14,
+    "keyDropChance": 0.2,
     "rewardMultiplier": 1.0,
     "flavour": "The first field. The soil is more ash than earth, and the markers have no names."
   },

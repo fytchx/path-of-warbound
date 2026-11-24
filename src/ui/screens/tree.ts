@@ -117,22 +117,24 @@ export function treeScreen(store: GameStore): string {
         </div>`
       : '<div class="frame pan"><p class="tiny muted">Tap an unallocated node to preview and buy the shortest path. Tap an allocated node to inspect it.</p></div>'}
 
-    <div class="frame pan">
-      <h4>Keystones<span>8 · mutually exclusive pairs</span></h4>
-      ${keystones
-        .map((keystone) => {
-          const owned = allocated.has(keystone.id);
-          const partner = (keystone.excludes ?? [])[0];
-          const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
-          return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
-            <span>
-              <span class="gold" style="display:block;font-size:10px">${escapeHtml(keystone.name)}</span>
-              <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partner ?? '')}` : escapeHtml(keystone.description.slice(0, 56))}…</span>
-            </span>
-            <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? '◆' : `${fmt(store.unspent())} free`}</span>
-          </button>`;
-        })
-        .join('')}
-    </div>
+    ${store.isSystemUnlocked('keystones')
+      ? `<div class="frame pan">
+          <h4>Keystones<span>8 · mutually exclusive pairs</span></h4>
+          ${keystones
+            .map((keystone) => {
+              const owned = allocated.has(keystone.id);
+              const partner = (keystone.excludes ?? [])[0];
+              const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
+              return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
+                <span>
+                  <span class="gold" style="display:block;font-size:10px">${escapeHtml(keystone.name)}</span>
+                  <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partner ?? '')}` : escapeHtml(keystone.description.slice(0, 56))}…</span>
+                </span>
+                <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? '◆' : `${fmt(store.unspent())} free`}</span>
+              </button>`;
+            })
+            .join('')}
+        </div>`
+      : `<div class="frame pan"><h4>Keystones<span>Locked</span></h4><p class="tiny muted">Slay your first Tier 2 foe to unlock Keystones.</p></div>`}
   </section>`;
 }

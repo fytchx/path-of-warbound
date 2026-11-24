@@ -97,7 +97,20 @@ describe('registries', () => {
   it('validates progression entries, triggers, granted gems, and unlocked systems', () => {
     expect(progression.length).toBeGreaterThan(0);
     const ids = new Set<string>();
-    const validSystems = new Set(['altar', 'tree', 'forge', 'bar_2']);
+    const validSystems = new Set([
+      'altar',
+      'bag',
+      'tree',
+      'forge',
+      'bar_2',
+      'doctrines',
+      'auto_boss',
+      'pack_2',
+      'pack_full',
+      'forge_full',
+      'auto_salvage',
+      'keystones',
+    ]);
     for (const entry of progression) {
       expect(ids.has(entry.id), `duplicate progression id ${entry.id}`).toBe(false);
       ids.add(entry.id);

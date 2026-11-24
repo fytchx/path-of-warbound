@@ -51,6 +51,7 @@ export function altarScreen(store: GameStore): string {
   const trinket = store.save.equipment.trinket;
   const trinketBase = trinket ? itemBaseById.get(trinket.baseId) : null;
   const doctrine = doctrines.find((entry) => entry.id === store.save.doctrine);
+  const doctrinesUnlocked = store.isSystemUnlocked('doctrines');
 
   return `<section class="screen" data-screen="altar" aria-label="Altar">
     <div class="sub-h">
@@ -59,6 +60,12 @@ export function altarScreen(store: GameStore): string {
         <button class="gbtn" data-action="modal-stats">STATS ›</button>
       </div>
     </div>
+
+    ${store.save.onboardingStep === 2 && !store.save.settings.guideSkipped
+      ? `<div class="frame pan whisper-card"><span class="tiny gold">Tap your Warbound Cuirass (or Bag) to open its 2 linked sockets and combine Cleave + Multistrike.</span></div>`
+      : store.save.onboardingStep === 1 && !store.save.settings.guideSkipped && store.save.inventory.length > 0
+        ? `<div class="frame pan whisper-card"><span class="tiny gold">Open [BAG] below and tap your new armor to equip it onto the Altar.</span></div>`
+        : ''}
 
     <div class="frame attrs">
       ${ATTRIBUTES.map(
@@ -73,21 +80,23 @@ export function altarScreen(store: GameStore): string {
       ${SLOT_ORDER.map((slot) => slotMarkup(store, slot)).join('')}
     </div>
 
-    <div class="frame pan">
-      <h4>Combat Doctrine<span>${doctrine?.guardThreshold ?? 45}% guard</span></h4>
-      <div class="doctrines">
-        ${doctrines
-          .map(
-            (entry) => `<button class="doctrine ${store.save.doctrine === entry.id ? 'active' : ''}" data-action="doctrine" data-doctrine="${entry.id}" title="${escapeHtml(entry.description)}">
-              ${assetImg(entry.assetId, entry.name)}
-              <span>${titleCase(entry.id)}</span>
-            </button>`,
-          )
-          .join('')}
-      </div>
-      <p class="tiny muted" style="margin-top:6px;line-height:1.4">${escapeHtml(doctrine?.description ?? '')}</p>
-      <p class="tiny muted" style="margin-top:4px">${escapeHtml(store.durabilityNote())}</p>
-    </div>
+    ${doctrinesUnlocked
+      ? `<div class="frame pan">
+          <h4>Combat Doctrine<span>${doctrine?.guardThreshold ?? 45}% guard</span></h4>
+          <div class="doctrines">
+            ${doctrines
+              .map(
+                (entry) => `<button class="doctrine ${store.save.doctrine === entry.id ? 'active' : ''}" data-action="doctrine" data-doctrine="${entry.id}" title="${escapeHtml(entry.description)}">
+                  ${assetImg(entry.assetId, entry.name)}
+                  <span>${titleCase(entry.id)}</span>
+                </button>`,
+              )
+              .join('')}
+          </div>
+          <p class="tiny muted" style="margin-top:6px;line-height:1.4">${escapeHtml(doctrine?.description ?? '')}</p>
+          <p class="tiny muted" style="margin-top:4px">${escapeHtml(store.durabilityNote())}</p>
+        </div>`
+      : ''}
 
     <div class="two">
       <div class="frame pan">

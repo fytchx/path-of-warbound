@@ -195,8 +195,30 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
     mods.push(...itemMods(item));
   }
 
-  const socketed = allSocketedGems(save.equipment);
-  const { mods: gemMods, supports } = collectGemMods(socketed);
+  const socketed: GemInstance[] = [];
+  const linkedGems: GemInstance[] = [];
+  for (const item of Object.values(save.equipment)) {
+    if (!item) continue;
+    const gemsInItem = item.sockets.filter((g): g is GemInstance => g !== null);
+    socketed.push(...gemsInItem);
+    if (item.linkedSockets !== undefined) {
+      const linkCount = Math.max(0, Math.min(item.sockets.length, item.linkedSockets));
+      const group = item.sockets.slice(0, linkCount).filter((g): g is GemInstance => g !== null);
+      const hasActive = group.some((g) => gemById.get(g.gemId)?.kind === 'active');
+      for (const gemInstance of group) {
+        const def = gemById.get(gemInstance.gemId);
+        if (!def) continue;
+        if (def.kind === 'active' || hasActive) linkedGems.push(gemInstance);
+      }
+      for (const gemInstance of item.sockets.slice(linkCount)) {
+        if (!gemInstance) continue;
+        if (gemById.get(gemInstance.gemId)?.kind === 'active') linkedGems.push(gemInstance);
+      }
+    } else {
+      linkedGems.push(...gemsInItem);
+    }
+  }
+  const { mods: gemMods, supports } = collectGemMods(linkedGems);
   mods.push(...gemMods);
 
   const stats = aggregateStats(mods, baseStats(save.level));

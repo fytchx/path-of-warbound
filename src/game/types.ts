@@ -27,6 +27,7 @@ export interface ItemInstance {
   itemLevel: number;
   affixes: { affixId: string; tier: number }[];
   sockets: (GemInstance | null)[];
+  linkedSockets?: number;
   corrupted: boolean;
 }
 
@@ -38,6 +39,8 @@ export interface LifetimeStats {
   damage: number;
   gold: number;
 }
+
+export type OnboardingStep = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface CharacterSave {
   version: number;
@@ -60,8 +63,12 @@ export interface CharacterSave {
   skillSlots: number;
   unlockedSystems: string[];
   grantedProgression: string[];
+  onboardingStep: OnboardingStep;
+  starterKillsClaimed: number;
+  autoAdvanceBoss: boolean;
+  autoSalvage: boolean;
   lifetime: LifetimeStats;
-  settings: { reducedMotion: boolean; logCombat: boolean };
+  settings: { reducedMotion: boolean; logCombat: boolean; guideSkipped: boolean };
 }
 
 export interface OfflineSummary {

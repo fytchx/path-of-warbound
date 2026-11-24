@@ -5,7 +5,7 @@
     "grants": {
       "skillSlot": 1,
       "gem": "gem_ember_bolt",
-      "unlockedSystems": ["altar"]
+      "unlockedSystems": ["tree"]
     }
   },
   {
@@ -21,8 +21,7 @@
     "trigger": { "level": 3 },
     "grants": {
       "skillSlot": 1,
-      "gem": "gem_frost_shard",
-      "unlockedSystems": ["tree"]
+      "gem": "gem_frost_shard"
     }
   },
   {
@@ -30,8 +29,7 @@
     "trigger": { "level": 5 },
     "grants": {
       "skillSlot": 1,
-      "gem": "gem_storm_bolt",
-      "unlockedSystems": ["forge"]
+      "gem": "gem_storm_bolt"
     }
   },
   {
@@ -39,8 +37,7 @@
     "trigger": { "level": 7 },
     "grants": {
       "skillSlot": 1,
-      "gem": "gem_void_lance",
-      "unlockedSystems": ["bar_2"]
+      "gem": "gem_void_lance"
     }
   }
 ]

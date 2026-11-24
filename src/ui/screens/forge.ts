@@ -87,16 +87,20 @@ export function forgeScreen(store: GameStore): string {
     const base = itemBase(selected);
     const equipped = Object.values(store.save.equipment).some((entry) => entry?.uid === selected.uid);
     const flags = affordances(store, selected);
-    const cards = ACTION_ORDER.map((action) => {
-      const entry = ACTION_COPY[action];
-      const flag = flags[action];
-      const cost = flag.cost;
-      return `<button class="fc" style="${ACTION_CELL[action]}" data-action="craft" data-craft="${action}" ${flag.disabled ? 'disabled' : ''}>
+    const fullForge = store.isSystemUnlocked('forge_full');
+    const visibleActions: CraftAction[] = fullForge ? ACTION_ORDER : ['upgrade'];
+    const cards = visibleActions
+      .map((action) => {
+        const entry = ACTION_COPY[action];
+        const flag = flags[action];
+        const cost = flag.cost;
+        return `<button class="fc" style="${ACTION_CELL[action]}" data-action="craft" data-craft="${action}" ${flag.disabled ? 'disabled' : ''}>
         <b>${entry.label}</b>
         <span>${flag.why || `${entry.blurb}`}</span>
         <i>${cost.amount} ${cost.material.replace('mat_', '')}</i>
       </button>`;
-    }).join('');
+      })
+      .join('');
 
     anvil = `<div class="frame anvil">
       ${cards}
@@ -118,17 +122,21 @@ export function forgeScreen(store: GameStore): string {
       })
       .join('');
 
+    const linkedCount = selected.linkedSockets ?? 0;
+    const socketButtons = selected.sockets
+      .map((gem, index) => {
+        const def = gem ? gemById.get(gem.gemId) ?? null : null;
+        const linkedToNext = index + 1 < linkedCount && index + 1 < selected.sockets.length;
+        return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="Socket ${index + 1}">
+          ${def ? assetImg(def.assetId, def.name) : ''}
+        </button>${linkedToNext ? '<span class="socket-link" aria-hidden="true"></span>' : ''}`;
+      })
+      .join('');
+
     affixPanel = `<div class="frame pan">
       <h4>Affixes<span>${RARITY_LABEL[selected.rarity]}</span></h4>
       ${lines || '<div class="tiny muted">No affixes on this item.</div>'}
-      <div class="socket-row">${selected.sockets
-        .map((gem, index) => {
-          const def = gem ? gemById.get(gem.gemId) ?? null : null;
-          return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="Socket ${index + 1}">
-            ${def ? assetImg(def.assetId, def.name) : ''}
-          </button>`;
-        })
-        .join('')}</div>
+      <div class="socket-row">${socketButtons}</div>
     </div>`;
   }
 
@@ -142,8 +150,10 @@ export function forgeScreen(store: GameStore): string {
     )
     .join('');
 
+  const fullForge = store.isSystemUnlocked('forge_full');
+
   return `<section class="screen" data-screen="forge" aria-label="Forge">
-    <div class="sub-h"><h2>THE FORGE</h2><span class="tiny muted">temper · reforge · corrupt</span></div>
+    <div class="sub-h"><h2>THE FORGE</h2><span class="tiny muted">${fullForge ? 'temper · reforge · corrupt' : 'temper with scrap · more crafts at Tier 2'}</span></div>
 
     <div class="frame cur">${materialBar}</div>
 
@@ -153,6 +163,6 @@ export function forgeScreen(store: GameStore): string {
 
     ${store.ui.craftMessage ? `<div class="frame pan" style="text-align:center"><span class="tiny gold">${escapeHtml(store.ui.craftMessage)}</span></div>` : ''}
 
-    <p class="hint">Essence corrupts permanently. Every craft rerolls the anvil.</p>
+    <p class="hint">${fullForge ? 'Essence corrupts permanently. Every craft rerolls the anvil.' : 'Reinforce gear with War-Scrap. Reforge, Socket, and Essence unlock after your first Tier 2 kill.'}</p>
   </section>`;
 }

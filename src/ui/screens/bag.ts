@@ -89,6 +89,9 @@ export function bagScreen(store: GameStore): string {
       ${FILTERS.map(
         (entry) => `<button class="gbtn sm ${filter === entry.id ? 'on' : ''}" data-action="bag-filter" data-filter="${entry.id}">${entry.label}</button>`,
       ).join('')}
+      ${store.isSystemUnlocked('auto_salvage')
+        ? `<button class="gbtn sm ${store.save.autoSalvage ? 'on' : ''}" data-action="toggle-auto-salvage" title="Automatically salvage Common item drops into scrap">AUTO-SALVAGE</button>`
+        : ''}
       <span class="tiny muted" style="margin-left:auto">${store.save.inventory.length} items · ${store.save.keys} keys</span>
     </div>
 

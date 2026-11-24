@@ -1,8 +1,8 @@
-import { affixById, affixes, itemBaseById, progression, skillTree } from '../data';
-import type { DoctrineId, ItemSlot, ProgressionEntry, Rarity } from '../data/types';
+import { affixById, affixes, itemBaseById, itemBases, progression, skillTree } from '../data';
+import type { DoctrineId, ItemSlot, ProgressionEntry, Rarity, UnlockableSystem } from '../data/types';
 import { buildTreeGraph, canAllocate, getArticulationPoints, strandedAfterRemoval } from '../engine/treeGraph';
 import type { CombatRewards } from '../engine/combatEngine';
-import { mulberry32, pickOne } from '../engine/rng';
+import { chance, mulberry32, pickOne } from '../engine/rng';
 import {
   allSocketedGems,
   fitsSlot,
@@ -10,10 +10,33 @@ import {
   itemGearscore,
   socketedGems,
 } from './items';
-import { MATERIAL_IDS, type CharacterSave, type GemInstance, type ItemInstance, type MaterialId, type OfflineSummary } from './types';
+import {
+  MATERIAL_IDS,
+  type CharacterSave,
+  type GemInstance,
+  type ItemInstance,
+  type MaterialId,
+  type OfflineSummary,
+  type OnboardingStep,
+} from './types';
 
 export const STORAGE_KEY = 'path-of-warbound.save.v1';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+
+export const ALL_UNLOCKABLE_SYSTEMS: UnlockableSystem[] = [
+  'altar',
+  'bag',
+  'tree',
+  'forge',
+  'bar_2',
+  'doctrines',
+  'auto_boss',
+  'pack_2',
+  'pack_full',
+  'forge_full',
+  'auto_salvage',
+  'keystones',
+];
 
 const treeGraph = buildTreeGraph(skillTree);
 
@@ -83,22 +106,14 @@ export function makeGem(gemId: string, level = 1, bar: GemInstance['bar'] = 'bot
   return { gemId, level, xp: 0, bar };
 }
 
-function withGems(item: ItemInstance, gems: (GemInstance | null)[]): ItemInstance {
-  const sockets = [...item.sockets];
-  gems.forEach((gem, index) => {
-    if (index < sockets.length) sockets[index] = gem;
-  });
-  return { ...item, sockets };
-}
-
 export function createInitialSave(now = Date.now()): CharacterSave {
   const seed = 'warbound-v0.1';
-  const weapon = withGems(createItem('base_sword_1h', 'common', 1, seed), [makeGem('gem_cleave', 1, 'both'), null, null]);
+  const starterSword = createItem('base_sword_1h', 'common', 1, seed);
+  starterSword.sockets = [makeGem('gem_cleave', 1, 'both')];
+  starterSword.linkedSockets = 1;
 
   const equipment: Partial<Record<ItemSlot, ItemInstance>> = {
-    main_hand: weapon,
-    chest: createItem('base_chest', 'common', 1, seed),
-    boots: createItem('base_boots', 'common', 1, seed),
+    main_hand: starterSword,
   };
 
   return {
@@ -112,7 +127,7 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     materials: { mat_scrap: 0, mat_flux: 0, mat_thread: 0, mat_essence: 0, gem_dust: 0 },
     doctrine: 'tactician',
     activeBar: 'bar_1',
-    packSize: 2,
+    packSize: 1,
     zoneId: 'zone_ashen_graveyard',
     tier: 1,
     equipment,
@@ -122,8 +137,12 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     skillSlots: 1,
     unlockedSystems: [],
     grantedProgression: [],
+    onboardingStep: 0,
+    starterKillsClaimed: 0,
+    autoAdvanceBoss: false,
+    autoSalvage: false,
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
-    settings: { reducedMotion: false, logCombat: true },
+    settings: { reducedMotion: false, logCombat: true, guideSkipped: false },
   };
 }
 
@@ -132,7 +151,11 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   if (!raw || typeof raw !== 'object') return fallback;
   const candidate = raw as Partial<CharacterSave>;
   if (candidate.version !== SAVE_VERSION) return fallback;
-  const merged: CharacterSave = { ...fallback, ...candidate, settings: { ...fallback.settings, ...candidate.settings } };
+  const merged: CharacterSave = {
+    ...fallback,
+    ...candidate,
+    settings: { ...fallback.settings, ...candidate.settings },
+  };
   merged.materials = { ...fallback.materials, ...candidate.materials };
   merged.lifetime = { ...fallback.lifetime, ...candidate.lifetime };
   if (!Array.isArray(merged.inventory)) merged.inventory = [];
@@ -141,10 +164,15 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   if (!Array.isArray(merged.unlockedSystems)) merged.unlockedSystems = [];
   if (!Array.isArray(merged.grantedProgression)) merged.grantedProgression = [];
   merged.skillSlots = Math.max(1, Math.floor(Number(merged.skillSlots) || 1));
+  merged.onboardingStep = Math.max(0, Math.min(6, Math.floor(Number(merged.onboardingStep) || 0))) as OnboardingStep;
+  merged.starterKillsClaimed = Math.max(0, Math.floor(Number(merged.starterKillsClaimed) || 0));
+  merged.autoAdvanceBoss = Boolean(candidate.autoAdvanceBoss);
+  merged.autoSalvage = Boolean(candidate.autoSalvage);
+  merged.settings.guideSkipped = Boolean(merged.settings.guideSkipped);
   if (!merged.equipment || typeof merged.equipment !== 'object') merged.equipment = {};
   if (!merged.inventory.every((item) => itemBaseById.has(item.baseId))) merged.inventory = [];
   merged.tier = Math.max(1, Math.min(10, Math.round(merged.tier) || 1));
-  merged.packSize = (Math.max(1, Math.min(5, Math.round(merged.packSize) || 2)) as CharacterSave['packSize']);
+  merged.packSize = (Math.max(1, Math.min(5, Math.round(merged.packSize) || 1)) as CharacterSave['packSize']);
   return merged;
 }
 
@@ -185,6 +213,162 @@ export function computeOffline(save: CharacterSave, now = Date.now()): OfflineSu
   return summary;
 }
 
+export function unlockSystem(save: CharacterSave, system: UnlockableSystem): boolean {
+  if (save.unlockedSystems.includes(system)) return false;
+  save.unlockedSystems.push(system);
+  return true;
+}
+
+export function unlockAllSystems(save: CharacterSave): UnlockableSystem[] {
+  const added: UnlockableSystem[] = [];
+  for (const sys of ALL_UNLOCKABLE_SYSTEMS) {
+    if (unlockSystem(save, sys)) added.push(sys);
+  }
+  save.onboardingStep = 6;
+  return added;
+}
+
+export interface KillDropSummary {
+  itemsAdded: ItemInstance[];
+  itemsSalvaged: number;
+  gemsAdded: string[];
+  keysAdded: number;
+  scrapAdded: number;
+  unlockedSystems: UnlockableSystem[];
+  awakened: boolean;
+}
+
+function makeStarterHelm(): ItemInstance {
+  const helm = createItem('base_helm', 'common', 1, 'starter-helm');
+  helm.affixes = [
+    { affixId: 'aff_vital', tier: 1 },
+    { affixId: 'aff_tempered', tier: 1 },
+  ];
+  helm.sockets = [null, null];
+  helm.linkedSockets = 1;
+  return helm;
+}
+
+function makeStarterChest(): ItemInstance {
+  const chest = createItem('base_chest', 'magic', 1, 'starter-chest');
+  chest.affixes = [
+    { affixId: 'aff_mighty', tier: 1 },
+    { affixId: 'aff_tempered', tier: 1 },
+  ];
+  chest.sockets = [null, null];
+  chest.linkedSockets = 2;
+  return chest;
+}
+
+function makeStarterAxe(): ItemInstance {
+  const axe = createItem('base_axe_1h', 'magic', 2, 'starter-axe');
+  axe.affixes = [
+    { affixId: 'aff_bloodletting', tier: 1 },
+    { affixId: 'aff_sharp', tier: 1 },
+  ];
+  axe.sockets = [null, null];
+  axe.linkedSockets = 2;
+  return axe;
+}
+
+export function processKillDrops(save: CharacterSave, newKills: number, tier: number): KillDropSummary {
+  const summary: KillDropSummary = {
+    itemsAdded: [],
+    itemsSalvaged: 0,
+    gemsAdded: [],
+    keysAdded: 0,
+    scrapAdded: 0,
+    unlockedSystems: [],
+    awakened: false,
+  };
+
+  for (let i = 0; i < newKills; i += 1) {
+    if (save.starterKillsClaimed < 10) {
+      save.starterKillsClaimed += 1;
+      const k = save.starterKillsClaimed;
+      if (k === 2) {
+        const helm = makeStarterHelm();
+        save.inventory.push(helm);
+        summary.itemsAdded.push(helm);
+        if (unlockSystem(save, 'altar')) summary.unlockedSystems.push('altar');
+        if (unlockSystem(save, 'bag')) summary.unlockedSystems.push('bag');
+        if (save.onboardingStep < 1) save.onboardingStep = 1;
+      } else if (k === 3) {
+        const chest = makeStarterChest();
+        save.inventory.push(chest);
+        summary.itemsAdded.push(chest);
+        if (unlockSystem(save, 'altar')) summary.unlockedSystems.push('altar');
+        if (unlockSystem(save, 'bag')) summary.unlockedSystems.push('bag');
+        if (save.onboardingStep < 1) save.onboardingStep = 1;
+      } else if (k === 5) {
+        save.gemStash.push(makeGem('support_multistrike', 1, 'both'));
+        summary.gemsAdded.push('support_multistrike');
+        if (save.onboardingStep < 2) save.onboardingStep = 2;
+      } else if (k === 6) {
+        save.keys += 1;
+        summary.keysAdded += 1;
+        save.materials.mat_scrap += 25;
+        summary.scrapAdded += 25;
+        if (save.onboardingStep < 3) save.onboardingStep = 3;
+      } else if (k === 8) {
+        const axe = makeStarterAxe();
+        save.inventory.push(axe);
+        summary.itemsAdded.push(axe);
+        if (unlockSystem(save, 'forge')) summary.unlockedSystems.push('forge');
+        if (unlockSystem(save, 'pack_2')) summary.unlockedSystems.push('pack_2');
+        if (save.onboardingStep < 4) save.onboardingStep = 4;
+      } else if (k === 10) {
+        save.keys += 1;
+        summary.keysAdded += 1;
+        save.materials.mat_scrap += 35;
+        summary.scrapAdded += 35;
+        if (unlockSystem(save, 'forge')) summary.unlockedSystems.push('forge');
+        if (unlockSystem(save, 'pack_2')) summary.unlockedSystems.push('pack_2');
+        if (save.onboardingStep < 4) save.onboardingStep = 4;
+      }
+      continue;
+    }
+
+    const rng = mulberry32(hashSeed(`drop:${save.lifetime.kills}:${i}:${tier}:${save.gold}`));
+    const scrap = 1 + Math.floor(rng() * 3) + Math.floor((tier - 1) / 2);
+    save.materials.mat_scrap += scrap;
+    summary.scrapAdded += scrap;
+    if (chance(rng, 0.22)) save.materials.mat_flux += 1;
+    if (chance(rng, 0.14)) save.materials.mat_thread += 1;
+    if (tier >= 2 && chance(rng, 0.1)) save.materials.mat_essence += 1;
+
+    if (chance(rng, 0.28) && itemBases.length > 0) {
+      const base = pickOne(rng, itemBases);
+      const roll = rng();
+      const rarity: Rarity =
+        roll < 0.02 + tier * 0.005 ? 'mythic' : roll < 0.16 + tier * 0.02 ? 'rare' : roll < 0.56 ? 'magic' : 'common';
+      const item = createItem(base.id, rarity, Math.max(1, tier), `drop-${save.lifetime.kills}-${i}`);
+      if (save.autoSalvage && item.rarity === 'common') {
+        const gain = salvageItem(save, item);
+        summary.scrapAdded += gain.scrap;
+        summary.itemsSalvaged += 1;
+      } else {
+        save.inventory.push(item);
+        summary.itemsAdded.push(item);
+      }
+    }
+  }
+
+  if (save.level >= 2) {
+    if (unlockSystem(save, 'tree')) summary.unlockedSystems.push('tree');
+    if (save.onboardingStep < 3) save.onboardingStep = 3;
+  }
+  if (save.keys >= 3 && tier <= 1 && save.onboardingStep < 5) {
+    save.onboardingStep = 5;
+  }
+  if (tier >= 2 && newKills > 0 && save.onboardingStep < 6) {
+    summary.unlockedSystems.push(...unlockAllSystems(save));
+    summary.awakened = true;
+  }
+
+  return summary;
+}
+
 export function evaluateProgression(save: CharacterSave, event?: 'first_death'): ProgressionEntry[] {
   const granted: ProgressionEntry[] = [];
   for (const entry of progression) {
@@ -202,7 +386,7 @@ export function evaluateProgression(save: CharacterSave, event?: 'first_death'):
       save.gemStash.push(makeGem(entry.grants.gem, 1));
     }
     for (const system of entry.grants.unlockedSystems ?? []) {
-      if (!save.unlockedSystems.includes(system)) save.unlockedSystems.push(system);
+      unlockSystem(save, system);
     }
     granted.push(entry);
   }

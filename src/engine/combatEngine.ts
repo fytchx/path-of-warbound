@@ -26,6 +26,9 @@ export interface CombatEnemy {
   attackTimer: number;
   dazed: number;
   ailments: Partial<Record<AilmentId, AilmentInstance>>;
+  slamTimer?: number;
+  slamTelegraph?: number;
+  slamWarned?: boolean;
 }
 
 export interface Buff {
@@ -40,6 +43,14 @@ export interface CombatEvent {
   t: number;
   kind: 'hit' | 'crit' | 'ailment' | 'kill' | 'ward' | 'guard' | 'key' | 'death' | 'wave' | 'boss' | 'trigger';
   text: string;
+}
+
+export interface CombatHitEvent {
+  id: number;
+  enemyUid: string;
+  amount: number;
+  school: School;
+  crit: boolean;
 }
 
 export interface DamageSample {
@@ -86,6 +97,9 @@ export interface CombatState {
   bossDefeated: boolean;
   wave: number;
   keys: number;
+  autoSummonBoss: boolean;
+  suppressRandomKeys: boolean;
+  allowedMonsterIds?: string[];
   status: 'running' | 'dead' | 'victory';
   deathTimer: number;
   activeBar: 'bar_1' | 'bar_2';
@@ -93,6 +107,8 @@ export interface CombatState {
   rng: () => number;
   log: CombatEvent[];
   damageLog: DamageSample[];
+  hitSeq: number;
+  recentHits: CombatHitEvent[];
   rewards: CombatRewards;
   totalDamage: number;
 }
@@ -105,6 +121,9 @@ export interface CreateCombatOptions {
   doctrine: DoctrineId;
   activeBar: 'bar_1' | 'bar_2';
   startingKeys?: number;
+  autoSummonBoss?: boolean;
+  suppressRandomKeys?: boolean;
+  allowedMonsterIds?: string[];
   playerStats: PlayerStats;
 }
 
@@ -115,17 +134,20 @@ function clampTier(tier: number): number {
 }
 
 function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
-  const tierScale = 1 + (state.tier - 1) * 0.18;
-  const eliteScale = def.elite ? 1 + (state.tier - 1) * 0.05 : 1;
-  const hp = Math.round(def.hp * tierScale * eliteScale);
+  const hpScale = state.tier === 1 ? 1 : 2.5 * Math.pow(1.35, state.tier - 2);
+  const dmgScale = state.tier === 1 ? 1 : 2.25 * Math.pow(1.22, state.tier - 2);
+  const armorScale = 1 + (state.tier - 1) * 0.25;
+  const eliteScale = def.elite ? 1 + (state.tier - 1) * 0.08 : 1;
+  const hp = Math.round(def.hp * hpScale * eliteScale);
+  const isBoss = def.id === 'mob_boss';
   return {
     uid: `e${state.tickCount}_${Math.floor(state.rng() * 1e6)}`,
     defId: def.id,
     name: def.name,
     hp,
     maxHp: hp,
-    damage: def.damage * (1 + (state.tier - 1) * 0.12),
-    armor: def.armor * (1 + (state.tier - 1) * 0.1),
+    damage: def.damage * dmgScale,
+    armor: def.armor * armorScale,
     attackSpeed: def.attackSpeed,
     school: def.school,
     elite: def.elite,
@@ -133,6 +155,7 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
     attackTimer: 0.4 + state.rng() * 0.8,
     dazed: 0,
     ailments: {},
+    ...(isBoss ? { slamTimer: 4.5, slamTelegraph: 0, slamWarned: false } : {}),
   };
 }
 
@@ -144,7 +167,11 @@ function rollElite(state: CombatState, baseChance: number): boolean {
 function spawnPack(state: CombatState): void {
   const forced = state.playerStats.keystones.has('ks_crowd_sovereign') ? Math.max(4, state.packSize) : state.packSize;
   const count = Math.max(1, Math.min(5, forced));
-  const pool = state.zone.monsterIds.map((id) => monsterById.get(id)).filter((m): m is MonsterDef => Boolean(m));
+  const zonePool = state.zone.monsterIds.map((id) => monsterById.get(id)).filter((m): m is MonsterDef => Boolean(m));
+  const allowed = state.allowedMonsterIds?.length
+    ? zonePool.filter((m) => state.allowedMonsterIds!.includes(m.id))
+    : zonePool;
+  const pool = allowed.length ? allowed : zonePool;
   const normals = pool.filter((m) => !m.elite);
   const elites = pool.filter((m) => m.elite);
   state.enemies = [];
@@ -162,9 +189,16 @@ function spawnBoss(state: CombatState): void {
   if (!def) return;
   const boss = spawnEnemy(state, def);
   boss.name = `${state.zone.name} Boss`;
-  state.enemies = [boss, ...state.enemies];
+  state.enemies = [boss, ...state.enemies.filter((e) => e.hp > 0)];
   state.bossActive = true;
   pushLog(state, 'boss', `${boss.name} rises. Kill it to claim the tier.`);
+}
+
+export function summonBoss(state: CombatState): boolean {
+  if (state.bossActive || state.keys < 3 || state.status !== 'running') return false;
+  state.keys -= 3;
+  spawnBoss(state);
+  return true;
 }
 
 export function createCombat(options: CreateCombatOptions): CombatState {
@@ -198,6 +232,9 @@ export function createCombat(options: CreateCombatOptions): CombatState {
     bossDefeated: false,
     wave: 0,
     keys: options.startingKeys ?? 0,
+    autoSummonBoss: options.autoSummonBoss ?? true,
+    suppressRandomKeys: options.suppressRandomKeys ?? false,
+    allowedMonsterIds: options.allowedMonsterIds,
     status: 'running',
     deathTimer: 0,
     activeBar: options.activeBar,
@@ -205,6 +242,8 @@ export function createCombat(options: CreateCombatOptions): CombatState {
     rng: mulberry32(options.seed),
     log: [],
     damageLog: [],
+    hitSeq: 0,
+    recentHits: [],
     rewards: { gold: 0, xp: 0, kills: 0, eliteKills: 0, bossKills: 0, deaths: 0, keys: 0, damage: 0 },
     totalDamage: 0,
   };
@@ -279,6 +318,9 @@ function damageEnemy(
   state.damageLog.push({ t: state.time, amount: dealt, school });
   if (state.damageLog.length > 200) state.damageLog.shift();
   if (dealt >= 1) {
+    state.hitSeq += 1;
+    state.recentHits.push({ id: state.hitSeq, enemyUid: enemy.uid, amount: dealt, school, crit });
+    if (state.recentHits.length > 16) state.recentHits.shift();
     pushLog(
       state,
       crit ? 'crit' : 'hit',
@@ -518,10 +560,10 @@ function playerCastLoop(state: CombatState): void {
   if (Number.isFinite(bestScore)) castSkill(state, best, 1);
 }
 
-function damagePlayer(state: CombatState, enemy: CombatEnemy): void {
+function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, attackLabel?: string): void {
   const player = state.player;
   const stats = state.playerStats;
-  let incoming = enemy.damage;
+  let incoming = enemy.damage * multiplier;
   if (enemy.dazed > 0) incoming *= 0.8;
   if (stats.keystones.has('ks_crowd_sovereign')) {
     incoming *= 1 + 0.15 * Math.min(5, state.enemies.filter((e) => e.hp > 0).length);
@@ -531,7 +573,7 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy): void {
   player.dodgeCharge += stats.dodgePerHit;
   if (player.dodgeCharge >= 100) {
     player.dodgeCharge -= 100;
-    pushLog(state, 'ward', `Dodged ${enemy.name}`);
+    pushLog(state, 'ward', `Dodged ${enemy.name}${attackLabel ? ` (${attackLabel})` : ''}`);
     if (stats.keystones.has('ks_ghostframe')) {
       const burst = (stats.values.dodge_rating ?? 0) * 0.15;
       damageEnemy(state, enemy, burst, 'physical', false, 'thorns');
@@ -552,7 +594,13 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy): void {
   player.hp = Math.max(0, player.hp - incoming);
   player.lastDamageAt = state.time;
 
-  if (incoming > 0) pushLog(state, 'hit', `${enemy.name} hits for ${incoming.toFixed(0)} (${player.hp.toFixed(0)} hp)`);
+  if (incoming > 0) {
+    pushLog(
+      state,
+      attackLabel ? 'boss' : 'hit',
+      `${enemy.name}${attackLabel ? ` ${attackLabel}` : ''} hits for ${incoming.toFixed(0)} (${player.hp.toFixed(0)} hp)`,
+    );
+  }
 
   const thorns = stats.values.thorns ?? 0;
   if (thorns > 0) damageEnemy(state, enemy, thorns, 'physical', false, 'thorns');
@@ -573,11 +621,16 @@ function killPlayer(state: CombatState): void {
   player.deaths += 1;
   state.rewards.deaths += 1;
   state.status = 'dead';
-  state.deathTimer = 3;
-  state.tier = Math.max(1, state.tier - 1);
-  state.keys = 0;
+  state.deathTimer = 2.5;
   state.bossActive = false;
-  pushLog(state, 'death', `The spark gutters. Tier falls to ${state.tier}.`);
+  if (state.tier <= 1) {
+    state.tier = 1;
+    pushLog(state, 'death', 'Your vessel shattered. Keys preserved at Tier 1.');
+  } else {
+    state.tier = Math.max(1, state.tier - 1);
+    state.keys = 0;
+    pushLog(state, 'death', `The spark gutters. Tier falls to ${state.tier}.`);
+  }
 }
 
 function tickAilments(state: CombatState): void {
@@ -614,20 +667,21 @@ function resolveDeaths(state: CombatState): void {
     state.enemies = state.enemies.filter((e) => e !== enemy);
     state.rewards.kills += 1;
     state.rewards.gold += Math.round(4 * state.zone.rewardMultiplier * (1 + state.tier * 0.15) * (enemy.elite ? 2.5 : 1) * (1 + stats.goldFind));
-    state.rewards.xp += Math.round(6 * state.zone.rewardMultiplier * (1 + state.tier * 0.1) * (enemy.elite ? 2 : 1));
+    state.rewards.xp += Math.round(14 * state.zone.rewardMultiplier * (1 + (state.tier - 1) * 0.2) * (enemy.elite ? 2 : 1));
     if (enemy.elite) state.rewards.eliteKills += 1;
     if (enemy.defId === 'mob_boss') {
       state.bossDefeated = true;
       state.bossActive = false;
       state.rewards.bossKills += 1;
       state.rewards.gold += 100 * state.zone.rewardMultiplier;
+      state.rewards.xp += Math.round(45 * state.zone.rewardMultiplier);
       state.tier = Math.min(10, state.tier + 1);
       state.status = 'victory';
       pushLog(state, 'boss', `${enemy.name} falls. Tier ${state.tier} opens.`);
       continue;
     }
     pushLog(state, 'kill', `${enemy.name} dies (+${Math.round(4 * state.zone.rewardMultiplier)} gold)`);
-    if (chance(state.rng, state.zone.keyDropChance)) {
+    if (!state.suppressRandomKeys && chance(state.rng, state.zone.keyDropChance)) {
       state.keys += 1;
       state.rewards.keys += 1;
       pushLog(state, 'key', `Rift Key found (${state.keys}/3)`);
@@ -636,7 +690,7 @@ function resolveDeaths(state: CombatState): void {
 
   if (state.status !== 'running') return;
   if (state.enemies.length === 0) {
-    if (state.keys >= 3) {
+    if (state.autoSummonBoss && state.keys >= 3) {
       state.keys -= 3;
       spawnBoss(state);
     } else {
@@ -659,8 +713,9 @@ export function tickCombat(state: CombatState): void {
     state.deathTimer -= TICK_SECONDS;
     if (state.deathTimer <= 0) {
       const stats = state.playerStats;
-      state.player.hp = stats.maxHp * 0.5;
-      state.player.ward = 0;
+      const safeTierOne = state.tier <= 1;
+      state.player.hp = safeTierOne ? stats.maxHp : stats.maxHp * 0.5;
+      state.player.ward = safeTierOne ? stats.maxWard : 0;
       state.player.mana = stats.maxMana;
       state.player.buffs = [];
       state.player.dodgeCharge = 0;
@@ -670,7 +725,11 @@ export function tickCombat(state: CombatState): void {
       state.enemies = [];
       state.wave = 0;
       spawnPack(state);
-      pushLog(state, 'wave', 'The spark rekindles. The tier is one lower.');
+      pushLog(
+        state,
+        'wave',
+        safeTierOne ? 'The spark rekindles at Tier 1.' : 'The spark rekindles. The tier is one lower.',
+      );
     }
     return;
   }
@@ -729,7 +788,26 @@ export function tickCombat(state: CombatState): void {
     const dazeScale = enemy.dazed > 0 ? 0.8 : 1;
     const chill = enemy.ailments.chill;
     const chillScale = chill ? Math.max(0.5, 1 - 0.12 * chill.stacks) : 1;
-    enemy.attackTimer -= TICK_SECONDS * dazeScale * chillScale;
+    const speedFactor = TICK_SECONDS * dazeScale * chillScale;
+    if (enemy.defId === 'mob_boss' && enemy.slamTimer !== undefined) {
+      enemy.slamTimer -= speedFactor;
+      if (enemy.slamTimer <= 1.0 && enemy.slamTimer > 0) {
+        enemy.slamTelegraph = enemy.slamTimer;
+        if (!enemy.slamWarned) {
+          enemy.slamWarned = true;
+          pushLog(state, 'boss', `${enemy.name} raises its weapon for a Heavy Slam!`);
+        }
+      } else if (enemy.slamTimer <= 0) {
+        enemy.slamTimer += 4.5;
+        enemy.slamTelegraph = 0;
+        enemy.slamWarned = false;
+        damagePlayer(state, enemy, 1.5, 'Heavy Slam');
+        if (state.status !== 'running') break;
+      } else {
+        enemy.slamTelegraph = 0;
+      }
+    }
+    enemy.attackTimer -= speedFactor;
     if (enemy.attackTimer <= 0) {
       enemy.attackTimer += 1 / Math.max(0.2, enemy.attackSpeed);
       damagePlayer(state, enemy);

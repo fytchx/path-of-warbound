@@ -37,7 +37,7 @@ function skillBar(store: GameStore): string {
       const ready = remaining <= 0;
       const wrongBar = skill.bar !== 'both' && skill.bar !== bar;
       const cdPct = ready ? 0 : Math.min(100, Math.max(0, (remaining / cooldown) * 100));
-      return `<button class="skill ${ready && !wrongBar ? 'hot' : ''}" data-action="cast" data-skill="${escapeHtml(skill.id)}" title="${escapeHtml(skill.name)}" aria-label="${escapeHtml(skill.name)}">
+      return `<button class="skill ${ready && !wrongBar ? 'hot' : ''}" data-action="cast" data-skill="${escapeHtml(skill.id)}" data-cd="${cooldown}" title="${escapeHtml(skill.name)}" aria-label="${escapeHtml(skill.name)}">
         ${gem ? assetImg(gem.assetId, skill.name) : ''}
         ${wrongBar ? `<span class="lock">${skill.bar === 'bar_1' ? 'I' : 'II'}</span>` : !ready ? `<span class="cd" style="height:${cdPct}%"></span><span class="cdtime">${remaining.toFixed(1)}</span>` : ''}
       </button>`;
@@ -54,12 +54,12 @@ function skillBar(store: GameStore): string {
 
   const barPill = barTwoUnlocked
     ? `<button class="pill" data-action="bar" data-bar="${bar === 'bar_1' ? 'bar_2' : 'bar_1'}" aria-label="Switch skill bar">${bar === 'bar_1' ? 'BAR I' : 'BAR II'}</button>`
-    : `<span class="pill">BAR I</span>`;
+    : '';
 
   return `<div class="skills">
     ${barPill}
     <div class="slots">${slots}</div>
-    <div class="swing" aria-hidden="true"><b style="width:${swingPercent(store)}%"></b></div>
+    <div class="swing" aria-hidden="true"><b data-swing style="width:${swingPercent(store)}%"></b></div>
   </div>`;
 }
 
@@ -72,9 +72,11 @@ function enemyMarkup(store: GameStore): string {
     .map((enemy) => {
       const def = store.enemyDef(enemy);
       const ailments = Object.keys(enemy.ailments);
-      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''}" title="${escapeHtml(enemy.name)}">
-        <div class="oval" style="--c:${schoolColor(enemy.school)}">
+      const slamming = enemy.defId === 'mob_boss' && (enemy.slamTelegraph ?? 0) > 0;
+      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
+        <div class="oval ${slamming ? 'slam-telegraph' : ''}" style="--c:${schoolColor(enemy.school)}">
           ${def ? assetImg(def.assetId, enemy.name) : escapeHtml(enemy.name.slice(0, 1))}
+          ${slamming ? '<span class="slam-badge">SLAM!</span>' : ''}
         </div>
         <div class="ail">${ailments
           .map((ailment) => assetImg(ailmentIcon(ailment), ailment, '', ` title="${escapeHtml(ailment)}"`))
@@ -92,6 +94,10 @@ function arena(store: GameStore): string {
   const stats = store.stats;
   const zone = combat.zone;
   const status = combat.status === 'victory' ? 'CLEARED' : combat.status === 'dead' ? 'SPARK OUT' : combat.bossActive ? 'BOSS' : `WAVE ${combat.wave}`;
+  const whisper = store.whisperText();
+  const keyPulse = Date.now() - store.ui.keyPulseAt < 1800;
+  const canSummonBoss = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
+
   return `<div class="frame arena">
     ${assetImg(zone.assetId, zone.name, 'arena-bg')}
     <div class="arena-shade" aria-hidden="true"></div>
@@ -99,8 +105,14 @@ function arena(store: GameStore): string {
     <div class="badges">
       <span>${status}</span>
       <span>PACK <b>${combat.enemies.filter((enemy) => enemy.hp > 0).length}/${combat.packSize}</b></span>
-      <span>KEYS <b>${combat.keys}/3</b></span>
+      <span class="${keyPulse ? 'key-pulse' : ''}">KEYS <b>${combat.keys}/3</b></span>
     </div>
+    ${whisper
+      ? `<div class="whisper" role="status">
+          <span>${escapeHtml(whisper)}</span>
+          ${store.ui.whisperOverride ? '<button class="whisper-x" data-action="dismiss-whisper" aria-label="Dismiss whisper">✕</button>' : ''}
+        </div>`
+      : ''}
     <span class="vnum l">${fmt(player.hp)}</span>
     <div class="vial l" title="Health ${fmt(player.hp)} / ${fmt(stats.maxHp)}${player.ward > 0 ? ` · ward ${fmt(player.ward)}` : ''}">
       <b style="height:${pct(player.hp, stats.maxHp)}"></b>${player.ward > 0 ? '<s></s>' : ''}
@@ -110,12 +122,18 @@ function arena(store: GameStore): string {
       <b style="height:${pct(player.mana, stats.maxMana)}"></b>
     </div>
     ${enemyMarkup(store)}
+    <div class="combat-fx" id="combat-fx" aria-hidden="true"></div>
+    ${canSummonBoss ? `<button class="boss-summon" data-action="summon-boss">SUMMON ZONE BOSS</button>` : ''}
     ${skillBar(store)}
   </div>`;
 }
 
 function controlStrip(store: GameStore): string {
   const combat = store.combat;
+  const maxPack = store.maxPackSize();
+  const packUnlocked = maxPack > 1;
+  const autoBossUnlocked = store.isSystemUnlocked('auto_boss');
+
   return `<div class="frame pan ctl">
     <div class="zonechips">
       ${zones
@@ -129,11 +147,16 @@ function controlStrip(store: GameStore): string {
       <span><small>TIER</small>${combat.tier}</span>
       <button data-action="tier-next" aria-label="Raise tier">+</button>
     </div>
-    <div class="stepper" title="Pack size: enemies per wave">
-      <button data-action="pack-prev" aria-label="Fewer enemies">−</button>
-      <span><small>PACK</small>${combat.packSize}</span>
-      <button data-action="pack-next" aria-label="More enemies">+</button>
-    </div>
+    ${packUnlocked
+      ? `<div class="stepper" title="Pack size: enemies per wave (max ${maxPack})">
+          <button data-action="pack-prev" aria-label="Fewer enemies">−</button>
+          <span><small>PACK</small>${combat.packSize}</span>
+          <button data-action="pack-next" aria-label="More enemies">+</button>
+        </div>`
+      : ''}
+    ${autoBossUnlocked
+      ? `<button class="gbtn sm ${store.save.autoAdvanceBoss ? 'on' : ''}" data-action="toggle-auto-boss" title="Auto-summon boss when 3 Rift Keys are gathered">AUTO-BOSS</button>`
+      : ''}
     <button class="icon-btn" data-action="pause" aria-label="${store.ui.paused ? 'Resume' : 'Pause'}" title="${store.ui.paused ? 'Resume' : 'Pause'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${store.ui.paused ? '<path d="M8 5l11 7-11 7z"/>' : '<path d="M9 5v14M15 5v14"/>'}</svg>
     </button>
@@ -242,6 +265,7 @@ function spoilsPanel(store: GameStore): string {
 
 export function combatScreen(store: GameStore): string {
   const combat = store.combat;
+  const doctrinesUnlocked = store.isSystemUnlocked('doctrines');
   return `<section class="screen" data-screen="combat" aria-label="Combat">
     ${arena(store)}
     ${controlStrip(store)}
@@ -253,14 +277,14 @@ export function combatScreen(store: GameStore): string {
         </div>`
       : combat.status === 'dead'
         ? `<div class="frame pan" style="text-align:center">
-            <h4 style="justify-content:center">The Spark Guttered</h4>
-            <p class="tiny muted">Reforming in ${combat.deathTimer.toFixed(1)}s · tier ${combat.tier}</p>
+            <h4 style="justify-content:center">${combat.tier <= 1 ? 'Your Vessel Shattered' : 'The Spark Guttered'}</h4>
+            <p class="tiny muted">${combat.tier <= 1 ? `Reforming at Tier 1 in ${combat.deathTimer.toFixed(1)}s · Keys preserved` : `Reforming in ${combat.deathTimer.toFixed(1)}s · tier ${combat.tier}`}</p>
           </div>`
         : ''}
     ${damagePanel(store)}
     <div class="two">${timersPanel(store)}${statsPanel(store)}</div>
     ${ratePills(store)}
     ${store.save.settings.logCombat ? `<div class="two">${logPanel(store)}${spoilsPanel(store)}</div>` : spoilsPanel(store)}
-    <p class="hint">${escapeHtml(combat.doctrine)} doctrine · ${store.ui.paused ? 'paused' : 'auto-casting'}${store.stats.keystones.has('ks_pendulum') ? ' · pendulum swaps bars' : ''}</p>
+    <p class="hint">${doctrinesUnlocked ? `${escapeHtml(combat.doctrine)} doctrine · ` : ''}${store.ui.paused ? 'paused' : 'auto-casting'}${store.stats.keystones.has('ks_pendulum') ? ' · pendulum swaps bars' : ''}</p>
   </section>`;
 }

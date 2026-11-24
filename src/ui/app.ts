@@ -1,7 +1,7 @@
 import type { DoctrineId, ItemSlot } from '../data/types';
 import type { GemInstance } from '../game/types';
 import { xpNeeded } from '../game/state';
-import { escapeHtml, titleCase } from './dom';
+import { escapeHtml, schoolColor, titleCase } from './dom';
 import { renderModal } from './modals';
 import { altarScreen } from './screens/altar';
 import { bagScreen } from './screens/bag';
@@ -51,9 +51,10 @@ const TABS: { id: ScreenId; label: string; icon: string }[] = [
 const TAB_ICONS = Object.fromEntries(TABS.map((tab) => [tab.id, tab.icon])) as Record<ScreenId, string>;
 
 function tabbar(store: GameStore): string {
+  const unvisited = new Set(store.ui.unvisitedTabs);
   return TABS.filter((tab) => store.isSystemUnlocked(tab.id))
     .map(
-      (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
+      (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''} ${unvisited.has(tab.id) ? 'tab-pulse' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[tab.id]}</svg>
       <span>${tab.label}</span>
     </button>`,
@@ -70,10 +71,10 @@ function topbar(store: GameStore): string {
     </div>
     <div>
       <div class="title">PATH OF WARBOUND</div>
-      <div class="sub">${titleCase(save.doctrine)} Doctrine</div>
+      <div class="sub">${store.isSystemUnlocked('doctrines') ? `${titleCase(save.doctrine)} Doctrine` : `Tier ${store.combat.tier} · Ashen Path`}</div>
       <div class="xp">Lv. ${save.level}<i><b style="width:${xpPercent}%"></b></i>${xpPercent}%</div>
     </div>
-    <button class="gear" data-action="modal-stats" aria-label="Character stats" title="Character stats">
+    <button class="gear" data-action="modal-stats" aria-label="Character stats & settings" title="Character stats & settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
     </button>`;
 }
@@ -95,7 +96,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   let renderedModal: unknown = undefined;
   let renderedToast: number | null = null;
   let renderedUnlockNotice: number | null = null;
-  let renderedUnlocked = store.save.unlockedSystems.join(',');
+  let renderedTabKey = '';
+  let seenHitSeq = store.combat.hitSeq;
+  const hitFlashUntil = new Map<string, number>();
 
   const renderToastArea = (): string => {
     const notice = store.ui.unlockNotice;
@@ -113,24 +116,85 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     return `${noticeHtml}${toastHtml}`;
   };
 
+  const applyHitFeedback = (now: number): void => {
+    if (store.ui.screen !== 'combat') return;
+    const fxHost = root.querySelector<HTMLElement>('#combat-fx');
+    const arenaEl = root.querySelector<HTMLElement>('.arena');
+    const reduced = store.save.settings.reducedMotion;
+
+    for (const hit of store.combat.recentHits) {
+      if (hit.id <= seenHitSeq) continue;
+      seenHitSeq = hit.id;
+      if (reduced) continue;
+      hitFlashUntil.set(hit.enemyUid, now + 120);
+
+      if (fxHost && arenaEl) {
+        const mobOval = arenaEl.querySelector<HTMLElement>(`[data-enemy-uid="${hit.enemyUid}"] .oval`);
+        const arenaRect = arenaEl.getBoundingClientRect();
+        const ovalRect = mobOval?.getBoundingClientRect();
+        const jitterX = ((hit.id % 5) - 2) * 5;
+        const leftPx = ovalRect
+          ? ovalRect.left - arenaRect.left + ovalRect.width / 2 + jitterX
+          : arenaRect.width / 2 + jitterX;
+        const topPx = ovalRect ? ovalRect.top - arenaRect.top + 8 : 112;
+
+        const span = document.createElement('span');
+        span.className = `dmg-float ${hit.crit ? 'crit' : ''}`;
+        span.style.setProperty('--sc', hit.crit ? '#f0d078' : schoolColor(hit.school));
+        span.style.left = `${Math.round(leftPx)}px`;
+        span.style.top = `${Math.round(topPx)}px`;
+        span.dataset.expires = String(now + 720);
+        span.textContent = `${Math.round(hit.amount)}${hit.crit ? '!' : ''}`;
+        fxHost.appendChild(span);
+      }
+    }
+
+    if (arenaEl && !reduced) {
+      arenaEl.querySelectorAll<HTMLElement>('[data-enemy-uid]').forEach((mobEl) => {
+        const uid = mobEl.dataset.enemyUid ?? '';
+        const oval = mobEl.querySelector<HTMLElement>('.oval');
+        if (!oval) return;
+        const active = (hitFlashUntil.get(uid) ?? 0) > now;
+        oval.classList.toggle('hit-flash', active);
+      });
+    }
+    for (const [uid, until] of hitFlashUntil) {
+      if (until <= now) hitFlashUntil.delete(uid);
+    }
+  };
+
   const paint = (dynamic: boolean): void => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const topbarEl = root.querySelector<HTMLElement>('#topbar');
     if (topbarEl) topbarEl.innerHTML = topbar(store);
 
     const screenHost = root.querySelector<HTMLElement>('#screen-host');
     const shouldPaintScreen = !dynamic || renderedScreen !== store.ui.screen || store.ui.screen === 'combat';
     if (screenHost && shouldPaintScreen) {
+      const preservedFloats: HTMLElement[] = [];
+      if (renderedScreen === 'combat' && store.ui.screen === 'combat') {
+        screenHost.querySelectorAll<HTMLElement>('#combat-fx .dmg-float').forEach((node) => {
+          if (Number(node.dataset.expires ?? 0) > now) preservedFloats.push(node);
+        });
+      }
       const scrollTop = screenHost.scrollTop;
       screenHost.innerHTML = SCREENS[store.ui.screen](store);
       screenHost.scrollTop = scrollTop;
       renderedScreen = store.ui.screen;
+      if (preservedFloats.length > 0) {
+        const nextFx = screenHost.querySelector<HTMLElement>('#combat-fx');
+        if (nextFx) {
+          for (const node of preservedFloats) nextFx.appendChild(node);
+        }
+      }
+      applyHitFeedback(now);
     }
 
     const tabbarEl = root.querySelector<HTMLElement>('#tabbar');
-    const nextUnlocked = store.save.unlockedSystems.join(',');
-    if (tabbarEl && (!dynamic || nextUnlocked !== renderedUnlocked)) {
+    const nextTabKey = `${store.save.unlockedSystems.join(',')}|${store.ui.unvisitedTabs.join(',')}|${store.ui.screen}`;
+    if (tabbarEl && (!dynamic || nextTabKey !== renderedTabKey)) {
       tabbarEl.innerHTML = tabbar(store);
-      renderedUnlocked = nextUnlocked;
+      renderedTabKey = nextTabKey;
     }
 
     const modalRoot = root.querySelector<HTMLElement>('#modal-root');
@@ -158,6 +222,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     <div class="toast-root" id="toast-root"></div>`;
   renderedScreen = store.ui.screen;
   renderedModal = store.ui.modal;
+  renderedTabKey = `${store.save.unlockedSystems.join(',')}|${store.ui.unvisitedTabs.join(',')}|${store.ui.screen}`;
 
   const act = (el: HTMLElement): void => {
     const nav = el.dataset.nav as ScreenId | undefined;
@@ -169,6 +234,27 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     switch (el.dataset.action) {
       case 'pause':
         store.togglePause();
+        break;
+      case 'summon-boss':
+        store.summonBoss();
+        break;
+      case 'toggle-auto-boss':
+        store.toggleAutoAdvanceBoss();
+        break;
+      case 'toggle-auto-salvage':
+        store.toggleAutoSalvage();
+        break;
+      case 'skip-guide':
+        store.skipGuide();
+        break;
+      case 'toggle-log':
+        store.toggleLogCombat();
+        break;
+      case 'toggle-motion':
+        store.toggleReducedMotion();
+        break;
+      case 'dismiss-whisper':
+        store.dismissWhisper();
         break;
       case 'tier-prev':
         store.setTier(-1);
@@ -269,7 +355,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         store.toast('Unlock more skill slots as you progress.');
         break;
       case 'empty-slot':
-        store.toast(store.isSystemUnlocked('altar') ? 'Socket an active gem in the Altar.' : 'Unlocked slot — Altar opens at Level 2.');
+        store.toast(store.isSystemUnlocked('altar') ? 'Socket an active gem in the Altar.' : 'Unlocked slot — Altar unlocks soon.');
         break;
       default:
         break;
@@ -330,4 +416,47 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   paint(false);
 
   window.setInterval(() => store.tick(), TICK_MS);
+
+  const animate = (now: number): void => {
+    if (store.ui.screen === 'combat') {
+      const reduced = store.save.settings.reducedMotion;
+      if (!store.ui.paused && store.combat.status === 'running' && !reduced) {
+        const dt = Math.max(0, Math.min(0.22, (now - store.ui.lastTickAt) / 1000));
+        const swingEl = root.querySelector<HTMLElement>('[data-swing]');
+        if (swingEl) {
+          const haste = 1 + (store.stats.values.attack_speed ?? 0) / 100;
+          const interval = 1 / Math.max(0.2, store.stats.weapon.attacksPerSecond * haste);
+          const remaining = Math.max(0, store.combat.player.attackTimer - dt);
+          const pctVal = Math.min(100, Math.max(0, (1 - remaining / interval) * 100));
+          swingEl.style.width = `${pctVal.toFixed(1)}%`;
+        }
+        root.querySelectorAll<HTMLElement>('.skill[data-skill][data-cd]').forEach((btn) => {
+          const skillId = btn.dataset.skill ?? '';
+          const cd = Math.max(0.001, Number(btn.dataset.cd ?? 0));
+          const timer = store.combat.player.skillTimers[skillId] ?? 0;
+          const rem = Math.max(0, timer - dt);
+          const cdBar = btn.querySelector<HTMLElement>('.cd');
+          const cdText = btn.querySelector<HTMLElement>('.cdtime');
+          if (cdBar) cdBar.style.height = `${Math.min(100, (rem / cd) * 100).toFixed(1)}%`;
+          if (cdText) cdText.textContent = rem > 0.05 ? rem.toFixed(1) : '';
+        });
+      }
+
+      root.querySelectorAll<HTMLElement>('[data-enemy-uid] .oval.hit-flash').forEach((oval) => {
+        const uid = oval.closest<HTMLElement>('[data-enemy-uid]')?.dataset.enemyUid ?? '';
+        if ((hitFlashUntil.get(uid) ?? 0) <= now) {
+          oval.classList.remove('hit-flash');
+          hitFlashUntil.delete(uid);
+        }
+      });
+
+      root.querySelectorAll<HTMLElement>('#combat-fx .dmg-float').forEach((node) => {
+        if (Number(node.dataset.expires ?? 0) <= now) node.remove();
+      });
+    }
+    window.requestAnimationFrame(animate);
+  };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(animate);
+  }
 }

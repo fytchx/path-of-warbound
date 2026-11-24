@@ -148,7 +148,19 @@ export interface SkillTree {
   edges: [string, string][];
 }
 
-export type UnlockableSystem = 'altar' | 'tree' | 'forge' | 'bar_2';
+export type UnlockableSystem =
+  | 'altar'
+  | 'bag'
+  | 'tree'
+  | 'forge'
+  | 'bar_2'
+  | 'doctrines'
+  | 'auto_boss'
+  | 'pack_2'
+  | 'pack_full'
+  | 'forge_full'
+  | 'auto_salvage'
+  | 'keystones';
 
 export type ProgressionTrigger = { level: number } | { event: 'first_death' };
 

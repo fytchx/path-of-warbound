@@ -15,12 +15,14 @@ export {
   createCombat,
   tickCombat,
   runCombat,
+  summonBoss,
   recentDps,
 } from './combatEngine';
 export type {
   CombatState,
   CombatEnemy,
   CombatEvent,
+  CombatHitEvent,
   CombatRewards,
   CreateCombatOptions,
   AilmentInstance,

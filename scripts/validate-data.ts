@@ -202,7 +202,20 @@ if (doctrines.length !== 5) fail(`expected 5 doctrines, found ${doctrines.length
 
 // 9. Progression: unique ids, valid triggers, valid granted gem ids and system ids.
 const gemIds = new Set(gems.map((g) => g.id));
-const validSystems = new Set(['altar', 'tree', 'forge', 'bar_2']);
+const validSystems = new Set([
+  'altar',
+  'bag',
+  'tree',
+  'forge',
+  'bar_2',
+  'doctrines',
+  'auto_boss',
+  'pack_2',
+  'pack_full',
+  'forge_full',
+  'auto_salvage',
+  'keystones',
+]);
 const progressionIds = new Set<string>();
 if (!Array.isArray(progression) || progression.length === 0) {
   fail('progression: expected at least 1 entry');

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computePlayerStats } from '../src/engine/stats';
 import {
+  ALL_UNLOCKABLE_SYSTEMS,
   SAVE_VERSION,
   allocateNode,
   applyCombatRewards,
@@ -12,6 +13,7 @@ import {
   equipItem,
   evaluateProgression,
   makeGem,
+  processKillDrops,
   refundNode,
   sanitizeSave,
   unequipItem,
@@ -39,11 +41,17 @@ describe('save state', () => {
     expect(broken.allocated).toEqual(['hub_0']);
   });
 
-  it('starts a new save with exactly 1 skill slot and 1 active skill', () => {
+  it('starts a new save with minimal Step 0 kit: 1 skill slot, 1 active skill, packSize 1', () => {
     const save = createInitialSave(0);
     expect(save.level).toBe(1);
+    expect(save.packSize).toBe(1);
+    expect(save.onboardingStep).toBe(0);
+    expect(save.starterKillsClaimed).toBe(0);
     expect(save.skillSlots).toBe(1);
     expect(save.unlockedSystems).toEqual([]);
+    expect(save.equipment.main_hand?.baseId).toBe('base_sword_1h');
+    expect(save.equipment.main_hand?.sockets).toHaveLength(1);
+    expect(save.equipment.main_hand?.linkedSockets).toBe(1);
     expect(save.equipment.off_hand).toBeUndefined();
     expect(save.equipment.trinket).toBeUndefined();
     expect(save.gemStash).toEqual([]);
@@ -82,7 +90,7 @@ describe('progression unlocks', () => {
     expect(first.map((entry) => entry.id)).toContain('prog_ember_bolt');
     expect(save.skillSlots).toBe(2);
     expect(save.gemStash.filter((g) => g.gemId === 'gem_ember_bolt')).toHaveLength(1);
-    expect(save.unlockedSystems).toContain('altar');
+    expect(save.unlockedSystems).toContain('tree');
 
     const repeat = applyXp(save, 5);
     const manualRepeat = evaluateProgression(save);
@@ -141,6 +149,75 @@ describe('progression unlocks', () => {
 
     save.skillSlots = 3;
     expect(computePlayerStats(save).skills).toHaveLength(3);
+  });
+
+  it('delivers the deterministic starter drop deck for the first 10 kills and awakens on Tier 2', () => {
+    const save = createInitialSave(0);
+
+    const k2 = processKillDrops(save, 2, 1);
+    expect(save.starterKillsClaimed).toBe(2);
+    expect(k2.itemsAdded.map((i) => i.baseId)).toEqual(['base_helm']);
+    expect(save.unlockedSystems).toContain('altar');
+    expect(save.unlockedSystems).toContain('bag');
+    expect(save.onboardingStep).toBe(1);
+
+    const k3 = processKillDrops(save, 1, 1);
+    expect(k3.itemsAdded.map((i) => i.baseId)).toEqual(['base_chest']);
+    expect(k3.itemsAdded[0]!.linkedSockets).toBe(2);
+
+    const k5 = processKillDrops(save, 2, 1);
+    expect(k5.gemsAdded).toEqual(['support_multistrike']);
+    expect(save.gemStash.some((g) => g.gemId === 'support_multistrike')).toBe(true);
+    expect(save.onboardingStep).toBe(2);
+
+    const k6 = processKillDrops(save, 1, 1);
+    expect(k6.keysAdded).toBe(1);
+    expect(k6.scrapAdded).toBe(25);
+    expect(save.keys).toBe(1);
+
+    const k8 = processKillDrops(save, 2, 1);
+    expect(k8.itemsAdded.map((i) => i.baseId)).toEqual(['base_axe_1h']);
+    expect(save.unlockedSystems).toContain('forge');
+    expect(save.unlockedSystems).toContain('pack_2');
+    expect(save.onboardingStep).toBe(4);
+
+    const k10 = processKillDrops(save, 2, 1);
+    expect(save.starterKillsClaimed).toBe(10);
+    expect(k10.keysAdded).toBe(1);
+    expect(k10.scrapAdded).toBe(35);
+    expect(save.keys).toBe(2);
+
+    save.keys = 3;
+    processKillDrops(save, 0, 1);
+    expect(save.onboardingStep).toBe(5);
+
+    const awakened = processKillDrops(save, 1, 2);
+    expect(awakened.awakened).toBe(true);
+    expect(save.onboardingStep).toBe(6);
+    for (const sys of ALL_UNLOCKABLE_SYSTEMS) {
+      expect(save.unlockedSystems).toContain(sys);
+    }
+  });
+
+  it('respects linkedSockets for support gem modifiers and supports autoSalvage', () => {
+    const save = createInitialSave(0);
+    const chest = createItem('base_chest', 'magic', 1, 'test-link-chest');
+    chest.sockets = [makeGem('support_multistrike', 1, 'both'), makeGem('gem_cleave', 1, 'both')];
+    chest.linkedSockets = 1;
+    save.equipment.chest = chest;
+
+    const unlinkedStats = computePlayerStats(save);
+    expect(unlinkedStats.supports).toHaveLength(0);
+
+    chest.linkedSockets = 2;
+    const linkedStats = computePlayerStats(save);
+    expect(linkedStats.supports.map((s) => s.id)).toContain('support_multistrike');
+
+    save.starterKillsClaimed = 10;
+    save.autoSalvage = true;
+    const dropSummary = processKillDrops(save, 50, 2);
+    expect(dropSummary.itemsSalvaged).toBeGreaterThan(0);
+    expect(save.inventory.some((i) => i.rarity === 'common')).toBe(false);
   });
 });
 
@@ -257,7 +334,8 @@ describe('crafting', () => {
     const save = createInitialSave(0);
     save.materials.mat_essence = 10;
     save.materials.mat_flux = 100;
-    const item = save.equipment.boots!;
+    const item = createItem('base_boots', 'common', 1, 'test-corrupt');
+    save.inventory.push(item);
     expect(corruptItem(save, item).ok).toBe(true);
     expect(item.corrupted).toBe(true);
     expect(corruptItem(save, item).ok).toBe(false);
