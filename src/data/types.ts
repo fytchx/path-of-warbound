@@ -17,7 +17,7 @@ export interface Conversion {
 
 export interface StatRegistry {
   version: string;
-  stats: Record<string, { label: string; category: string; base: number }>;
+  stats: Record<string, { label: string; category: string; base: number; description: string }>;
   conversions: Conversion[];
 }
 
@@ -56,6 +56,7 @@ export interface ItemBase {
   implicit: StatMod[];
   weapon?: WeaponProfile;
   uniqueEffect?: string;
+  description: string;
   flavour: string;
 }
 
@@ -82,6 +83,7 @@ export interface GemDef {
   tags: string[];
   description: string;
   manaCost?: number;
+  manaReservation?: number;
   cooldown?: number;
   castTime?: number;
   damage?: { min: number; max: number; effectiveness: number };

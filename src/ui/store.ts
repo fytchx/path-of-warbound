@@ -1,4 +1,4 @@
-import type { DoctrineId, ItemSlot, ProgressionEntry, UnlockableSystem } from '../data/types';
+import type { DoctrineId, ItemSlot, UnlockableSystem } from '../data/types';
 import { gemById, itemBaseById, monsterById, skillTree } from '../data';
 import {
   buildTreeGraph,
@@ -23,29 +23,38 @@ import {
   claimOffline,
   createInitialSave,
   equipItem,
-  evaluateProgression,
+  levelUpGemWithDust,
   loadSave,
   persistSave,
   processKillDrops,
   refundNode,
   salvageItem,
   socketGem,
-  unlockAllSystems,
   unspentPoints,
   unequipItem,
   unsocketGem,
 } from '../game/state';
-import { addSocket, corruptItem, promoteRarity, reforgeItem, upgradeItem } from '../game/crafting';
+import {
+  addSocket,
+  corruptItem,
+  essenceLockReforge,
+  linkSocket,
+  promoteRarity,
+  reforgeItem,
+  upgradeItem,
+} from '../game/crafting';
 import { fitsSlot, itemBase, itemGearscore } from '../game/items';
 
 export type ScreenId = 'combat' | 'altar' | 'tree' | 'bag' | 'forge';
-export type BagFilter = 'all' | 'weapon' | 'armour' | 'jewellery';
+export type BagFilter = 'all' | 'gear' | 'gems' | 'keys';
 
 export type ModalState =
   | { kind: 'stats' }
   | { kind: 'item'; uid: string }
   | { kind: 'node'; nodeId: string }
   | { kind: 'gem-picker'; itemUid: string; socketIndex: number }
+  | { kind: 'gem'; source: 'stash'; stashIndex: number }
+  | { kind: 'gem'; source: 'socket'; itemUid: string; socketIndex: number }
   | { kind: 'offline' };
 
 export interface TreeView {
@@ -54,27 +63,19 @@ export interface TreeView {
   scale: number;
 }
 
-export interface UnlockNotice {
-  id: number;
-  title: string;
-  detail: string;
-}
-
 export interface UIState {
   screen: ScreenId;
   modal: ModalState | null;
   paused: boolean;
   toast: { id: number; text: string } | null;
-  unlockNotice: UnlockNotice | null;
   previewNode: string | null;
   previewPath: string[];
   refundMode: boolean;
   bagFilter: BagFilter;
   forgeUid: string | null;
+  lockedAffixIndex: number | null;
   treeView: TreeView;
   craftMessage: string | null;
-  unvisitedTabs: ScreenId[];
-  whisperOverride: string | null;
   keyPulseAt: number;
   lastTickAt: number;
 }
@@ -86,24 +87,6 @@ export interface ItemLocation {
 
 const treeGraph = buildTreeGraph(skillTree);
 let toastId = 0;
-let unlockNoticeId = 0;
-
-const SYSTEM_LABEL: Record<UnlockableSystem, string> = {
-  altar: 'Altar',
-  bag: 'Bag',
-  tree: 'Tree',
-  forge: 'Forge',
-  bar_2: 'Bar II',
-  doctrines: 'Doctrines',
-  auto_boss: 'Auto-Advance Boss',
-  pack_2: 'Pack Size 1–2',
-  pack_full: 'Pack Size 1–5',
-  forge_full: 'Full Forge',
-  auto_salvage: 'Auto-Salvage',
-  keystones: 'Keystones',
-};
-
-const NAV_SYSTEMS: ScreenId[] = ['altar', 'bag', 'tree', 'forge'];
 
 export class GameStore {
   save: CharacterSave;
@@ -128,16 +111,14 @@ export class GameStore {
       modal: offline ? { kind: 'offline' } : null,
       paused: false,
       toast: null,
-      unlockNotice: null,
       previewNode: null,
       previewPath: [],
       refundMode: false,
       bagFilter: 'all',
       forgeUid: this.save.equipment.main_hand?.uid ?? this.save.inventory[0]?.uid ?? null,
+      lockedAffixIndex: null,
       treeView: { x: 0, y: 0, scale: 1 },
       craftMessage: null,
-      unvisitedTabs: [],
-      whisperOverride: null,
       keyPulseAt: 0,
       lastTickAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
     };
@@ -154,12 +135,6 @@ export class GameStore {
     for (const listener of this.listeners) listener(dynamic);
   }
 
-  private allowedMonstersForStep(): string[] | undefined {
-    if (this.save.settings.guideSkipped || this.save.onboardingStep >= 4) return undefined;
-    if (this.save.onboardingStep === 0) return ['mob_slime'];
-    return ['mob_slime', 'mob_wolf'];
-  }
-
   private buildCombat(): CombatState {
     return createCombat({
       seed: Math.floor(Math.random() * 1_000_000),
@@ -170,8 +145,7 @@ export class GameStore {
       activeBar: this.save.activeBar,
       startingKeys: this.save.keys,
       autoSummonBoss: this.save.autoAdvanceBoss,
-      suppressRandomKeys: this.save.starterKillsClaimed < 10,
-      allowedMonsterIds: this.allowedMonstersForStep(),
+      suppressRandomKeys: false,
       playerStats: this.stats,
     });
   }
@@ -198,89 +172,15 @@ export class GameStore {
     }, 600);
   }
 
-  isSystemUnlocked(system: ScreenId | UnlockableSystem): boolean {
-    if (system === 'combat') return true;
-    return this.save.unlockedSystems.includes(system);
+  isSystemUnlocked(_system: ScreenId | UnlockableSystem): boolean {
+    return true;
   }
 
   maxPackSize(): number {
-    if (this.isSystemUnlocked('pack_full')) return 5;
-    if (this.isSystemUnlocked('pack_2')) return 2;
-    return 1;
-  }
-
-  whisperText(): string | null {
-    if (this.ui.whisperOverride) return this.ui.whisperOverride;
-    if (this.save.settings.guideSkipped || this.save.onboardingStep >= 6) return null;
-    switch (this.save.onboardingStep) {
-      case 0:
-        return 'Soul-Spark Whisper: Your spark flickers. Slay the slimes to draw your first armor.';
-      case 1:
-        return 'Soul-Spark Whisper: New armor awaits in [ALTAR] or [BAG]. Equip it to raise Health & Armor.';
-      case 2:
-        return 'Soul-Spark Whisper: Support gem found! Tap your 2-linked Chest in [ALTAR] to link Cleave + Multistrike.';
-      case 3:
-        return this.save.level >= 2
-          ? 'Soul-Spark Whisper: Level 2! Open [TREE] to preview a constellation path and spend your point.'
-          : 'Soul-Spark Whisper: Rift Key #1 & Scrap found! Reach Level 2 to awaken the Skill Tree.';
-      case 4:
-        return 'Soul-Spark Whisper: Forge & Pack 1–2 unlocked! Temper gear with War-Scrap or collect 3 Rift Keys.';
-      case 5:
-        return 'Soul-Spark Whisper: 3 Rift Keys burn bright! Tap SUMMON ZONE BOSS to challenge the tier boss.';
-      default:
-        return null;
-    }
-  }
-
-  dismissWhisper(): void {
-    if (!this.ui.whisperOverride) return;
-    this.ui.whisperOverride = null;
-    this.notify();
-  }
-
-  private markNewlyUnlockedTabs(before: Set<string>): void {
-    for (const tab of NAV_SYSTEMS) {
-      if (!before.has(tab) && this.save.unlockedSystems.includes(tab) && this.ui.screen !== tab) {
-        if (!this.ui.unvisitedTabs.includes(tab)) {
-          this.ui.unvisitedTabs = [...this.ui.unvisitedTabs, tab];
-        }
-      }
-    }
-  }
-
-  private announceUnlocks(entries: ProgressionEntry[]): void {
-    if (!entries.length) return;
-    const parts: string[] = [];
-    for (const entry of entries) {
-      const bits: string[] = [];
-      if (entry.grants.gem) {
-        const gemName = gemById.get(entry.grants.gem)?.name ?? entry.grants.gem;
-        bits.push(`${gemName} added to Gem Pouch`);
-      }
-      if (entry.grants.skillSlot) {
-        bits.push(`+${entry.grants.skillSlot} Skill Slot`);
-      }
-      for (const sys of entry.grants.unlockedSystems ?? []) {
-        bits.push(`${SYSTEM_LABEL[sys]} unlocked`);
-      }
-      if (bits.length) parts.push(bits.join(' · '));
-    }
-    unlockNoticeId += 1;
-    this.ui.unlockNotice = {
-      id: unlockNoticeId,
-      title: 'New skill unlocked',
-      detail: parts.join(' | '),
-    };
-  }
-
-  dismissUnlockNotice(): void {
-    if (!this.ui.unlockNotice) return;
-    this.ui.unlockNotice = null;
-    this.notify();
+    return 5;
   }
 
   private syncCombat(): void {
-    const prevUnlocked = new Set(this.save.unlockedSystems);
     const prevKeys = this.combat.keys;
     const rewards = this.combat.rewards;
     const delta: CombatRewards = {
@@ -293,61 +193,40 @@ export class GameStore {
       keys: rewards.keys - this.appliedRewards.keys,
       damage: rewards.damage - this.appliedRewards.damage,
     };
-    const unlocked: ProgressionEntry[] = [];
+
     if (Object.values(delta).some((value) => value !== 0)) {
-      unlocked.push(...applyCombatRewards(this.save, delta));
+      applyCombatRewards(this.save, delta);
       this.appliedRewards = { ...rewards };
     }
 
     if (delta.kills > 0) {
-      const drops = processKillDrops(this.save, delta.kills, this.combat.tier);
-      if (drops.keysAdded > 0) {
-        this.combat.keys += drops.keysAdded;
-      }
+      const drops = processKillDrops(this.save, delta.kills, this.combat.tier, this.stats.itemFind);
       if (drops.itemsAdded.length > 0) {
         const names = drops.itemsAdded.map((item) => this.itemBaseName(item)).join(', ');
         this.toast(`Found: ${names}`);
-      }
-      if (drops.gemsAdded.length > 0) {
+      } else if (drops.gemsAdded.length > 0) {
         const names = drops.gemsAdded.map((id) => gemById.get(id)?.name ?? id).join(', ');
-        this.toast(`${names} added to Gem Pouch`);
+        this.toast(`Gem found: ${names}`);
+      } else if (drops.dustAdded > 0) {
+        this.toast(`Duplicate gem salvaged (+${drops.dustAdded} Gem Dust)`);
       }
-      if (drops.awakened) {
-        this.ui.whisperOverride = 'Soul-Spark Awakened! Doctrines, Bar II, Keystones, Full Forge & Pack 1–5 unlocked.';
-        this.toast('Soul-Spark Awakened!');
-      }
-    }
-
-    if (delta.deaths > 0 && this.combat.tier <= 1 && this.save.onboardingStep < 6) {
-      this.ui.whisperOverride = 'Your vessel shattered. Reinforce gear with War-Scrap at the Forge or lower Pack Size.';
     }
 
     this.save.keys = this.combat.keys;
     this.save.tier = this.combat.tier;
-    if (this.save.keys >= 3 && this.combat.tier <= 1 && this.save.onboardingStep < 5) {
-      this.save.onboardingStep = 5;
-    }
 
     if (this.save.level !== this.lastLevel) {
       this.lastLevel = this.save.level;
-      unlocked.push(...evaluateProgression(this.save));
       this.resyncStats();
+      this.toast(`Level ${this.save.level} reached (+1 Skill Point)`);
     }
 
-    this.combat.suppressRandomKeys = this.save.starterKillsClaimed < 10;
-    this.combat.allowedMonsterIds = this.allowedMonstersForStep();
     this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
 
     if (this.combat.keys > prevKeys) {
       this.ui.keyPulseAt = Date.now();
     }
 
-    this.markNewlyUnlockedTabs(prevUnlocked);
-
-    if (unlocked.length) {
-      this.resyncStats();
-      this.announceUnlocks(unlocked);
-    }
     this.schedulePersist();
   }
 
@@ -363,12 +242,8 @@ export class GameStore {
   }
 
   navigate(screen: ScreenId): void {
-    if (!this.isSystemUnlocked(screen)) return;
     this.ui.screen = screen;
     this.ui.modal = null;
-    if (this.ui.unvisitedTabs.includes(screen)) {
-      this.ui.unvisitedTabs = this.ui.unvisitedTabs.filter((tab) => tab !== screen);
-    }
     this.notify();
   }
 
@@ -402,8 +277,7 @@ export class GameStore {
   }
 
   setPackSize(delta: number): void {
-    const maxPack = this.maxPackSize();
-    const size = Math.max(1, Math.min(maxPack, this.save.packSize + delta)) as CharacterSave['packSize'];
+    const size = Math.max(1, Math.min(5, this.save.packSize + delta)) as CharacterSave['packSize'];
     if (size === this.save.packSize) return;
     this.save.packSize = size;
     this.restartCombat();
@@ -427,7 +301,6 @@ export class GameStore {
   }
 
   toggleAutoAdvanceBoss(): void {
-    if (!this.isSystemUnlocked('auto_boss')) return;
     this.save.autoAdvanceBoss = !this.save.autoAdvanceBoss;
     this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
     this.schedulePersist();
@@ -435,22 +308,9 @@ export class GameStore {
   }
 
   toggleAutoSalvage(): void {
-    if (!this.isSystemUnlocked('auto_salvage')) return;
     this.save.autoSalvage = !this.save.autoSalvage;
     this.schedulePersist();
     this.toast(`Auto-Salvage Common drops ${this.save.autoSalvage ? 'enabled' : 'disabled'}.`);
-    this.notify();
-  }
-
-  skipGuide(): void {
-    this.save.settings.guideSkipped = true;
-    unlockAllSystems(this.save);
-    this.ui.whisperOverride = null;
-    this.ui.unvisitedTabs = [];
-    this.combat.suppressRandomKeys = false;
-    this.combat.allowedMonsterIds = undefined;
-    this.schedulePersist();
-    this.toast('Onboarding guide skipped — all systems unlocked.');
     this.notify();
   }
 
@@ -467,9 +327,13 @@ export class GameStore {
   }
 
   setBar(bar: 'bar_1' | 'bar_2'): void {
-    if (bar === 'bar_2' && !this.isSystemUnlocked('bar_2')) return;
+    if (this.stats.keystones.has('ks_pendulum')) {
+      this.toast('Pendulum swaps bars automatically every 5s.');
+      return;
+    }
     this.save.activeBar = bar;
     this.combat.activeBar = bar;
+    this.schedulePersist();
     this.notify();
   }
 
@@ -479,7 +343,6 @@ export class GameStore {
   }
 
   setDoctrine(doctrine: DoctrineId): void {
-    if (!this.isSystemUnlocked('doctrines')) return;
     if (this.save.doctrine === doctrine) return;
     if (this.stats.keystones.has('ks_zealots_mandate')) {
       this.toast("Zealot's Mandate locks this doctrine in place.");
@@ -488,6 +351,7 @@ export class GameStore {
     this.syncCombat();
     this.save.doctrine = doctrine;
     this.restartCombat();
+    this.schedulePersist();
     this.notify();
   }
 
@@ -506,9 +370,9 @@ export class GameStore {
       this.openModal({ kind: 'node', nodeId });
       return;
     }
-    const targetNode = skillTree.nodes.find((n) => n.id === nodeId);
-    if (targetNode?.kind === 'keystone' && !this.isSystemUnlocked('keystones')) {
-      this.toast('Keystones unlock after your first Tier 2 kill.');
+    // Second tap on an already-previewed node confirms allocation (Section 5).
+    if (this.ui.previewNode === nodeId) {
+      this.confirmAllocation();
       return;
     }
     const check = canAllocate(this.save.allocated, nodeId, treeGraph, this.unspent());
@@ -525,28 +389,14 @@ export class GameStore {
       this.notify();
       return;
     }
-    if (
-      !this.isSystemUnlocked('keystones') &&
-      check.path.some((id) => skillTree.nodes.find((n) => n.id === id)?.kind === 'keystone')
-    ) {
-      this.toast('Keystones unlock after your first Tier 2 kill.');
-      return;
-    }
     this.ui.previewNode = nodeId;
     this.ui.previewPath = check.path;
     this.notify();
   }
 
-  confirmAllocation(): void {
-    const nodeId = this.ui.previewNode;
+  confirmAllocation(nodeOverride?: string): void {
+    const nodeId = nodeOverride ?? this.ui.previewNode;
     if (!nodeId) return;
-    if (
-      !this.isSystemUnlocked('keystones') &&
-      this.ui.previewPath.some((id) => skillTree.nodes.find((n) => n.id === id)?.kind === 'keystone')
-    ) {
-      this.toast('Keystones unlock after your first Tier 2 kill.');
-      return;
-    }
     const result = allocateNode(this.save, nodeId);
     if (!result.ok) {
       this.toast(result.reason === 'not-enough-points' ? 'Not enough points.' : 'Allocation failed.');
@@ -554,6 +404,7 @@ export class GameStore {
     }
     this.ui.previewNode = null;
     this.ui.previewPath = [];
+    this.ui.modal = null;
     this.resyncStats();
     this.restartCombat();
     this.schedulePersist();
@@ -574,6 +425,7 @@ export class GameStore {
       this.toast(result.reason === 'articulation' ? 'Refunding this node would strand others.' : 'Cannot refund that node.');
       return;
     }
+    this.ui.modal = null;
     this.resyncStats();
     this.restartCombat();
     this.schedulePersist();
@@ -586,7 +438,11 @@ export class GameStore {
   }
 
   setTreeView(view: TreeView): void {
-    this.ui.treeView = view;
+    this.ui.treeView = {
+      x: view.x,
+      y: view.y,
+      scale: Math.max(0.55, Math.min(2.4, view.scale)),
+    };
     this.notify();
   }
 
@@ -608,7 +464,13 @@ export class GameStore {
 
   selectForge(uid: string): void {
     this.ui.forgeUid = uid;
+    this.ui.lockedAffixIndex = null;
     this.ui.craftMessage = null;
+    this.notify();
+  }
+
+  toggleAffixLock(index: number): void {
+    this.ui.lockedAffixIndex = this.ui.lockedAffixIndex === index ? null : index;
     this.notify();
   }
 
@@ -657,7 +519,7 @@ export class GameStore {
     const location = this.findItem(itemUid);
     if (!location) return;
     if (location.item.sockets[socketIndex]) {
-      this.unsocket(itemUid, socketIndex);
+      this.openModal({ kind: 'gem', source: 'socket', itemUid, socketIndex });
       return;
     }
     if (!this.save.gemStash.length) {
@@ -665,6 +527,46 @@ export class GameStore {
       return;
     }
     this.openModal({ kind: 'gem-picker', itemUid, socketIndex });
+  }
+
+  inspectStashGem(stashIndex: number): void {
+    if (!this.save.gemStash[stashIndex]) return;
+    this.openModal({ kind: 'gem', source: 'stash', stashIndex });
+  }
+
+  resolveModalGem(modal: Extract<ModalState, { kind: 'gem' }>): { gem: GemInstance; item?: ItemInstance; socketIndex?: number } | null {
+    if (modal.source === 'stash') {
+      const gem = this.save.gemStash[modal.stashIndex];
+      return gem ? { gem } : null;
+    }
+    const loc = this.findItem(modal.itemUid);
+    const gem = loc?.item.sockets[modal.socketIndex];
+    return loc && gem ? { gem, item: loc.item, socketIndex: modal.socketIndex } : null;
+  }
+
+  levelUpModalGem(): void {
+    if (this.ui.modal?.kind !== 'gem') return;
+    const resolved = this.resolveModalGem(this.ui.modal);
+    if (!resolved) return;
+    const res = levelUpGemWithDust(this.save, resolved.gem);
+    if (res.ok) {
+      this.resyncStats();
+      this.restartCombat();
+      this.schedulePersist();
+    }
+    this.toast(res.message);
+    this.notify();
+  }
+
+  setModalGemBar(bar: GemInstance['bar']): void {
+    if (this.ui.modal?.kind !== 'gem') return;
+    const resolved = this.resolveModalGem(this.ui.modal);
+    if (!resolved) return;
+    assignGemBar(resolved.gem, bar);
+    this.resyncStats();
+    this.schedulePersist();
+    this.toast(`Assigned to ${bar === 'both' ? 'Both Bars' : bar === 'bar_1' ? 'Bar I' : 'Bar II'}.`);
+    this.notify();
   }
 
   socketFromStash(stashIndex: number): void {
@@ -693,12 +595,14 @@ export class GameStore {
     this.resyncStats();
     this.restartCombat();
     this.schedulePersist();
+    if (this.ui.modal?.kind === 'gem') {
+      this.ui.modal = { kind: 'item', uid: itemUid };
+    }
     this.toast('Gem returned to the pouch.');
     this.notify();
   }
 
   cycleGemBar(gem: GemInstance): void {
-    if (!this.isSystemUnlocked('bar_2')) return;
     const order: GemInstance['bar'][] = ['bar_1', 'bar_2', 'both'];
     const next = order[(order.indexOf(gem.bar) + 1) % order.length]!;
     assignGemBar(gem, next);
@@ -715,18 +619,14 @@ export class GameStore {
       return;
     }
     const gain = salvageItem(this.save, location.item);
-    if (this.ui.forgeUid === uid) this.ui.forgeUid = this.save.inventory[0]?.uid ?? null;
+    if (this.ui.forgeUid === uid) this.ui.forgeUid = this.save.equipment.main_hand?.uid ?? this.save.inventory[0]?.uid ?? null;
     this.ui.modal = null;
     this.schedulePersist();
     this.toast(`Salvaged for ${gain.scrap} scrap and ${gain.flux} flux.`);
     this.notify();
   }
 
-  craft(action: 'upgrade' | 'reforge' | 'socket' | 'corrupt' | 'promote'): void {
-    if (action !== 'upgrade' && !this.isSystemUnlocked('forge_full')) {
-      this.toast('Unlocks after your first Tier 2 kill.');
-      return;
-    }
+  craft(action: 'upgrade' | 'reforge' | 'socket' | 'link' | 'lock-reforge' | 'corrupt' | 'promote'): void {
     const item = this.forgeItem();
     if (!item) {
       this.toast('Select an item on the anvil first.');
@@ -739,9 +639,13 @@ export class GameStore {
           ? reforgeItem(this.save, item)
           : action === 'socket'
             ? addSocket(this.save, item)
-            : action === 'corrupt'
-              ? corruptItem(this.save, item)
-              : promoteRarity(this.save, item);
+            : action === 'link'
+              ? linkSocket(this.save, item)
+              : action === 'lock-reforge'
+                ? essenceLockReforge(this.save, item, this.ui.lockedAffixIndex ?? 0)
+                : action === 'corrupt'
+                  ? corruptItem(this.save, item)
+                  : promoteRarity(this.save, item);
     this.ui.craftMessage = result.message;
     if (result.ok) {
       this.resyncStats();
@@ -754,15 +658,12 @@ export class GameStore {
 
   claimOffline(): void {
     if (!this.offline) return;
-    const prevUnlocked = new Set(this.save.unlockedSystems);
-    const unlocked = claimOffline(this.save, this.offline);
+    claimOffline(this.save, this.offline);
     this.offline = null;
     this.ui.modal = null;
     this.lastLevel = this.save.level;
-    this.markNewlyUnlockedTabs(prevUnlocked);
     this.resyncStats();
     this.restartCombat();
-    if (unlocked.length) this.announceUnlocks(unlocked);
     this.schedulePersist();
     this.toast('Offline spoils claimed.');
     this.notify();

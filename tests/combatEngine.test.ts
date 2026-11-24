@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCombat, runCombat, summonBoss, tickCombat, type CombatState } from '../src/engine/combatEngine';
 import { computePlayerStats } from '../src/engine/stats';
-import { createInitialSave } from '../src/game/state';
+import { createInitialSave, createItem, makeGem } from '../src/game/state';
 import { runBalanceSim } from '../src/sim';
 
 function stateFor(packSize = 3, seed = 12345): CombatState {
@@ -205,4 +205,92 @@ describe('combat engine', () => {
       expect(r.avgDps).toBeGreaterThan(0);
     }
   });
+
+  it('grants +4 Mana per weapon auto-attack hit and triggers Tier 2 instant skills off-GCD', () => {
+    const save = createInitialSave(0);
+    const helm = createItem('base_helm', 'common', 1, 'combat-helm');
+    helm.sockets = [makeGem('gem_ward_barrier', 1, 'both')];
+    helm.linkedSockets = 1;
+    save.equipment.helmet = helm;
+
+    const state = createCombat({
+      seed: 101,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 1,
+      doctrine: save.doctrine,
+      activeBar: 'bar_1',
+      playerStats: computePlayerStats(save),
+    });
+    state.player.mana = 10;
+    state.player.attackTimer = 0;
+    // Let Ward Barrier (Tier 2 instant) fire and weapon swing gain +4 Mana
+    tickCombat(state);
+    expect(state.player.ward).toBeGreaterThan(0);
+    expect(state.player.mana).toBeGreaterThanOrEqual(4);
+  });
+
+  it('freezes enemies at >= 3 Chill stacks and applies +20% Exposure from Plague Skull', () => {
+    const state = stateFor(1, 77);
+    const enemy = state.enemies[0]!;
+    const beforeAtkTimer = enemy.attackTimer;
+    enemy.ailments.chill = { dps: 0, remaining: 4, stacks: 3 };
+    tickCombat(state);
+    expect(enemy.attackTimer).toBe(beforeAtkTimer);
+
+    const beforeHp = enemy.hp;
+    enemy.ailments = { ignite: { dps: 100, remaining: 3, stacks: 1 } };
+    enemy.exposureRemaining = 0;
+    tickCombat(state);
+    const unexposedDrop = beforeHp - enemy.hp;
+
+    const state2 = stateFor(1, 77);
+    const enemy2 = state2.enemies[0]!;
+    enemy2.hp = beforeHp;
+    enemy2.ailments = { ignite: { dps: 100, remaining: 3, stacks: 1 } };
+    enemy2.exposureRemaining = 6;
+    tickCombat(state2);
+    const exposedDrop = beforeHp - enemy2.hp;
+    expect(exposedDrop).toBeGreaterThan(unexposedDrop);
+  });
+
+  it('awards 22 XP and 3-8 Gold per Tier 1 normal kill, and 48 XP at Tier 2', () => {
+    const save = createInitialSave(0);
+    const t1 = createCombat({
+      seed: 55,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 1,
+      doctrine: save.doctrine,
+      activeBar: 'bar_1',
+      allowedMonsterIds: ['mob_slime'],
+      playerStats: computePlayerStats(save),
+    });
+    t1.enemies[0]!.elite = false;
+    t1.enemies[0]!.hp = 1;
+    t1.player.attackTimer = 0;
+    tickCombat(t1);
+    expect(t1.rewards.kills).toBe(1);
+    expect(t1.rewards.xp).toBe(22);
+    expect(t1.rewards.gold).toBeGreaterThanOrEqual(3);
+    expect(t1.rewards.gold).toBeLessThanOrEqual(8);
+
+    const t2 = createCombat({
+      seed: 55,
+      zoneId: save.zoneId,
+      tier: 2,
+      packSize: 1,
+      doctrine: save.doctrine,
+      activeBar: 'bar_1',
+      allowedMonsterIds: ['mob_slime'],
+      playerStats: computePlayerStats(save),
+    });
+    t2.enemies[0]!.elite = false;
+    t2.enemies[0]!.hp = 1;
+    t2.player.attackTimer = 0;
+    tickCombat(t2);
+    expect(t2.rewards.kills).toBe(1);
+    expect(t2.rewards.xp).toBe(48);
+  });
 });
+

@@ -1,5 +1,5 @@
 export { resolveStat } from './stats';
-export type { StatValue, PlayerStats, CombatSkill, TriggerType } from './stats';
+export type { StatValue, PlayerStats, CombatSkill, TriggerType, AppliedConversion } from './stats';
 export { aggregateStats, baseStats, computePlayerStats, equippedWeapon } from './stats';
 export {
   buildTreeGraph,
@@ -16,6 +16,8 @@ export {
   tickCombat,
   runCombat,
   summonBoss,
+  manualCast,
+  scoreSkillUtility,
   recentDps,
 } from './combatEngine';
 export type {
@@ -26,6 +28,7 @@ export type {
   CombatRewards,
   CreateCombatOptions,
   AilmentInstance,
+  Buff,
 } from './combatEngine';
 
 export interface CombatEntity {

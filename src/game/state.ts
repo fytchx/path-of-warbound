@@ -1,4 +1,4 @@
-import { affixById, affixes, itemBaseById, itemBases, progression, skillTree } from '../data';
+import { affixById, gems, itemBaseById, itemBases, progression, skillTree } from '../data';
 import type { DoctrineId, ItemSlot, ProgressionEntry, Rarity, UnlockableSystem } from '../data/types';
 import { buildTreeGraph, canAllocate, getArticulationPoints, strandedAfterRemoval } from '../engine/treeGraph';
 import type { CombatRewards } from '../engine/combatEngine';
@@ -6,6 +6,8 @@ import { chance, mulberry32, pickOne } from '../engine/rng';
 import {
   allSocketedGems,
   fitsSlot,
+  gemDustCostToLevel,
+  gemXpToNext,
   itemBase,
   itemGearscore,
   socketedGems,
@@ -21,7 +23,7 @@ import {
 } from './types';
 
 export const STORAGE_KEY = 'path-of-warbound.save.v1';
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export const ALL_UNLOCKABLE_SYSTEMS: UnlockableSystem[] = [
   'altar',
@@ -56,13 +58,17 @@ function hashSeed(text: string): number {
 }
 
 export function xpNeeded(level: number): number {
-  return 90 + (level - 1) * 55;
+  return Math.floor(250 * Math.pow(Math.max(1, level), 1.45));
 }
 
-export function eligibleAffixes(baseId: string): typeof affixes {
+export function eligibleAffixes(baseId: string): typeof affixById extends Map<string, infer T> ? T[] : never {
   const base = itemBaseById.get(baseId);
   if (!base) return [];
-  return affixes.filter((affix) => affix.slotTags.some((tag) => base.slotTags.includes(tag)));
+  const list: typeof affixById extends Map<string, infer T> ? T[] : never = [];
+  for (const affix of affixById.values()) {
+    if (affix.slotTags.some((tag) => base.slotTags.includes(tag))) list.push(affix);
+  }
+  return list;
 }
 
 export function rollAffixes(
@@ -107,7 +113,7 @@ export function makeGem(gemId: string, level = 1, bar: GemInstance['bar'] = 'bot
 }
 
 export function createInitialSave(now = Date.now()): CharacterSave {
-  const seed = 'warbound-v0.1';
+  const seed = 'warbound-starter';
   const starterSword = createItem('base_sword_1h', 'common', 1, seed);
   starterSword.sockets = [makeGem('gem_cleave', 1, 'both')];
   starterSword.linkedSockets = 1;
@@ -134,15 +140,15 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     inventory: [],
     gemStash: [],
     allocated: ['hub_0'],
-    skillSlots: 1,
-    unlockedSystems: [],
+    skillSlots: 6,
+    unlockedSystems: [...ALL_UNLOCKABLE_SYSTEMS],
     grantedProgression: [],
-    onboardingStep: 0,
+    onboardingStep: 6,
     starterKillsClaimed: 0,
     autoAdvanceBoss: false,
     autoSalvage: false,
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
-    settings: { reducedMotion: false, logCombat: true, guideSkipped: false },
+    settings: { reducedMotion: false, logCombat: true, guideSkipped: true },
   };
 }
 
@@ -161,18 +167,18 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   if (!Array.isArray(merged.inventory)) merged.inventory = [];
   if (!Array.isArray(merged.gemStash)) merged.gemStash = [];
   if (!Array.isArray(merged.allocated) || !merged.allocated.includes('hub_0')) merged.allocated = ['hub_0'];
-  if (!Array.isArray(merged.unlockedSystems)) merged.unlockedSystems = [];
+  merged.unlockedSystems = [...ALL_UNLOCKABLE_SYSTEMS];
   if (!Array.isArray(merged.grantedProgression)) merged.grantedProgression = [];
-  merged.skillSlots = Math.max(1, Math.floor(Number(merged.skillSlots) || 1));
-  merged.onboardingStep = Math.max(0, Math.min(6, Math.floor(Number(merged.onboardingStep) || 0))) as OnboardingStep;
+  merged.skillSlots = Math.max(6, Math.floor(Number(merged.skillSlots) || 6));
+  merged.onboardingStep = 6 as OnboardingStep;
   merged.starterKillsClaimed = Math.max(0, Math.floor(Number(merged.starterKillsClaimed) || 0));
   merged.autoAdvanceBoss = Boolean(candidate.autoAdvanceBoss);
   merged.autoSalvage = Boolean(candidate.autoSalvage);
-  merged.settings.guideSkipped = Boolean(merged.settings.guideSkipped);
+  merged.settings.guideSkipped = true;
   if (!merged.equipment || typeof merged.equipment !== 'object') merged.equipment = {};
   if (!merged.inventory.every((item) => itemBaseById.has(item.baseId))) merged.inventory = [];
   merged.tier = Math.max(1, Math.min(10, Math.round(merged.tier) || 1));
-  merged.packSize = (Math.max(1, Math.min(5, Math.round(merged.packSize) || 1)) as CharacterSave['packSize']);
+  merged.packSize = Math.max(1, Math.min(5, Math.round(merged.packSize) || 1)) as CharacterSave['packSize'];
   return merged;
 }
 
@@ -202,15 +208,17 @@ export function computeOffline(save: CharacterSave, now = Date.now()): OfflineSu
   if (elapsed < 60) return null;
   const capped = Math.min(elapsed, 8 * 3600);
   const minutes = capped / 60;
-  const rewardMultiplier = 1 + (save.tier - 1) * 0.12;
-  const summary: OfflineSummary = {
+  const packFactor = 0.75 + save.packSize * 0.25;
+  const rewardMultiplier = 1 + (save.tier - 1) * 0.35;
+  const killsPerMin = 12 * packFactor;
+  const kills = Math.floor(minutes * killsPerMin);
+  return {
     seconds: capped,
-    gold: Math.floor(minutes * (1.6 + save.tier * 0.55) * rewardMultiplier),
-    xp: Math.floor(minutes * (1.1 + save.tier * 0.45) * rewardMultiplier),
-    kills: Math.floor(minutes * (1.4 + save.tier * 0.35)),
-    keys: Math.floor(minutes * 0.035),
+    gold: Math.floor(kills * 5.5 * rewardMultiplier),
+    xp: Math.floor(kills * (save.tier === 1 ? 22 : 48) * rewardMultiplier),
+    kills,
+    keys: Math.floor(kills * 0.12),
   };
-  return summary;
 }
 
 export function unlockSystem(save: CharacterSave, system: UnlockableSystem): boolean {
@@ -232,141 +240,119 @@ export interface KillDropSummary {
   itemsAdded: ItemInstance[];
   itemsSalvaged: number;
   gemsAdded: string[];
-  keysAdded: number;
+  dustAdded: number;
   scrapAdded: number;
-  unlockedSystems: UnlockableSystem[];
-  awakened: boolean;
+  fluxAdded: number;
+  threadAdded: number;
+  essenceAdded: number;
 }
 
-function makeStarterHelm(): ItemInstance {
-  const helm = createItem('base_helm', 'common', 1, 'starter-helm');
-  helm.affixes = [
-    { affixId: 'aff_vital', tier: 1 },
-    { affixId: 'aff_tempered', tier: 1 },
-  ];
-  helm.sockets = [null, null];
-  helm.linkedSockets = 1;
-  return helm;
+function playerOwnsGem(save: CharacterSave, gemId: string): boolean {
+  if (save.gemStash.some((g) => g.gemId === gemId)) return true;
+  return allSocketedGems(save.equipment).some((g) => g.gemId === gemId);
 }
 
-function makeStarterChest(): ItemInstance {
-  const chest = createItem('base_chest', 'magic', 1, 'starter-chest');
-  chest.affixes = [
-    { affixId: 'aff_mighty', tier: 1 },
-    { affixId: 'aff_tempered', tier: 1 },
-  ];
-  chest.sockets = [null, null];
-  chest.linkedSockets = 2;
-  return chest;
-}
-
-function makeStarterAxe(): ItemInstance {
-  const axe = createItem('base_axe_1h', 'magic', 2, 'starter-axe');
-  axe.affixes = [
-    { affixId: 'aff_bloodletting', tier: 1 },
-    { affixId: 'aff_sharp', tier: 1 },
-  ];
-  axe.sockets = [null, null];
-  axe.linkedSockets = 2;
-  return axe;
-}
-
-export function processKillDrops(save: CharacterSave, newKills: number, tier: number): KillDropSummary {
+/**
+ * Clean, data-driven loot drop table (Section 2 & 4):
+ * - ~30% War-Scrap (1–3)
+ * - ~8% Runic Flux (1)
+ * - ~4% Link-Thread (1)
+ * - ~2% Rift Essence (1, 6% at Tier 2+)
+ * - ~10% Gear (~12–15% combined Gear/Gem)
+ * - ~4% Gem (duplicate gems salvage into +15 Gem Dust)
+ */
+export function processKillDrops(save: CharacterSave, newKills: number, tier: number, itemFind = 0): KillDropSummary {
   const summary: KillDropSummary = {
     itemsAdded: [],
     itemsSalvaged: 0,
     gemsAdded: [],
-    keysAdded: 0,
+    dustAdded: 0,
     scrapAdded: 0,
-    unlockedSystems: [],
-    awakened: false,
+    fluxAdded: 0,
+    threadAdded: 0,
+    essenceAdded: 0,
   };
 
+  const findScale = 1 + Math.max(0, itemFind);
+
   for (let i = 0; i < newKills; i += 1) {
-    if (save.starterKillsClaimed < 10) {
-      save.starterKillsClaimed += 1;
-      const k = save.starterKillsClaimed;
-      if (k === 2) {
-        const helm = makeStarterHelm();
-        save.inventory.push(helm);
-        summary.itemsAdded.push(helm);
-        if (unlockSystem(save, 'altar')) summary.unlockedSystems.push('altar');
-        if (unlockSystem(save, 'bag')) summary.unlockedSystems.push('bag');
-        if (save.onboardingStep < 1) save.onboardingStep = 1;
-      } else if (k === 3) {
-        const chest = makeStarterChest();
-        save.inventory.push(chest);
-        summary.itemsAdded.push(chest);
-        if (unlockSystem(save, 'altar')) summary.unlockedSystems.push('altar');
-        if (unlockSystem(save, 'bag')) summary.unlockedSystems.push('bag');
-        if (save.onboardingStep < 1) save.onboardingStep = 1;
-      } else if (k === 5) {
-        save.gemStash.push(makeGem('support_multistrike', 1, 'both'));
-        summary.gemsAdded.push('support_multistrike');
-        if (save.onboardingStep < 2) save.onboardingStep = 2;
-      } else if (k === 6) {
-        save.keys += 1;
-        summary.keysAdded += 1;
-        save.materials.mat_scrap += 25;
-        summary.scrapAdded += 25;
-        if (save.onboardingStep < 3) save.onboardingStep = 3;
-      } else if (k === 8) {
-        const axe = makeStarterAxe();
-        save.inventory.push(axe);
-        summary.itemsAdded.push(axe);
-        if (unlockSystem(save, 'forge')) summary.unlockedSystems.push('forge');
-        if (unlockSystem(save, 'pack_2')) summary.unlockedSystems.push('pack_2');
-        if (save.onboardingStep < 4) save.onboardingStep = 4;
-      } else if (k === 10) {
-        save.keys += 1;
-        summary.keysAdded += 1;
-        save.materials.mat_scrap += 35;
-        summary.scrapAdded += 35;
-        if (unlockSystem(save, 'forge')) summary.unlockedSystems.push('forge');
-        if (unlockSystem(save, 'pack_2')) summary.unlockedSystems.push('pack_2');
-        if (save.onboardingStep < 4) save.onboardingStep = 4;
-      }
-      continue;
+    const rng = mulberry32(hashSeed(`drop:${save.lifetime.kills}:${i}:${tier}:${save.gold}`));
+
+    if (chance(rng, 0.3)) {
+      const scrap = 1 + Math.floor(rng() * 3) + Math.floor((tier - 1) / 2);
+      save.materials.mat_scrap += scrap;
+      summary.scrapAdded += scrap;
+    }
+    if (chance(rng, 0.08)) {
+      save.materials.mat_flux += 1;
+      summary.fluxAdded += 1;
+    }
+    if (chance(rng, 0.04)) {
+      save.materials.mat_thread += 1;
+      summary.threadAdded += 1;
+    }
+    if (chance(rng, tier >= 2 ? 0.06 : 0.02)) {
+      save.materials.mat_essence += 1;
+      summary.essenceAdded += 1;
     }
 
-    const rng = mulberry32(hashSeed(`drop:${save.lifetime.kills}:${i}:${tier}:${save.gold}`));
-    const scrap = 1 + Math.floor(rng() * 3) + Math.floor((tier - 1) / 2);
-    save.materials.mat_scrap += scrap;
-    summary.scrapAdded += scrap;
-    if (chance(rng, 0.22)) save.materials.mat_flux += 1;
-    if (chance(rng, 0.14)) save.materials.mat_thread += 1;
-    if (tier >= 2 && chance(rng, 0.1)) save.materials.mat_essence += 1;
-
-    if (chance(rng, 0.28) && itemBases.length > 0) {
+    if (chance(rng, Math.min(0.35, 0.1 * findScale)) && itemBases.length > 0) {
       const base = pickOne(rng, itemBases);
       const roll = rng();
       const rarity: Rarity =
         roll < 0.02 + tier * 0.005 ? 'mythic' : roll < 0.16 + tier * 0.02 ? 'rare' : roll < 0.56 ? 'magic' : 'common';
       const item = createItem(base.id, rarity, Math.max(1, tier), `drop-${save.lifetime.kills}-${i}`);
+      const maxLinks = Math.max(1, item.sockets.length);
+      item.linkedSockets = Math.max(1, Math.min(maxLinks, 1 + Math.floor(rng() * maxLinks)));
       if (save.autoSalvage && item.rarity === 'common') {
         const gain = salvageItem(save, item);
         summary.scrapAdded += gain.scrap;
+        summary.fluxAdded += gain.flux;
         summary.itemsSalvaged += 1;
       } else {
         save.inventory.push(item);
         summary.itemsAdded.push(item);
       }
     }
-  }
 
-  if (save.level >= 2) {
-    if (unlockSystem(save, 'tree')) summary.unlockedSystems.push('tree');
-    if (save.onboardingStep < 3) save.onboardingStep = 3;
-  }
-  if (save.keys >= 3 && tier <= 1 && save.onboardingStep < 5) {
-    save.onboardingStep = 5;
-  }
-  if (tier >= 2 && newKills > 0 && save.onboardingStep < 6) {
-    summary.unlockedSystems.push(...unlockAllSystems(save));
-    summary.awakened = true;
+    if (chance(rng, Math.min(0.15, 0.04 * findScale)) && gems.length > 0) {
+      const def = pickOne(rng, gems);
+      if (playerOwnsGem(save, def.id)) {
+        save.materials.gem_dust += 15;
+        summary.dustAdded += 15;
+      } else {
+        save.gemStash.push(makeGem(def.id, 1, 'both'));
+        summary.gemsAdded.push(def.id);
+      }
+    }
   }
 
   return summary;
+}
+
+export function awardGemXp(save: CharacterSave, kills: number): void {
+  if (kills <= 0) return;
+  const xpGain = kills * 4;
+  for (const gem of allSocketedGems(save.equipment)) {
+    if (gem.level >= 20) continue;
+    gem.xp += xpGain;
+    while (gem.level < 20 && gem.xp >= gemXpToNext(gem.level)) {
+      gem.xp -= gemXpToNext(gem.level);
+      gem.level += 1;
+    }
+  }
+}
+
+export function levelUpGemWithDust(save: CharacterSave, gem: GemInstance): { ok: boolean; message: string } {
+  if (gem.level >= 20) return { ok: false, message: 'Gem is already max level (Lv 20).' };
+  const cost = gemDustCostToLevel(gem.level);
+  if ((save.materials.gem_dust ?? 0) < cost) {
+    return { ok: false, message: `Need ${cost} Gem Dust.` };
+  }
+  save.materials.gem_dust -= cost;
+  gem.level += 1;
+  gem.xp = 0;
+  return { ok: true, message: `Gem leveled to Lv ${gem.level}!` };
 }
 
 export function evaluateProgression(save: CharacterSave, event?: 'first_death'): ProgressionEntry[] {
@@ -379,14 +365,8 @@ export function evaluateProgression(save: CharacterSave, event?: 'first_death'):
         : event === entry.trigger.event;
     if (!matched) continue;
     save.grantedProgression.push(entry.id);
-    if (entry.grants.skillSlot) {
-      save.skillSlots += entry.grants.skillSlot;
-    }
-    if (entry.grants.gem) {
-      save.gemStash.push(makeGem(entry.grants.gem, 1));
-    }
-    for (const system of entry.grants.unlockedSystems ?? []) {
-      unlockSystem(save, system);
+    if (entry.grants.gem && !playerOwnsGem(save, entry.grants.gem)) {
+      save.gemStash.push(makeGem(entry.grants.gem, 1, 'both'));
     }
     granted.push(entry);
   }
@@ -419,6 +399,7 @@ export function applyCombatRewards(save: CharacterSave, rewards: CombatRewards):
   save.lifetime.deaths += rewards.deaths;
   save.lifetime.damage += Math.round(rewards.damage);
   save.lifetime.gold += rewards.gold;
+  awardGemXp(save, rewards.kills);
   const unlocked = applyXp(save, rewards.xp);
   if (rewards.deaths > 0) {
     unlocked.push(...evaluateProgression(save, 'first_death'));
@@ -514,7 +495,8 @@ export function salvageItem(save: CharacterSave, item: ItemInstance): { scrap: n
   const gain = {
     scrap: itemGearscore(item) >= 120 ? 6 : 3,
     flux: item.rarity === 'rare' ? 2 : item.rarity === 'mythic' ? 5 : item.rarity === 'magic' ? 1 : 0,
-  };  save.inventory = save.inventory.filter((entry) => entry.uid !== item.uid);
+  };
+  save.inventory = save.inventory.filter((entry) => entry.uid !== item.uid);
   save.materials.mat_scrap += gain.scrap;
   save.materials.mat_flux += gain.flux;
   return gain;
@@ -540,7 +522,7 @@ export function materialList(): MaterialId[] {
   return [...MATERIAL_IDS];
 }
 
-export function pickAffixFor(item: ItemInstance): (typeof affixes)[number] | undefined {
+export function pickAffixFor(item: ItemInstance) {
   return eligibleAffixes(item.baseId)[0];
 }
 
@@ -549,7 +531,6 @@ export function refillSockets(item: ItemInstance): void {
 }
 
 export { socketedGems, allSocketedGems };
-
 export { affixById, skillTree };
 
 export function saveHash(save: CharacterSave): number {

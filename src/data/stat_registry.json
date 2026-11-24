@@ -1,220 +1,275 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "stats": {
     "might": {
       "label": "Might",
       "category": "attribute",
-      "base": 10
+      "base": 10,
+      "description": "Increases weapon & skill damage (+1%/pt), Crit Multiplier (+0.5%/pt), and Armor Break (+0.4%/pt)."
     },
     "agility": {
       "label": "Agility",
       "category": "attribute",
-      "base": 10
+      "base": 10,
+      "description": "Increases Attack Speed (+0.4%/pt), Double-Hit Chance, DoT Tick Speed (+0.67%/pt), and Dodge Rating (+0.5/pt)."
     },
     "wisdom": {
       "label": "Wisdom",
       "category": "attribute",
-      "base": 10
+      "base": 10,
+      "description": "Increases Cast Speed (+0.4%/pt), Max Mana (+1.5/pt) & Regen (+0.25/s/pt), Max Ward (+1.2/pt), and Ailment Potency."
     },
     "fortitude": {
       "label": "Fortitude",
       "category": "attribute",
-      "base": 10
+      "base": 10,
+      "description": "Increases Max Health (+3/pt), Health Regen (+0.15/s/pt), Armor (+1.5/pt), and Thorns (+0.4/pt)."
     },
     "max_hp": {
       "label": "Max Health",
       "category": "defense",
-      "base": 180
+      "base": 180,
+      "description": "Total life pool before the Soul-Spark shatters. Scaled by Fortitude and +10 per level."
     },
     "max_mana": {
       "label": "Max Mana",
       "category": "resource",
-      "base": 80
+      "base": 100,
+      "description": "Resource spent by active skills. Base 100 (+5 per level, +1.5 per Wisdom) minus aura reservations."
     },
     "max_ward": {
       "label": "Max Ward",
       "category": "defense",
-      "base": 30
+      "base": 30,
+      "description": "Recharging barrier absorbing post-mitigation hits before Health. Recharges at 20%/s after 2s without damage."
     },
     "hp_regen": {
       "label": "Health Regen /s",
       "category": "defense",
-      "base": 1.2
+      "base": 1.2,
+      "description": "Health restored passively every second, scaled by Fortitude."
     },
     "mana_regen": {
       "label": "Mana Regen /s",
       "category": "resource",
-      "base": 4
+      "base": 12,
+      "description": "Mana restored every second (12 base + Wisdom scaling), supplemented by +4 Mana per weapon hit."
     },
     "armor": {
       "label": "Armor",
       "category": "defense",
-      "base": 20
+      "base": 20,
+      "description": "Reduces incoming physical and hit damage up to 80% based on attacker level."
+    },
+    "armor_break": {
+      "label": "Armor Break %",
+      "category": "offense",
+      "base": 0,
+      "description": "Percentage of enemy Armor ignored by your physical hits, scaled by Might."
     },
     "dodge_rating": {
       "label": "Dodge Rating",
       "category": "defense",
-      "base": 0
+      "base": 0,
+      "description": "Feeds entropy-assisted evasion. Accumulates per incoming hit and dodges when reaching 100."
     },
     "thorns": {
       "label": "Thorns",
       "category": "defense",
-      "base": 0
+      "base": 0,
+      "description": "Reflects physical damage back to any enemy that strikes you."
     },
     "crit_chance": {
       "label": "Crit Chance %",
       "category": "offense",
-      "base": 5
+      "base": 5,
+      "description": "Probability that weapon hits and offensive skills deal Critical Strike damage."
     },
     "crit_multi": {
       "label": "Crit Multiplier %",
       "category": "offense",
-      "base": 50
+      "base": 50,
+      "description": "Bonus damage added to Critical Strikes on top of the 150% baseline and Might bonus."
     },
     "attack_speed": {
       "label": "Attack Speed %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Accelerates weapon auto-attacks and attack skills, reducing post-cast recovery."
     },
     "weapon_min": {
       "label": "Weapon Min Damage",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Flat minimum physical damage added to weapon auto-attacks."
     },
     "weapon_max": {
       "label": "Weapon Max Damage",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Flat maximum physical damage added to weapon auto-attacks."
     },
     "ailment_potency": {
       "label": "Ailment Potency %",
       "category": "ailment",
-      "base": 0
+      "base": 0,
+      "description": "Amplifies damage and debuff strength of Bleed, Ignite, Chill, Shock, and Corruption."
+    },
+    "dot_speed": {
+      "label": "DoT Tick Speed %",
+      "category": "ailment",
+      "base": 0,
+      "description": "Accelerates how rapidly Bleed, Ignite, and Corruption deal damage over time."
     },
     "res_fire": {
       "label": "Fire Resistance %",
       "category": "resistance",
-      "base": 0
+      "base": 0,
+      "description": "Mitigates incoming Fire hits with soft-punishment scaling up to 75%."
     },
     "res_frost": {
       "label": "Frost Resistance %",
       "category": "resistance",
-      "base": 0
+      "base": 0,
+      "description": "Mitigates incoming Frost hits with soft-punishment scaling up to 75%."
     },
     "res_lightning": {
       "label": "Lightning Resistance %",
       "category": "resistance",
-      "base": 0
+      "base": 0,
+      "description": "Mitigates incoming Lightning hits with soft-punishment scaling up to 75%."
     },
     "res_void": {
       "label": "Void Resistance %",
       "category": "resistance",
-      "base": 0
+      "base": 0,
+      "description": "Mitigates incoming Void hits with soft-punishment scaling up to 75%."
     },
     "res_physical": {
       "label": "Physical Resistance %",
       "category": "resistance",
-      "base": 0
+      "base": 0,
+      "description": "Additional flat percentage mitigation against Physical hits."
     },
     "dmg_physical": {
-      "label": "Physical Damage",
+      "label": "Physical Damage %",
       "category": "school",
-      "base": 0
+      "base": 0,
+      "description": "Increases all Physical hit and Bleed damage dealt."
     },
     "dmg_fire": {
-      "label": "Fire Damage",
+      "label": "Fire Damage %",
       "category": "school",
-      "base": 0
+      "base": 0,
+      "description": "Increases all Fire hit and Ignite damage dealt."
     },
     "dmg_frost": {
-      "label": "Frost Damage",
+      "label": "Frost Damage %",
       "category": "school",
-      "base": 0
+      "base": 0,
+      "description": "Increases all Frost hit and Chill damage dealt."
     },
     "dmg_lightning": {
-      "label": "Lightning Damage",
+      "label": "Lightning Damage %",
       "category": "school",
-      "base": 0
+      "base": 0,
+      "description": "Increases all Lightning hit and Shock effect strength."
     },
     "dmg_void": {
-      "label": "Void Damage",
+      "label": "Void Damage %",
       "category": "school",
-      "base": 0
+      "base": 0,
+      "description": "Increases all Void hit and Corruption damage dealt."
     },
     "dmg_increased": {
       "label": "Increased Damage %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Global additive damage multiplier applied across all weapon hits and skills."
     },
     "dot_multiplier": {
       "label": "DoT Multiplier %",
       "category": "ailment",
-      "base": 0
+      "base": 0,
+      "description": "Multiplies damage over time from Bleed, Ignite, and Corruption."
     },
     "area_damage": {
       "label": "Area Damage %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Increases damage dealt by skills tagged as Area."
     },
     "gold_find": {
       "label": "Gold Find %",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Increases Gold dropped by defeated enemies and bosses."
     },
     "item_find": {
       "label": "Item Find %",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Improves gear and gem drop chance and rarity roll odds."
     },
     "double_hit": {
       "label": "Double-Hit Chance %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Chance for hits to echo immediately at 70% damage and re-roll on-hit effects."
     },
     "cooldown_recovery": {
       "label": "Cooldown Recovery %",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Accelerates skill cooldown recovery speed."
     },
     "life_leech": {
       "label": "Life Leech %",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Restores a percentage of hit damage as Health, capped at 6% Max Health/s."
     },
     "cast_speed": {
       "label": "Cast Speed %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Reduces spell cast times and post-cast recovery delay."
     },
     "mana_cost": {
       "label": "Mana Cost %",
       "category": "resource",
-      "base": 0
+      "base": 0,
+      "description": "Modifies Mana spent by active skills."
     },
     "execute_damage": {
       "label": "Execute Damage %",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "More damage dealt to enemies below 35% Health."
     },
     "convert_physical_fire": {
       "label": "Physical to Fire %",
       "category": "conversion",
-      "base": 0
+      "base": 0,
+      "description": "Converts Physical damage bonuses and hits forward into Fire damage."
     },
     "trigger_on_crit": {
       "label": "Trigger on Crit",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Fires linked skills asynchronously when a weapon attack scores a Critical Strike."
     },
     "trigger_on_damage": {
       "label": "Trigger on Damage Taken",
       "category": "utility",
-      "base": 0
+      "base": 0,
+      "description": "Fires linked Guard skills automatically when taking a heavy hit."
     },
     "projectile_count": {
       "label": "Extra Projectiles",
       "category": "offense",
-      "base": 0
+      "base": 0,
+      "description": "Number of additional targets hit by Projectile skills."
     }
   },
   "conversions": [

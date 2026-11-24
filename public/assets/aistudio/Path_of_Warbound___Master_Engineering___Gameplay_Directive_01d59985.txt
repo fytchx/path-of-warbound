@@ -1,0 +1,321 @@
+﻿PATH OF WARBOUND — MASTER ENGINEERING & GAMEPLAY DIRECTIVE
+Complete End-to-End Specification for a Cohesive, Responsive, and Deeply Playable Release.
+
+
+Purpose: This document defines the complete gameplay experience, mathematical engine, data contracts, pacing numbers, and mobile-portrait UI standards for Path of Warbound. Rather than dripping features out in fragmented micro-versions, build the entire cohesive core game cleanly so every system works together seamlessly from first boot.
+
+
+________________
+
+
+1. VISION, DESIGN PHILOSOPHY & HARD GUARDRAILS
+What Makes Path of Warbound Enjoyable
+* Core Identity: "An intimidating monster in the background, simple for a solo developer to build without scope creep, deeply stimulating for theorycrafters, and effortless for the average player."
+* Soul-Spark Identity: There is no physical character body, portrait, or rigid class selection. The player is a disembodied Soul-Spark bound directly into Warbound Armaments. Equipped gear, linked gems, and the passive constellation define the character.
+* Zero Human Faces: Never render human faces or character portraits anywhere in art or UI. The header emblem always displays fx_soulspark inside the #w-medal SVG frame.
+* Quiet, Self-Explanatory UI: Do NOT lock tabs, hide core buttons behind multi-step scripted tutorials, or spam popup banners/whispers. Every screen and control must be immediately accessible, uncluttered, and self-explanatory through clean labels, clear visual feedback, and tap-to-inspect cards.
+Mandatory Repository & Engineering Guardrails
+* Never Commit or Push Automatically: Never run git commit, git push, git merge, git rebase, or git reset --hard without explicit user approval. Stop and present a complete file summary when finished.
+* Never Modify Art Assets: Never edit, overwrite, or regenerate files inside assets/ or warbound-sprite.svg. assets/manifest.json is the single source of truth; reference all art by manifest ID (AssetId), never hardcoded paths.
+* Clean Architecture Separation:
+   * src/engine/ must remain 100% pure TypeScript with zero DOM, window, document, or CSS dependencies.
+   * src/data/ holds all game definitions and tuning values in validated JSON registries.
+   * src/game/ manages state, inventory, crafting, gem socketing, and local persistence.
+   * src/ui/ renders the 390px mobile-portrait interface using Vanilla TypeScript and warbound-sprite.svg.
+
+
+________________
+
+
+2. CRITICAL FIXES FOR CURRENT BUILD ISSUES (MANDATORY AUDIT)
+Before adding polish, resolve these six exact breakages found in the current prototype:
+Audit & Remediation Matrix
+System / Area
+	Root Cause Issue
+	Mandatory Remediation & Implementation Rule
+	Multi-Skill Rotation
+	Engine breaks loop after slot 0 or starves secondary skills of Mana.
+	Evaluate ALL socketed Active Gems on the active bar (Bar I or II) every 100ms tick. Instant skills fire off cooldown; triggered skills fire asynchronously. Standard skills compete via Dynamic Utility Score ($S_i$). Highest positive $S_i$ casts, spends Mana, and triggers a 300ms recovery scaled by Attack/Cast Speed. Baseline Mana: 100 Base Max, 12/sec Regen, +4 Mana per Weapon Auto-Attack hit.
+	Formula Wiring
+	Flat placeholders used in combat calculations instead of aggregated stats.
+	Every stat from computePlayerStats() in src/engine/stats.ts must directly drive src/engine/combatEngine.ts. Support Gems must alter Active Gem tooltips and apply multiplicative More modifiers, conversions, and triggers. Two-pass DAG conversions must visually reflect in Detailed Stats and actual damage.
+	UI Progress Bars
+	Visual flickering, jittering, and backward rewinding on bar cycles.
+	Compute percentages deterministically from elapsed time clamped strictly to $[0, 1]$. Suppress CSS transitions for one frame on reset before setting width to 0%. Animate HP/Mana vials smoothly using CSS height transitions (150ms ease-out) without rebuilding DOM elements.
+	Starter State & Loot
+	Inventory flooded with clutter and excessive items on first load.
+	Fresh save starts with 0 Bag items, 0 currencies, 0 Gold, and 1 starter weapon (Common 1-socket Iron Broadsword with Crossed Slash). Materials and Rift Keys stack into clean counters. Drop rates tuned: Tier 1 mobs drop 3–8 Gold, ~30% War-Scrap (1–3), ~8% Runic Flux (1), ~12–15% Gear/Gem, ~15–20% Rift Key.
+	XP & Pacing Curve
+	Instant Level 2 achieved in under 10 seconds of combat.
+	Level 1 $\rightarrow$ Level 2 requires 250 XP (~10–12 Tier 1 kills, 40–50s of combat). Curve formula: $\text{XP_Required}(\text{Level}) = \lfloor 250 \times \text{Level}^{1.45} \rfloor$. Each level grants +1 Skill Point, +10 Base Max HP, and +5 Base Max Mana.
+	Combat Readability
+	Ambiguous skill/item mechanics and cluttered combat overlay.
+	Add plain-English description fields to every Gem, Weapon Archetype, Trinket, Keystone, Doctrine, and Stat in src/data/. Render readable enemy HP bars, attack countdown indicators, status ailment stack/timer icons, crisp school-colored floating numbers, and skill cooldown sweeps.
+	
+
+________________
+
+
+3. COMPLETE MATHEMATICAL & COMBAT ENGINE SPECIFICATION
+3.1 The 4 Core Attributes
+Each core attribute maps to exactly four distinct, non-overlapping mechanic vectors:
+
+
+* Might (attr_might):
+   1. Weapon Base Damage (scales physical and weapon-based hits).
+   2. Ability Power (flat and percentage scaling on offensive skills).
+   3. Critical Strike Multiplier (+0.5% per point of Might).
+   4. Armor Break (ignores a percentage of enemy Armor).
+* Agility (attr_agility):
+   1. Attack Speed (faster weapon auto-attacks and physical attack skills).
+   2. Double-Hit Chance (chance for hits to echo immediately at 70% damage).
+   3. DoT Tick Speed (accelerates Bleed, Ignite, and Corruption tick frequency).
+   4. Dodge Rating (feeds entropy-assisted evasion).
+* Wisdom (attr_wisdom):
+   1. Cast & Channeling Speed (faster spell execution and channeling rates).
+   2. Max Mana & Mana Regen (sustains high-frequency multi-skill rotations).
+   3. Max Ward (recharging magical barrier absorbing damage before Health).
+   4. Ailment Potency (amplifies damage and debuff magnitude across all 5 ailments).
+* Fortitude (attr_fortitude):
+   1. Max Health (expands base life pool).
+   2. Auto-Heal / HP Regen (flat and percentage life restored per second).
+   3. Armor (mitigates incoming physical and hit-based damage).
+   4. Thorns (reflects scaled damage back to attackers upon taking a hit).
+3.2 The 5 Damage Schools & Signature Ailments
+               ┌── Physical ───────► Bleed (Stacking Physical DoT)
+               ├── Fire ───────────► Ignite (High-Magnitude Burning DoT)
+DAMAGE SCHOOLS ┼── Frost ──────────► Chill / Freeze (Action Speed Slow / Stun)
+               ├── Lightning ──────► Shock (Increased Damage Taken Multiplier)
+               └── Void ───────────► Corruption (Armor-Bypassing DoT & Anti-Heal)
+
+1. Physical (school_physical) $\rightarrow$ Bleed (ailment_bleed): Stacking physical Damage over Time.
+2. Fire (school_fire) $\rightarrow$ Ignite (ailment_ignite): High-magnitude single-instance burning DoT.
+3. Frost (school_frost) $\rightarrow$ Chill / Freeze (ailment_chill): Slows enemy attack/cast speed; freezes enemy action bar entirely at maximum Chill stacks.
+4. Lightning (school_lightning) $\rightarrow$ Shock (ailment_shock): Target takes +10% to +40% increased damage from all sources based on hit severity $\times$ Wisdom Potency.
+5. Void (school_void) $\rightarrow$ Corruption (ailment_corruption): Chaos/Void DoT that bypasses standard Armor and reduces enemy healing and Ward recharge rate by 35%.
+3.3 Master Stat Aggregation & Two-Pass DAG Conversions
+Stats recompute from scratch as a pure function of equipped gear, socketed gems, allocated tree nodes, and active temporary buffs using a 4-layer resolution pipeline:
+
+
+$$\text{Final}(X) = \left( \text{Base}(X) + \sum \text{Flat}(X) \right) \times \left( 1 + \frac{\sum \text{Increased}%(X)}{100} \right) \times \prod \left( 1 + \frac{\text{More}%(X)}{100} \right)$$
+
+
+* Increased Pool: Additive sum from gear affixes, minor tree nodes, and basic passives.
+* More Pool: Multiplicative product from Support Gems, Keystones, and active Combat Doctrines.
+Two-Pass Forward-Only Conversions (Cycle-Free Directed Acyclic Graphs)
+* Pass 1 (Attributes & Defenses):
+$$\text{Might} \longrightarrow \text{Agility} \longrightarrow \text{Wisdom} \longrightarrow \text{Fortitude}$$
+$$\text{Armor} \longrightarrow \text{Max Ward} \longrightarrow \text{Dodge Rating}$$
+* Pass 2 (Damage Schools):
+$$\text{Physical} \longrightarrow \text{Fire} \longrightarrow \text{Frost} \longrightarrow \text{Lightning} \longrightarrow \text{Void}$$
+3.4 Combat Damage, Defense & Ailment Formulas
+   * Raw Hit Roll:
+$$\text{RawHit} = \text{RandomRange}(\text{Dmg}{\min}, \text{Dmg}{\max}) \times \text{SkillEffectiveness} \times \left(1 + \frac{\text{Might}}{100}\right) + \text{AP}_{\text{Scaling}}$$
+   * Critical Strike Roll:
+$$\text{CritHit} = \text{RawHit} \times \left(1.50 + \text{BonusCritMulti} + \frac{\text{Might}}{200}\right) \quad \text{when } \text{Roll} \le \min(1.0, \text{CritChance})$$
+   * Agility Double-Hit:
+$$\text{DoubleHitChance} = \min\left(0.75, \frac{\text{Agility}}{\text{Agility} + 250}\right)$$
+On proc, the hit echoes immediately at 70% damage, triggering all on-hit effects and ailment rolls.
+   * Entropy-Assisted Dodge:
+Maintain entropyCounter (initial 0). Each incoming hit adds $\text{DodgeChance} \in [0, 75]$. When $\text{entropyCounter} \ge 100$, hit is Dodged and $\text{entropyCounter} \gets \text{entropyCounter} - 100$.
+   * Armor Mitigation (vs. Enemy Level $L$):
+$$\text{ArmorDR} = \min\left(0.80, \frac{\text{Armor}}{\text{Armor} + 45 \times L}\right)$$
+   * Soft-Punishment Elemental & Void Resistances:
+$$\text{DamageAfterRes} = \text{IncomingDamage} \times \left(1 - 0.80 \times \min\left(0.75, \text{Resistance}\right)\right)$$
+   * Ward Barrier Mechanics:
+Absorbs post-mitigation damage prior to Health. Recharges after 2.0s without damage (reduced by Wisdom), recovering 20% Max Ward/sec.
+   * Anti-Double-Dipping Ailment DoT Formula:
+$$\text{DoT_DPS} = \text{BaseAilmentDamage} \times \left(1 + \frac{\text{Wisdom}}{120}\right) \times \left(1 + \frac{\text{Agility}}{150}\right)$$
+   * Item Gearscore Calculation:
+$$\text{Gearscore} = (\text{ItemLevel} \times 10) + \sum (\text{AffixTier} \times 15) + (\text{LinkedSockets} \times 25)$$
+3.5 Four-Tier Execution Engine & Dynamic Utility Score ($S_i$)
+Every tick (100ms), the combat engine processes four execution tiers:
+
+
+      1. Tier 1 — Persistent Reservations: Auras and Heralds reserve Max Mana percentage before combat starts.
+      2. Tier 2 — Instant Cooldown Automation: Zero-cast-time buffs and warcries execute instantly off cooldown.
+      3. Tier 3 — Event & Energy Triggers: Triggers (on_crit, on_damage_taken, on_hit, energy_full) fire linked skills asynchronously. Snake-order tie-breaker: Socket $1 \rightarrow 2 \rightarrow 4 \rightarrow 3 \rightarrow 5 \rightarrow 6$ across slot hierarchy: Chest $\rightarrow$ Ring 1 $\rightarrow$ Main Hand $\rightarrow$ Ring 2 $\rightarrow$ Offhand $\rightarrow$ Helmet $\rightarrow$ Amulet $\rightarrow$ Gloves $\rightarrow$ Boots $\rightarrow$ Legs $\rightarrow$ Trinket.
+      4. Tier 4 — Active Cast Loop ($S_i$ Evaluation):
+Calculates score $S_i$ for every ready, mana-affordable Active Gem $i$ on the active bar:
+
+
+$$S_i = (B_i \times U_i \times M_{\text{econ}} \times M_{\text{synergy}} \times W_{\text{doctrine}}) - C_{\text{waste}}$$
+
+
+         * $B_i$ (Base Role Weight): Emergency Recovery (95) > Curse/Exposure/Mark (85) > Offensive Buff/Warcry (80) > Cooldown Nuke (75) > Primary Clear/Filler (55).
+         * $U_i$ (Urgency, $0.05 \text{ to } 3.0$): $1.2$ if debuff missing or $<1.5\text{s}$ left ($0.05$ if active); $+0.25$ per extra live enemy for AoE; $+0.60$ vs Bosses for single-target; scales as EHP drops.
+         * $M_{\text{econ}}$ (Resource Lookahead, $0.2 \text{ to } 1.2$): Drops to $0.25$ on filler skills if spending Mana starves a higher-priority skill coming off cooldown within $1.2\text{s}$.
+         * $M_{\text{synergy}}$ (Combo Multiplier, $1.0 \text{ to } 2.0$): Boosts payoff skills (+30% to +80%) when target exhibits Exposure, Shock, Freeze, or Corruption.
+         * $W_{\text{doctrine}}$ (Playstyle Weight, $0.0 \text{ to } 2.5$): Driven by selected Combat Doctrine.
+         * $C_{\text{waste}}$ (Overkill Penalty, $0 \text{ to } 150$): Deducts up to 80 points if a nuke's minimum damage exceeds target remaining HP by $>200%$; deducts points if boss windup will land before animation finishes.
+3.6 The 5 Combat Doctrines (doctrine_*)
+         * Tactician (doctrine_tactician): Balanced AoE and single-target prioritization. Triggers defensive Guard skills when HP drops below 45%.
+         * Blitz (doctrine_blitz): Heavy offensive bias. Front-loads damage buffs; delays Guards until $<20%$ HP; ignores animation penalties. Perk: +15% Attack/Cast Speed for 3s after killing an enemy.
+         * Bastion (doctrine_bastion): Defensive and predictive logic. Casts Guards at 75% HP or during enemy telegraph windups. Perk: +25% Defensive Cooldown Recovery; blocked hits restore 5% Max Mana.
+         * Weaver (doctrine_weaver): Debuff and DoT optimization. Suppresses DoT payoff skills ($0.2\times$) until Curses/Exposure are active. Perk: +20% ailment damage against targets with $\ge 3$ active debuffs.
+         * Entropy (doctrine_entropy): High variance engine. Locks $M_{\text{econ}} = 1.0$ and applies $\pm 35%$ random noise to $S_i$ each tick. Perk: Triggered skills have a 20% chance to ignore internal cooldowns and double-cast at $0.7\times \text{–} 1.6\times$ power.
+
+
+________________
+
+
+4. EQUIPMENT, WEAPONS, GEMS & CRAFTING
+4.1 Soul-Forged Altar Grid Layout
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│                 │   Amulet (1S)   │   Helmet (4S)   │   Trinket (1S)  │
+│  Main-Hand      ├─────────────────┼─────────────────┼─────────────────┤
+│  Weapon (6S)    │   Gloves (4S)   │   Chest (6S)    │   Ring 1 (1S)   │
+│  (Spans 2 Rows) ├─────────────────┼─────────────────┼─────────────────┤
+│                 │   Boots (4S)    │    Legs (4S)    │   Ring 2 (1S)   │
+├─────────────────┴─────────────────┴─────────────────┴─────────────────┤
+│  Offhand (3S) (Shield / Focus Orb / Offhand Weapon - Locked if 2H Equipped)│
+└───────────────────────────────────────────────────────────────────────┘
+4.2 Weapon Auto-Attack Implicits
+Weapon Type
+	Asset Identifier
+	Base Speed
+	Signature Implicit Effect
+	Dagger
+	weapon_dagger (1H)
+	1.60 attack/sec
+	50% chance on hit to apply 1 stack of Corruption/Poison; +25% Crit Chance.
+	Sword
+	weapon_sword (1H/2H)
+	1.30 attack/sec
+	Every 3rd swing cleaves up to 3 enemies and grants +10% Attack Speed for 3s.
+	Mace
+	weapon_mace (1H/2H)
+	1.00 attack/sec
+	30% chance on hit to Daze target (-20% enemy attack speed & damage for 3s).
+	Axe
+	weapon_axe (1H/2H)
+	1.20 attack/sec
+	Inflicts Bleed on critical strikes; deals +25% damage to Bleeding targets.
+	Bow
+	weapon_bow (2H)
+	1.45 attack/sec
+	+20% Double-Hit Chance; restores 3% Max Mana on critical strikes.
+	Staff
+	weapon_staff (2H)
+	1.05 attack/sec
+	Refreshes 1.0s of active DoTs/debuffs on hit and accelerates Ward recharge.
+	4.3 Universal Sockets, Gem Descriptions & Dual Skill Bars
+         * Universal Sockets: No socket-color RNG. Any Active or Support Gem fits into any socket. Linked sockets (connected by #w-link) apply all linked Support Gems to every Active Gem in that group.
+         * Gem Descriptions: Every gem in src/data/gems.json must define a plain-English description. Tapping a gem opens an inspect modal displaying its icon, level/XP bar, description, tags, and calculated live stats.
+         * Dual Skill Bars (Bar I & Bar II): Players assign socketed Active Gems to Bar I, Bar II, or Both, swapping active bars on command in combat. Active Buffs, Wards, and enemy DoTs persist across bar swaps.
+         * Gem Leveling (Lv. 1–20): Socketed gems earn combat XP. Duplicate gem drops salvage into Gem Dust to level or quality-boost main gems.
+4.4 Rarity Tiers & 4 Core Crafting Materials
+[Common: #8a8a8a] ──► [Magic: #4a7be0] ──► [Rare: #D4AF37] ──► [Mythic: #9B51E0]
+
+         1. War-Scrap (mat_scrap): Upgrades gear slot tier level (+1, +2...) and rerolls numerical affix values within current tier bounds.
+         2. Runic Flux (mat_flux): Rerolls random affixes on Magic/Rare items or upgrades an item from Magic to Rare quality.
+         3. Link-Thread (mat_thread): Adds universal sockets and fuses socket link connections up to the slot limit.
+         4. Rift Essence (mat_essence): Locks 1 chosen affix while reforging remaining slots, or corrupts a max-level item/gem for high-risk implicit mutations.
+
+
+________________
+
+
+5. SEGMENTED RADIAL CONSTELLATION & 8 KEYSTONES
+         * Topology: 4 Attribute Sectors (Might, Agility, Wisdom, Fortitude) radiating from central hub_0 across 3 concentric rings, built from modular Petals (1 Notable + 2–3 Minors) containing ~90 base nodes (expandable to 180) and 6 Jewel Sockets.
+         * Canvas Touch Interaction: Smooth pan and pinch-zoom with minimum 44px tap targets.
+         * 1st Tap on unallocated node: Highlights shortest BFS path from allocated nodes; renders point cost and cumulative stat gains.
+         * 2nd Tap: Confirms allocation.
+         * Refund Mode: Highlights refundable nodes; evaluates Tarjan's articulation-point algorithm to prevent breaking connectivity to downstream allocated nodes.
+Keystone Specifications (ks_*)
+Keystone ID
+	Keystone Name
+	Exclusion Pair
+	Core Mechanical Effect
+	ks_pendulum
+	Pendulum
+	Excludes Hollow Fist
+	Skill bars swap automatically every 5s. Gain 30% More damage for 3s after swapping. Manual swapping disabled.
+	ks_hollow_fist
+	Hollow Fist
+	Excludes Pendulum
+	Weapon auto-attack implicits doubled and deal 40% More damage; active skills deal 25% Less damage and cost 50% More Mana.
+	ks_lattice_skin
+	Lattice Skin
+	Excludes Ghostframe
+	Armor no longer mitigates hit damage. Gain Max Ward equal to 60% of total Armor. Ward recharge delay fixed at 2.0s.
+	ks_ghostframe
+	Ghostframe
+	Excludes Lattice Skin
+	Dodge Rating cap doubled. Dodging triggers a Thorns burst equal to 15% of Dodge Rating. Max Health reduced by 40%.
+	ks_festering_wound
+	Festering Wound
+	Excludes Void Tithe
+	Ailments stack up to 3 simultaneous instances (40% potency each). Ailment duration reduced by 30%.
+	ks_void_tithe
+	Void Tithe
+	Excludes Festering Wound
+	50% of Physical damage converted to Void. Corruption potency +50%. Player takes 3% Max HP self-Corruption every 5s (Ward-absorbable).
+	ks_crowd_sovereign
+	Crowd Sovereign
+	Excludes Zealot's Mandate
+	Pack Size forced to minimum 4. Deal 25% More damage and take 15% More damage per active enemy (max 5). Elite spawn chance doubled.
+	ks_zealots_mandate
+	Zealot's Mandate
+	Excludes Crowd Sovereign
+	Locks build to selected Combat Doctrine, doubling its signature perk and utility weights. Other 4 Doctrines disabled.
+	
+
+________________
+
+
+6. ZONE PACING, RIFT KEYS & OFFLINE PROGRESSION
+         * 3 Zones (10 Tiers each): Ashen Graveyard (bg_ashen_graveyard), Ember Canyon (bg_ember_canyon), Frozen Cathedral (bg_frozen_cathedral).
+         * Pack Size Slider (1 to 5): Direct control over active monster spawns (1–5). Each slot rolls independently for Elite status ($p_{\text{elite}}$ scaling from $0.12$ to $0.20$, enabling rare 5-Elite waves at $p_{\text{elite}}^5$).
+         * Rift Keys & Boss Mechanics: Zone enemies drop key_rift. Collecting 3 keys enables the "Summon Zone Boss" action (extra keys can be banked for consecutive runs). Defeating a Zone Boss unlocks the next Tier; dying drops player back 1 Tier (minimum Tier 1).
+         * Tier 1 $\rightarrow$ Tier 2 Target Metrics:
+         * Tier 1 Normal Mobs: ~75 HP, ~7 DPS, 22 XP (~3.5s kill time with starter weapon; 10–12 kills to reach Level 2).
+         * Tier 1 Zone Boss: ~850 HP, ~24 DPS with telegraphed slam every 4.5s (requires 2–3 drops, 1 linked support, and +2 weapon upgrade).
+         * Tier 2 Normal Mobs: ~190 HP, ~18 DPS, 48 XP.
+         * Offline Farming Engine: Calculates offline time (capped at 8 hours) against active zone, tier, and pack size. Awards accumulated XP, Gold, and materials without triggering new Zone Boss encounters.
+
+
+________________
+
+
+7. MOBILE-PORTRAIT (390PX) UI & ASSET INTEGRATION STANDARDS
+Screen & Component Architecture
+┌───────────────────────────────────────┐
+│ HEADER: Medal + Soulspark | Level Bar │
+├───────────────────────────────────────┤
+│                                       │
+│          DYNAMIC VIEWPORT             │
+│        (390px Mobile Canvas)          │
+│                                       │
+│ COMBAT / ALTAR / TREE / BAG / FORGE   │
+│                                       │
+│                                       │
+├───────────────────────────────────────┤
+│ FOOTER TABS: [C] [A] [T] [B] [F]      │
+└───────────────────────────────────────┘
+
+         * Shared Chrome: Top header displays #w-medal + fx_soulspark, title "PATH OF WARBOUND", active Doctrine name, Level/XP bar, and Settings button. Bottom navigation features 5 equal-width tabs (minimum 44px touch target): COMBAT, ALTAR, TREE, BAG, FORGE.
+         * Combat Screen: Upper 3:2 arena with background backdrop (bg_*), left HP/Ward vial (#w-vial), right Mana vial (#w-vial), Zone/Tier/Pack controls, up to 5 #w-oval enemy cards with attack/HP #w-diamond badges, ailment stack icons, smooth floating damage text, Bar I/II toggle pill, 5 pre-framed skill_* slots with cooldown sweeps, and Auto-Attack bar. Lower dashboard holds Damage Meter, Active Timers, Quick Stats, Hourly Rates, and combat logs.
+         * Altar Screen: Displays Gearscore, Active Doctrine selector, [Stats] modal trigger, and 4 Primary Attributes. Layout positions Main-Hand Weapon (2×1) and Offhand (1×1) beside the 3×3 Armor & Relic Grid, rendering #w-socket rings and #w-link bars.
+         * Translucent Overlays: Tapping [Stats], equipped gear, or gems opens a frosted obsidian modal (85% opacity, backdrop blur) that closes when tapping outside or pressing X.
+         * Bag & Forge Screens: Bag displays stacked currency counters, filter tabs (All, Gear, Gems, Keys), Auto-Salvage toggle, and a 5×6 #w-slot grid. Forge displays active item on an altar card surrounded by Upgrade (mat_scrap), Reforge (mat_flux), Links (mat_thread), and Essence Lock (mat_essence) actions with live affix previews.
+
+
+________________
+
+
+8. DEFINITION OF DONE & VERIFICATION GATE
+The build is complete only when all of the following verification checks pass:
+
+
+         1. Asset & Stat Validation: npm run validate executes with 0 missing AssetId references in assets/manifest.json and 0 invalid stat keys.
+         2. Automated Unit Testing: npm test passes all unit tests covering multi-skill rotation priority, two-pass DAG conversions, ailment math, radial tree BFS/Tarjan refunds, and save persistence.
+         3. Balance Simulation: npm run sim executes 10,000 engine ticks across 4 distinct builds and outputs balanced DPS, Kills/Hr, and Rift Keys/Hr metrics.
+         4. TypeScript Build: npm run build compiles cleanly without TypeScript errors or warnings.
+         5. Runtime UX Audit: In a fresh 390px browser session:
+         * Progress bars move deterministically without backward snapping.
+         * Starter inventory is pristine (1 weapon equipped, 0 clutter).
+         * Reaching Level 2 requires ~40–50 seconds of active combat.
+         * Every gem renders a plain-English inspect description modal.
+         * Socketed skills execute in priority sequence.
+         6. Execution Protocol: STOP before any git commit or git push and present a full summary of modified/created files for approval.

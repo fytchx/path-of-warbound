@@ -1,7 +1,7 @@
 import { keystones, skillTree } from '../../data';
 import type { TreeNode } from '../../data/types';
 import type { GameStore } from '../store';
-import { escapeHtml, fmt } from '../dom';
+import { escapeHtml, fmt, statLabel } from '../dom';
 
 const VIEW = { w: 390, h: 430 };
 const SECTOR_COLOR: Record<string, string> = {
@@ -42,6 +42,26 @@ function symbolFor(node: TreeNode): string {
   }
 }
 
+function cumulativePreviewSummary(pathIds: string[]): string {
+  const sums = new Map<string, number>();
+  for (const id of pathIds) {
+    const node = skillTree.nodes.find((n) => n.id === id);
+    if (!node) continue;
+    for (const mod of node.mods) {
+      const key = `${mod.layer}:${mod.stat}`;
+      sums.set(key, (sums.get(key) ?? 0) + mod.value);
+    }
+  }
+  if (!sums.size) return '';
+  return [...sums.entries()]
+    .map(([key, val]) => {
+      const [layer, stat] = key.split(':');
+      const unit = layer === 'more' ? '% more' : layer === 'increased' ? '%' : '';
+      return `+${fmt(val, 1)}${unit} ${statLabel(stat ?? '')}`;
+    })
+    .join(' · ');
+}
+
 export function treeScreen(store: GameStore): string {
   const ui = store.ui;
   const allocated = new Set(store.save.allocated);
@@ -50,6 +70,7 @@ export function treeScreen(store: GameStore): string {
   const highlighted = new Set([...allocated, ...preview]);
   const previewNode = ui.previewNode ? skillTree.nodes.find((n) => n.id === ui.previewNode) ?? null : null;
   const previewCost = ui.previewPath.length;
+  const previewTotals = previewCost > 0 ? cumulativePreviewSummary(ui.previewPath) : '';
 
   const edgeMarkup = skillTree.edges
     .map(([a, b]) => {
@@ -74,8 +95,9 @@ export function treeScreen(store: GameStore): string {
       const classes = ['tree-node', node.kind, isAllocated ? 'allocated' : '', isPreview ? 'preview' : '', isExcluded ? 'excluded' : '', isStranded ? 'stranded' : ''].join(' ');
       const label = node.kind === 'notable' || node.kind === 'keystone' ? `<text class="tree-node-label" y="${radius + 10}">${escapeHtml(node.name)}</text>` : '';
       const glyphStyle = `--g:${color};--fill:${isAllocated ? '#2a2312' : '#0B0E16'}`;
+      const hitRadius = Math.max(22, radius + 10);
       return `<g class="${classes}" transform="translate(${node.x} ${node.y})" data-action="node" data-node="${node.id}" role="button" tabindex="0" aria-label="${escapeHtml(node.name)}">
-        <circle r="${radius + 6}" fill="transparent" />
+        <circle r="${hitRadius}" fill="transparent" />
         <use href="#${symbolFor(node)}" x="${-radius}" y="${-radius}" width="${radius * 2}" height="${radius * 2}" class="node-glyph" style="${glyphStyle}" />
         ${label}
       </g>`;
@@ -107,34 +129,33 @@ export function treeScreen(store: GameStore): string {
       ${ui.refundMode ? '<div class="banner" style="top:auto;bottom:6px">Refund mode · red nodes would strand others</div>' : ''}
     </div>
 
-    <p class="hint">Drag to pan · +/− to zoom · tap a node to preview or inspect</p>
+    <p class="hint">Drag to pan · pinch or +/− to zoom · tap once to preview, tap again to allocate</p>
 
     ${previewNode
       ? `<div class="frame pan">
           <h4>${escapeHtml(previewNode.name)}<span class="gold">${previewCost} pt${previewCost === 1 ? '' : 's'}</span></h4>
           <p class="tiny muted" style="line-height:1.4">${escapeHtml(previewNode.description)}</p>
-          <div style="margin-top:6px"><button class="gbtn" data-action="allocate" ${store.unspent() < previewCost ? 'disabled' : ''}>Allocate</button></div>
+          ${previewTotals ? `<p class="tiny gold" style="margin-top:4px">${escapeHtml(previewTotals)}</p>` : ''}
+          <div style="margin-top:6px"><button class="gbtn" data-action="allocate" ${store.unspent() < previewCost ? 'disabled' : ''}>Confirm (${previewCost} pt${previewCost === 1 ? '' : 's'})</button></div>
         </div>`
-      : '<div class="frame pan"><p class="tiny muted">Tap an unallocated node to preview and buy the shortest path. Tap an allocated node to inspect it.</p></div>'}
+      : '<div class="frame pan"><p class="tiny muted">Tap any unallocated node to preview the shortest path and cumulative gains. Tap again to confirm.</p></div>'}
 
-    ${store.isSystemUnlocked('keystones')
-      ? `<div class="frame pan">
-          <h4>Keystones<span>8 · mutually exclusive pairs</span></h4>
-          ${keystones
-            .map((keystone) => {
-              const owned = allocated.has(keystone.id);
-              const partner = (keystone.excludes ?? [])[0];
-              const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
-              return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
-                <span>
-                  <span class="gold" style="display:block;font-size:10px">${escapeHtml(keystone.name)}</span>
-                  <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partner ?? '')}` : escapeHtml(keystone.description.slice(0, 56))}…</span>
-                </span>
-                <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? '◆' : `${fmt(store.unspent())} free`}</span>
-              </button>`;
-            })
-            .join('')}
-        </div>`
-      : `<div class="frame pan"><h4>Keystones<span>Locked</span></h4><p class="tiny muted">Slay your first Tier 2 foe to unlock Keystones.</p></div>`}
+    <div class="frame pan">
+      <h4>Keystones<span>8 · mutually exclusive pairs</span></h4>
+      ${keystones
+        .map((keystone) => {
+          const owned = allocated.has(keystone.id);
+          const partner = (keystone.excludes ?? [])[0];
+          const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
+          return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
+            <span>
+              <span class="gold" style="display:block;font-size:10px">${escapeHtml(keystone.name)}</span>
+              <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partner ?? '')}` : escapeHtml(keystone.description)}</span>
+            </span>
+            <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? '◆' : `${fmt(store.unspent())} free`}</span>
+          </button>`;
+        })
+        .join('')}
+    </div>
   </section>`;
 }

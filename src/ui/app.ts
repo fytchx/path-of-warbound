@@ -1,11 +1,18 @@
+import { gemById } from '../data';
 import type { DoctrineId, ItemSlot } from '../data/types';
 import type { GemInstance } from '../game/types';
 import { xpNeeded } from '../game/state';
-import { escapeHtml, schoolColor, titleCase } from './dom';
+import { assetImg, clamp, escapeHtml, fmt, pct, schoolColor, sprite, titleCase } from './dom';
 import { renderModal } from './modals';
 import { altarScreen } from './screens/altar';
 import { bagScreen } from './screens/bag';
-import { combatScreen } from './screens/combat';
+import {
+  combatDashboardMarkup,
+  combatScreen,
+  enemyCardMarkup,
+  renderEnemyAilments,
+  swingPercent,
+} from './screens/combat';
 import { forgeScreen } from './screens/forge';
 import { treeScreen } from './screens/tree';
 import type { BagFilter, GameStore, ScreenId } from './store';
@@ -51,70 +58,87 @@ const TABS: { id: ScreenId; label: string; icon: string }[] = [
 const TAB_ICONS = Object.fromEntries(TABS.map((tab) => [tab.id, tab.icon])) as Record<ScreenId, string>;
 
 function tabbar(store: GameStore): string {
-  const unvisited = new Set(store.ui.unvisitedTabs);
-  return TABS.filter((tab) => store.isSystemUnlocked(tab.id))
-    .map(
-      (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''} ${unvisited.has(tab.id) ? 'tab-pulse' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
+  return TABS.map(
+    (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[tab.id]}</svg>
       <span>${tab.label}</span>
     </button>`,
-    )
-    .join('');
+  ).join('');
 }
 
 function topbar(store: GameStore): string {
   const save = store.save;
   const need = xpNeeded(save.level);
-  const xpPercent = Math.min(100, Math.round((save.xp / Math.max(1, need)) * 100));
+  const xpPercent = clamp((save.xp / Math.max(1, need)) * 100, 0, 100);
+  const xpRounded = Math.round(xpPercent);
   return `<div class="medal">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l10 10M20 4L10 14M3 21l4-4M21 21l-4-4M6 15l3 3M18 15l-3 3"/></svg>
+      ${sprite('w-medal', 'medal-svg', '0 0 100 100')}
+      ${assetImg('fx_soulspark', 'Soul-Spark', 'medal-spark')}
     </div>
     <div>
       <div class="title">PATH OF WARBOUND</div>
-      <div class="sub">${store.isSystemUnlocked('doctrines') ? `${titleCase(save.doctrine)} Doctrine` : `Tier ${store.combat.tier} · Ashen Path`}</div>
-      <div class="xp">Lv. ${save.level}<i><b style="width:${xpPercent}%"></b></i>${xpPercent}%</div>
+      <div class="sub" data-topbar-sub>${titleCase(save.doctrine)} Doctrine</div>
+      <div class="xp"><span data-topbar-lv>Lv. ${save.level}</span><i><b data-xp-fill style="width:${xpPercent.toFixed(1)}%"></b></i><span data-xp-pct>${xpRounded}%</span></div>
     </div>
     <button class="gear" data-action="modal-stats" aria-label="Character stats & settings" title="Character stats & settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
     </button>`;
 }
 
-interface PanState {
-  pointerId: number;
+interface TreeGestureState {
+  svg: SVGSVGElement;
+  group: SVGGElement;
+  pointers: Map<number, { x: number; y: number }>;
+  mode: 'pan' | 'pinch';
   startX: number;
   startY: number;
   viewX: number;
   viewY: number;
-  svg: SVGSVGElement;
-  group: SVGGElement;
+  startDist: number;
+  startScale: number;
+  curX: number;
+  curY: number;
+  curScale: number;
   moved: boolean;
 }
 
+const prevFillValues = new WeakMap<HTMLElement, number>();
+
+function setFillNoFlicker(
+  el: HTMLElement | null,
+  prop: 'width' | 'height',
+  nextPct: number,
+  wrapOnDrop = true,
+): void {
+  if (!el) return;
+  const clamped = clamp(nextPct, 0, 100);
+  const prev = prevFillValues.get(el);
+  const wrapped = wrapOnDrop && prev !== undefined && clamped < prev - 1;
+  if (wrapped) {
+    el.classList.add('no-trans');
+  }
+  el.style[prop] = `${clamped.toFixed(1)}%`;
+  prevFillValues.set(el, clamped);
+  if (wrapped) {
+    void el.offsetWidth;
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => el.classList.remove('no-trans'));
+    } else {
+      el.classList.remove('no-trans');
+    }
+  }
+}
+
 export function mountApp(root: HTMLElement, store: GameStore): void {
-  let pan: PanState | null = null;
+  let gesture: TreeGestureState | null = null;
   let renderedScreen: ScreenId | null = null;
   let renderedModal: unknown = undefined;
   let renderedToast: number | null = null;
-  let renderedUnlockNotice: number | null = null;
   let renderedTabKey = '';
+  let lastEnemyKey = '';
+  let lastSkillBarKey = '';
   let seenHitSeq = store.combat.hitSeq;
   const hitFlashUntil = new Map<string, number>();
-
-  const renderToastArea = (): string => {
-    const notice = store.ui.unlockNotice;
-    const toast = store.ui.toast;
-    const noticeHtml = notice
-      ? `<div class="unlock-notice" role="status">
-          <div class="unlock-copy">
-            <strong>${escapeHtml(notice.title)}</strong>
-            <span>${escapeHtml(notice.detail)}</span>
-          </div>
-          <button class="unlock-dismiss" data-action="dismiss-unlock" aria-label="Dismiss notification">✕</button>
-        </div>`
-      : '';
-    const toastHtml = toast ? `<div class="toast" role="status">${escapeHtml(toast.text)}</div>` : '';
-    return `${noticeHtml}${toastHtml}`;
-  };
 
   const applyHitFeedback = (now: number): void => {
     if (store.ui.screen !== 'combat') return;
@@ -163,35 +187,269 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     }
   };
 
-  const paint = (dynamic: boolean): void => {
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const topbarEl = root.querySelector<HTMLElement>('#topbar');
-    if (topbarEl) topbarEl.innerHTML = topbar(store);
+  const patchTopbar = (): void => {
+    const save = store.save;
+    const need = xpNeeded(save.level);
+    const xpPercent = clamp((save.xp / Math.max(1, need)) * 100, 0, 100);
+    const subEl = root.querySelector<HTMLElement>('[data-topbar-sub]');
+    if (subEl) {
+      const nextSub = `${titleCase(save.doctrine)} Doctrine`;
+      if (subEl.textContent !== nextSub) subEl.textContent = nextSub;
+    }
+    const lvEl = root.querySelector<HTMLElement>('[data-topbar-lv]');
+    if (lvEl) {
+      const nextLv = `Lv. ${save.level}`;
+      if (lvEl.textContent !== nextLv) lvEl.textContent = nextLv;
+    }
+    const xpPctEl = root.querySelector<HTMLElement>('[data-xp-pct]');
+    if (xpPctEl) {
+      const nextPctText = `${Math.round(xpPercent)}%`;
+      if (xpPctEl.textContent !== nextPctText) xpPctEl.textContent = nextPctText;
+    }
+    setFillNoFlicker(root.querySelector<HTMLElement>('[data-xp-fill]'), 'width', xpPercent, true);
+  };
 
-    const screenHost = root.querySelector<HTMLElement>('#screen-host');
-    const shouldPaintScreen = !dynamic || renderedScreen !== store.ui.screen || store.ui.screen === 'combat';
-    if (screenHost && shouldPaintScreen) {
-      const preservedFloats: HTMLElement[] = [];
-      if (renderedScreen === 'combat' && store.ui.screen === 'combat') {
-        screenHost.querySelectorAll<HTMLElement>('#combat-fx .dmg-float').forEach((node) => {
-          if (Number(node.dataset.expires ?? 0) > now) preservedFloats.push(node);
-        });
-      }
-      const scrollTop = screenHost.scrollTop;
-      screenHost.innerHTML = SCREENS[store.ui.screen](store);
-      screenHost.scrollTop = scrollTop;
-      renderedScreen = store.ui.screen;
-      if (preservedFloats.length > 0) {
-        const nextFx = screenHost.querySelector<HTMLElement>('#combat-fx');
-        if (nextFx) {
-          for (const node of preservedFloats) nextFx.appendChild(node);
+  const patchCombatDom = (now: number): void => {
+    const combat = store.combat;
+    const player = combat.player;
+    const stats = store.stats;
+    const zone = combat.zone;
+
+    const bannerEl = root.querySelector<HTMLElement>('[data-arena-banner]');
+    if (bannerEl) {
+      const nextBanner = `${zone.name} · TIER ${combat.tier}`;
+      if (bannerEl.textContent !== nextBanner) bannerEl.textContent = nextBanner;
+    }
+
+    const statusEl = root.querySelector<HTMLElement>('[data-badge-status]');
+    if (statusEl) {
+      const nextStatus =
+        combat.status === 'victory'
+          ? 'CLEARED'
+          : combat.status === 'dead'
+            ? 'SPARK OUT'
+            : combat.bossActive
+              ? 'BOSS'
+              : `WAVE ${combat.wave}`;
+      if (statusEl.textContent !== nextStatus) statusEl.textContent = nextStatus;
+    }
+
+    const packBadgeEl = root.querySelector<HTMLElement>('[data-badge-pack]');
+    if (packBadgeEl) {
+      const living = combat.enemies.filter((e) => e.hp > 0).length;
+      const nextPack = `${living}/${combat.packSize}`;
+      if (packBadgeEl.textContent !== nextPack) packBadgeEl.textContent = nextPack;
+    }
+
+    const keysWrapEl = root.querySelector<HTMLElement>('[data-badge-keys-wrap]');
+    if (keysWrapEl) {
+      keysWrapEl.classList.toggle('key-pulse', Date.now() - store.ui.keyPulseAt < 1800);
+    }
+    const keysEl = root.querySelector<HTMLElement>('[data-badge-keys]');
+    if (keysEl) {
+      const nextKeys = `${combat.keys}/3`;
+      if (keysEl.textContent !== nextKeys) keysEl.textContent = nextKeys;
+    }
+
+    const summonBtn = root.querySelector<HTMLElement>('[data-action="summon-boss"]');
+    if (summonBtn) {
+      const canSummon = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
+      summonBtn.style.display = canSummon ? '' : 'none';
+    }
+
+    const hpNum = root.querySelector<HTMLElement>('[data-vnum-hp]');
+    if (hpNum) hpNum.textContent = fmt(player.hp);
+    const hpVial = root.querySelector<HTMLElement>('[data-vial-hp]');
+    if (hpVial) {
+      hpVial.title = `Health ${fmt(player.hp)} / ${fmt(stats.maxHp)} · Ward ${fmt(player.ward)} / ${fmt(stats.maxWard)}`;
+    }
+    setFillNoFlicker(
+      root.querySelector<HTMLElement>('[data-hp-fill]'),
+      'height',
+      stats.maxHp > 0 ? (player.hp / stats.maxHp) * 100 : 0,
+      false,
+    );
+    const wardEl = root.querySelector<HTMLElement>('[data-ward-fill]');
+    if (wardEl) {
+      const wardPct = stats.maxWard > 0 ? clamp((player.ward / stats.maxWard) * 100, 0, 100) : 0;
+      setFillNoFlicker(wardEl, 'height', wardPct, false);
+      wardEl.style.opacity = player.ward > 0 ? '0.85' : '0';
+    }
+
+    const manaNum = root.querySelector<HTMLElement>('[data-vnum-mana]');
+    if (manaNum) manaNum.textContent = fmt(player.mana);
+    const manaVial = root.querySelector<HTMLElement>('[data-vial-mana]');
+    if (manaVial) {
+      manaVial.title = `Mana ${fmt(player.mana)} / ${fmt(stats.maxMana)}${stats.reservedMana > 0 ? ` (${fmt(stats.reservedMana)} reserved)` : ''}`;
+    }
+    setFillNoFlicker(
+      root.querySelector<HTMLElement>('[data-mana-fill]'),
+      'height',
+      stats.maxMana > 0 ? (player.mana / stats.maxMana) * 100 : 0,
+      false,
+    );
+
+    // Enemies in-place patch
+    const mobsEl = root.querySelector<HTMLElement>('[data-mobs]');
+    const nextEnemyKey = `${combat.enemies.map((e) => e.uid).join(',')}|${combat.status === 'victory' ? 1 : 0}`;
+    if (mobsEl) {
+      if (nextEnemyKey !== lastEnemyKey) {
+        mobsEl.innerHTML = enemyCardMarkup(store);
+        lastEnemyKey = nextEnemyKey;
+      } else {
+        for (const enemy of combat.enemies) {
+          const card = mobsEl.querySelector<HTMLElement>(`[data-enemy-uid="${enemy.uid}"]`);
+          if (!card) continue;
+          const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
+          const slamming = enemy.defId === 'mob_boss' && (enemy.slamTelegraph ?? 0) > 0;
+          card.classList.toggle('dead', enemy.hp <= 0);
+          card.classList.toggle('frozen', frozen);
+
+          const oval = card.querySelector<HTMLElement>('.oval');
+          if (oval) {
+            oval.classList.toggle('slam-telegraph', slamming);
+            let slamBadge = oval.querySelector<HTMLElement>('.slam-badge');
+            if (slamming && !slamBadge) {
+              slamBadge = document.createElement('span');
+              slamBadge.className = 'slam-badge';
+              slamBadge.textContent = 'SLAM!';
+              oval.appendChild(slamBadge);
+            } else if (!slamming && slamBadge) {
+              slamBadge.remove();
+            }
+          }
+
+          const hpText = card.querySelector<HTMLElement>('[data-mob-hp-text]');
+          if (hpText) hpText.textContent = fmt(Math.ceil(enemy.hp));
+
+          const atkText = card.querySelector<HTMLElement>('[data-mob-atk-text]');
+          if (atkText) atkText.textContent = frozen ? '❄' : `${Math.max(0, enemy.attackTimer).toFixed(1)}`;
+
+          const ailEl = card.querySelector<HTMLElement>('[data-mob-ail]');
+          if (ailEl) {
+            const nextAil = renderEnemyAilments(enemy);
+            if (ailEl.dataset.ailSig !== nextAil) {
+              ailEl.innerHTML = nextAil;
+              ailEl.dataset.ailSig = nextAil;
+            }
+          }
+
+          setFillNoFlicker(
+            card.querySelector<HTMLElement>('[data-mob-hp]'),
+            'width',
+            enemy.maxHp > 0 ? (enemy.hp / enemy.maxHp) * 100 : 0,
+            false,
+          );
+          const atkPct = clamp((1 - enemy.attackTimer / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
+          setFillNoFlicker(card.querySelector<HTMLElement>('[data-mob-atk]'), 'width', atkPct, true);
         }
       }
-      applyHitFeedback(now);
+    }
+
+    // Skill bar in-place patch
+    const nextSkillKey = `${stats.skills.map((s) => `${s.id}:${s.bar}`).join(',')}|${stats.keystones.has('ks_pendulum') ? 1 : 0}`;
+    const barPill = root.querySelector<HTMLElement>('.skills .pill');
+    const pendulum = stats.keystones.has('ks_pendulum');
+    if (barPill) {
+      barPill.classList.toggle('locked', pendulum);
+      barPill.dataset.bar = combat.activeBar === 'bar_1' ? 'bar_2' : 'bar_1';
+      barPill.textContent = pendulum
+        ? `AUTO · ${combat.activeBar === 'bar_1' ? 'BAR I' : 'BAR II'}`
+        : combat.activeBar === 'bar_1'
+          ? 'BAR I'
+          : 'BAR II';
+    }
+    if (nextSkillKey !== lastSkillBarKey) {
+      lastSkillBarKey = nextSkillKey;
+      const slotsHost = root.querySelector<HTMLElement>('.skills .slots');
+      if (slotsHost) {
+        const totalSlots = Math.max(6, stats.skills.length);
+        slotsHost.innerHTML = Array.from({ length: totalSlots }, (_, index) => {
+          const skill = stats.skills[index];
+          if (skill) {
+            const isAura = skill.manaReservation > 0;
+            const remaining = player.skillTimers[skill.id] ?? 0;
+            const cooldown = Math.max(0.001, skill.effectiveCooldown || skill.cooldown);
+            const ready = remaining <= 0;
+            const wrongBar = !isAura && skill.bar !== 'both' && skill.bar !== combat.activeBar && !pendulum;
+            const cdPct = ready ? 0 : clamp((remaining / cooldown) * 100, 0, 100);
+            const gemDef = gemById.get(skill.gemId);
+            const gemImg = gemDef ? assetImg(gemDef.assetId, skill.name) : '';
+            return `<button class="skill ${ready && !wrongBar ? 'hot' : ''} ${isAura ? 'aura' : ''}" data-action="${isAura ? 'open-slot-gem' : 'cast'}" data-skill="${escapeHtml(skill.id)}" data-gem-uid="${escapeHtml(skill.sourceSlot)}" data-gem-idx="${skill.sourceSocketIndex}" data-cd="${cooldown}" title="${escapeHtml(skill.name)}" aria-label="${escapeHtml(skill.name)}">
+              ${gemImg}
+              ${isAura
+                ? `<span class="lock">AURA</span>`
+                : wrongBar
+                  ? `<span class="lock">${skill.bar === 'bar_1' ? 'I' : 'II'}</span>`
+                  : `<span class="cd" style="height:${ready ? 0 : cdPct.toFixed(1)}%"></span><span class="cdtime">${!ready && remaining > 0.05 ? remaining.toFixed(1) : ''}</span>`}
+            </button>`;
+          }
+          return `<button class="skill empty" data-action="empty-slot" title="Empty skill slot — socket an active gem in Altar" aria-label="Empty skill slot"><span class="empty-plus" aria-hidden="true">+</span></button>`;
+        }).join('');
+      }
+    } else {
+      root.querySelectorAll<HTMLElement>('.skills .skill[data-skill]').forEach((btn) => {
+        const skillId = btn.dataset.skill ?? '';
+        const skill = stats.skills.find((s) => s.id === skillId);
+        if (!skill) return;
+        const isAura = skill.manaReservation > 0;
+        const remaining = player.skillTimers[skill.id] ?? 0;
+        const cooldown = Math.max(0.001, skill.effectiveCooldown || skill.cooldown);
+        const ready = remaining <= 0;
+        const wrongBar = !isAura && skill.bar !== 'both' && skill.bar !== combat.activeBar && !pendulum;
+        btn.classList.toggle('hot', ready && !wrongBar);
+        const cdPct = ready ? 0 : clamp((remaining / cooldown) * 100, 0, 100);
+        const cdBar = btn.querySelector<HTMLElement>('.cd');
+        const cdText = btn.querySelector<HTMLElement>('.cdtime');
+        if (cdBar) setFillNoFlicker(cdBar, 'height', wrongBar ? 0 : cdPct, false);
+        if (cdText) cdText.textContent = !wrongBar && !ready && remaining > 0.05 ? remaining.toFixed(1) : '';
+      });
+    }
+
+    setFillNoFlicker(root.querySelector<HTMLElement>('[data-swing]'), 'width', swingPercent(store), true);
+
+    // Control strip labels
+    const tierEl = root.querySelector<HTMLElement>('[data-ctl-tier]');
+    if (tierEl) tierEl.innerHTML = `<small>TIER</small>${combat.tier}`;
+    const packEl = root.querySelector<HTMLElement>('[data-ctl-pack]');
+    if (packEl) packEl.innerHTML = `<small>PACK</small>${combat.packSize}`;
+    const autoBossBtn = root.querySelector<HTMLElement>('[data-action="toggle-auto-boss"]');
+    if (autoBossBtn) autoBossBtn.classList.toggle('on', store.save.autoAdvanceBoss);
+
+    // Dashboard panels below arena
+    const dashEl = root.querySelector<HTMLElement>('#combat-dash');
+    if (dashEl) dashEl.innerHTML = combatDashboardMarkup(store);
+
+    applyHitFeedback(now);
+  };
+
+  const paint = (dynamic: boolean): void => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+    if (dynamic) {
+      patchTopbar();
+    } else {
+      const topbarEl = root.querySelector<HTMLElement>('#topbar');
+      if (topbarEl) topbarEl.innerHTML = topbar(store);
+    }
+
+    const screenHost = root.querySelector<HTMLElement>('#screen-host');
+    if (screenHost) {
+      if (dynamic && renderedScreen === 'combat' && store.ui.screen === 'combat') {
+        patchCombatDom(now);
+      } else if (!dynamic || renderedScreen !== store.ui.screen) {
+        const scrollTop = renderedScreen === store.ui.screen ? screenHost.scrollTop : 0;
+        screenHost.innerHTML = SCREENS[store.ui.screen](store);
+        screenHost.scrollTop = scrollTop;
+        renderedScreen = store.ui.screen;
+        lastEnemyKey = `${store.combat.enemies.map((e) => e.uid).join(',')}|${store.combat.status === 'victory' ? 1 : 0}`;
+        lastSkillBarKey = `${store.stats.skills.map((s) => `${s.id}:${s.bar}`).join(',')}|${store.stats.keystones.has('ks_pendulum') ? 1 : 0}`;
+        applyHitFeedback(now);
+      }
     }
 
     const tabbarEl = root.querySelector<HTMLElement>('#tabbar');
-    const nextTabKey = `${store.save.unlockedSystems.join(',')}|${store.ui.unvisitedTabs.join(',')}|${store.ui.screen}`;
+    const nextTabKey = store.ui.screen;
     if (tabbarEl && (!dynamic || nextTabKey !== renderedTabKey)) {
       tabbarEl.innerHTML = tabbar(store);
       renderedTabKey = nextTabKey;
@@ -206,11 +464,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
 
     const toastRoot = root.querySelector<HTMLElement>('#toast-root');
     const toast = store.ui.toast;
-    const unlockNotice = store.ui.unlockNotice;
-    if (toastRoot && ((toast?.id ?? null) !== renderedToast || (unlockNotice?.id ?? null) !== renderedUnlockNotice)) {
+    if (toastRoot && (toast?.id ?? null) !== renderedToast) {
       renderedToast = toast?.id ?? null;
-      renderedUnlockNotice = unlockNotice?.id ?? null;
-      toastRoot.innerHTML = renderToastArea();
+      toastRoot.innerHTML = toast ? `<div class="toast" role="status">${escapeHtml(toast.text)}</div>` : '';
     }
   };
 
@@ -222,7 +478,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     <div class="toast-root" id="toast-root"></div>`;
   renderedScreen = store.ui.screen;
   renderedModal = store.ui.modal;
-  renderedTabKey = `${store.save.unlockedSystems.join(',')}|${store.ui.unvisitedTabs.join(',')}|${store.ui.screen}`;
+  renderedTabKey = store.ui.screen;
+  lastEnemyKey = `${store.combat.enemies.map((e) => e.uid).join(',')}|${store.combat.status === 'victory' ? 1 : 0}`;
+  lastSkillBarKey = `${store.stats.skills.map((s) => `${s.id}:${s.bar}`).join(',')}|${store.stats.keystones.has('ks_pendulum') ? 1 : 0}`;
 
   const act = (el: HTMLElement): void => {
     const nav = el.dataset.nav as ScreenId | undefined;
@@ -244,17 +502,11 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'toggle-auto-salvage':
         store.toggleAutoSalvage();
         break;
-      case 'skip-guide':
-        store.skipGuide();
-        break;
       case 'toggle-log':
         store.toggleLogCombat();
         break;
       case 'toggle-motion':
         store.toggleReducedMotion();
-        break;
-      case 'dismiss-whisper':
-        store.dismissWhisper();
         break;
       case 'tier-prev':
         store.setTier(-1);
@@ -277,6 +529,17 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'cast':
         if (data.skill) store.cast(data.skill);
         break;
+      case 'open-slot-gem': {
+        const slot = data.gemUid as ItemSlot | undefined;
+        const idx = Number(data.gemIdx ?? 0);
+        const item = slot ? store.save.equipment[slot] : undefined;
+        if (item) {
+          store.openModal({ kind: 'gem', source: 'socket', itemUid: item.uid, socketIndex: idx });
+        } else {
+          store.navigate('altar');
+        }
+        break;
+      }
       case 'zone':
         if (data.zone) store.setZone(data.zone);
         break;
@@ -291,6 +554,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         break;
       case 'open-slot':
         store.toast(`${store.itemSlotLabel(data.slot as ItemSlot)} is empty.`);
+        break;
+      case 'locked-offhand':
+        store.toast('Offhand is spanned by a two-handed weapon.');
         break;
       case 'equip':
         if (data.uid && data.slot) store.equip(data.uid, data.slot as ItemSlot);
@@ -307,6 +573,20 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'pick-gem':
         store.socketFromStash(Number(data.index ?? 0));
         break;
+      case 'inspect-gem':
+        store.inspectStashGem(Number(data.index ?? 0));
+        break;
+      case 'level-gem':
+        store.levelUpModalGem();
+        break;
+      case 'set-gem-bar':
+        if (data.bar === 'bar_1' || data.bar === 'bar_2' || data.bar === 'both') {
+          store.setModalGemBar(data.bar);
+        }
+        break;
+      case 'unsocket-gem':
+        if (data.uid) store.unsocket(data.uid, Number(data.index ?? 0));
+        break;
       case 'node':
         if (data.node) store.previewNode(data.node);
         break;
@@ -315,6 +595,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         break;
       case 'allocate':
         store.confirmAllocation();
+        break;
+      case 'allocate-node':
+        if (data.node) store.confirmAllocation(data.node);
         break;
       case 'doctrine':
         if (data.doctrine) store.setDoctrine(data.doctrine as DoctrineId);
@@ -325,8 +608,15 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'forge-select':
         if (data.uid) store.selectForge(data.uid);
         break;
+      case 'lock-affix':
+        store.toggleAffixLock(Number(data.index ?? 0));
+        break;
       case 'craft':
-        if (data.craft) store.craft(data.craft as 'upgrade' | 'reforge' | 'socket' | 'corrupt' | 'promote');
+        if (data.craft) {
+          store.craft(
+            data.craft as 'upgrade' | 'reforge' | 'socket' | 'link' | 'lock-reforge' | 'corrupt' | 'promote',
+          );
+        }
         break;
       case 'gem-bar': {
         const gem = store.save.gemStash[Number(data.index ?? 0)] as GemInstance | undefined;
@@ -348,14 +638,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'claim-offline':
         store.claimOffline();
         break;
-      case 'dismiss-unlock':
-        store.dismissUnlockNotice();
-        break;
-      case 'locked-slot':
-        store.toast('Unlock more skill slots as you progress.');
-        break;
       case 'empty-slot':
-        store.toast(store.isSystemUnlocked('altar') ? 'Socket an active gem in the Altar.' : 'Unlocked slot — Altar unlocks soon.');
+        store.navigate('altar');
+        store.toast('Tap an equipped item in Altar to socket an active gem.');
         break;
       default:
         break;
@@ -363,10 +648,21 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   };
 
   root.addEventListener('click', (event) => {
+    const modalRoot = root.querySelector<HTMLElement>('#modal-root');
+    if (modalRoot && event.target === modalRoot) {
+      store.closeModal();
+      return;
+    }
     const el = (event.target as Element | null)?.closest<HTMLElement>('[data-action], [data-nav]');
     if (!el || el.hasAttribute('disabled')) return;
     act(el);
   });
+
+  const pointerDistance = (pts: Map<number, { x: number; y: number }>): number => {
+    const [a, b] = [...pts.values()];
+    if (!a || !b) return 1;
+    return Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+  };
 
   root.addEventListener('pointerdown', (event) => {
     const target = event.target as Element | null;
@@ -374,40 +670,89 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     const svg = target.closest<SVGSVGElement>('.tree-svg');
     const group = svg?.querySelector<SVGGElement>('g');
     if (!svg || !group) return;
-    pan = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      viewX: store.ui.treeView.x,
-      viewY: store.ui.treeView.y,
-      svg,
-      group,
-      moved: false,
-    };
-    svg.setPointerCapture(event.pointerId);
+
+    if (!gesture || gesture.svg !== svg) {
+      gesture = {
+        svg,
+        group,
+        pointers: new Map([[event.pointerId, { x: event.clientX, y: event.clientY }]]),
+        mode: 'pan',
+        startX: event.clientX,
+        startY: event.clientY,
+        viewX: store.ui.treeView.x,
+        viewY: store.ui.treeView.y,
+        startDist: 1,
+        startScale: store.ui.treeView.scale,
+        curX: store.ui.treeView.x,
+        curY: store.ui.treeView.y,
+        curScale: store.ui.treeView.scale,
+        moved: false,
+      };
+    } else {
+      gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (gesture.pointers.size >= 2) {
+        gesture.mode = 'pinch';
+        gesture.startDist = pointerDistance(gesture.pointers);
+        gesture.startScale = gesture.curScale;
+      }
+    }
+    svg.setPointerCapture?.(event.pointerId);
   });
 
   root.addEventListener('pointermove', (event) => {
-    if (!pan || event.pointerId !== pan.pointerId) return;
-    const rect = pan.svg.getBoundingClientRect();
-    const scale = rect.width > 0 ? 390 / rect.width : 1;
-    const dx = (event.clientX - pan.startX) * scale;
-    const dy = (event.clientY - pan.startY) * scale;
-    if (Math.abs(dx) + Math.abs(dy) > 2) pan.moved = true;
-    const view = store.ui.treeView;
-    pan.group.setAttribute('transform', `translate(${195 + view.x + dx} ${215 + view.y + dy}) scale(${view.scale})`);
+    if (!gesture || !gesture.pointers.has(event.pointerId)) return;
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (gesture.mode === 'pinch' && gesture.pointers.size >= 2) {
+      const dist = pointerDistance(gesture.pointers);
+      gesture.curScale = clamp(gesture.startScale * (dist / gesture.startDist), 0.55, 2.4);
+      gesture.moved = true;
+      gesture.group.setAttribute(
+        'transform',
+        `translate(${195 + gesture.curX} ${215 + gesture.curY}) scale(${gesture.curScale})`,
+      );
+      return;
+    }
+
+    if (gesture.mode === 'pan') {
+      const rect = gesture.svg.getBoundingClientRect();
+      const scale = rect.width > 0 ? 390 / rect.width : 1;
+      const dx = (event.clientX - gesture.startX) * scale;
+      const dy = (event.clientY - gesture.startY) * scale;
+      if (Math.abs(dx) + Math.abs(dy) > 2) gesture.moved = true;
+      gesture.curX = gesture.viewX + dx;
+      gesture.curY = gesture.viewY + dy;
+      gesture.group.setAttribute(
+        'transform',
+        `translate(${195 + gesture.curX} ${215 + gesture.curY}) scale(${gesture.curScale})`,
+      );
+    }
   });
 
   const endPan = (event: PointerEvent): void => {
-    if (!pan || event.pointerId !== pan.pointerId) return;
-    const rect = pan.svg.getBoundingClientRect();
-    const scale = rect.width > 0 ? 390 / rect.width : 1;
-    const dx = (event.clientX - pan.startX) * scale;
-    const dy = (event.clientY - pan.startY) * scale;
-    const moved = pan.moved;
-    pan.svg.releasePointerCapture?.(pan.pointerId);
-    pan = null;
-    if (moved) store.setTreeView({ x: store.ui.treeView.x + dx, y: store.ui.treeView.y + dy, scale: store.ui.treeView.scale });
+    if (!gesture || !gesture.pointers.has(event.pointerId)) return;
+    gesture.pointers.delete(event.pointerId);
+    gesture.svg.releasePointerCapture?.(event.pointerId);
+
+    if (gesture.pointers.size === 1) {
+      const [remaining] = [...gesture.pointers.values()];
+      if (remaining) {
+        gesture.mode = 'pan';
+        gesture.startX = remaining.x;
+        gesture.startY = remaining.y;
+        gesture.viewX = gesture.curX;
+        gesture.viewY = gesture.curY;
+      }
+      return;
+    }
+
+    if (gesture.pointers.size === 0) {
+      const { moved, curX, curY, curScale } = gesture;
+      gesture = null;
+      if (moved) {
+        store.setTreeView({ x: curX, y: curY, scale: curScale });
+      }
+    }
   };
   root.addEventListener('pointerup', endPan);
   root.addEventListener('pointercancel', endPan);
@@ -422,14 +767,8 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       const reduced = store.save.settings.reducedMotion;
       if (!store.ui.paused && store.combat.status === 'running' && !reduced) {
         const dt = Math.max(0, Math.min(0.22, (now - store.ui.lastTickAt) / 1000));
-        const swingEl = root.querySelector<HTMLElement>('[data-swing]');
-        if (swingEl) {
-          const haste = 1 + (store.stats.values.attack_speed ?? 0) / 100;
-          const interval = 1 / Math.max(0.2, store.stats.weapon.attacksPerSecond * haste);
-          const remaining = Math.max(0, store.combat.player.attackTimer - dt);
-          const pctVal = Math.min(100, Math.max(0, (1 - remaining / interval) * 100));
-          swingEl.style.width = `${pctVal.toFixed(1)}%`;
-        }
+        setFillNoFlicker(root.querySelector<HTMLElement>('[data-swing]'), 'width', swingPercent(store, dt), true);
+
         root.querySelectorAll<HTMLElement>('.skill[data-skill][data-cd]').forEach((btn) => {
           const skillId = btn.dataset.skill ?? '';
           const cd = Math.max(0.001, Number(btn.dataset.cd ?? 0));
@@ -437,9 +776,21 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
           const rem = Math.max(0, timer - dt);
           const cdBar = btn.querySelector<HTMLElement>('.cd');
           const cdText = btn.querySelector<HTMLElement>('.cdtime');
-          if (cdBar) cdBar.style.height = `${Math.min(100, (rem / cd) * 100).toFixed(1)}%`;
+          if (cdBar) setFillNoFlicker(cdBar, 'height', clamp((rem / cd) * 100, 0, 100), false);
           if (cdText) cdText.textContent = rem > 0.05 ? rem.toFixed(1) : '';
         });
+
+        for (const enemy of store.combat.enemies) {
+          if (enemy.hp <= 0) continue;
+          const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
+          if (frozen) continue;
+          const atkEl = root.querySelector<HTMLElement>(`[data-enemy-uid="${enemy.uid}"] [data-mob-atk]`);
+          if (atkEl) {
+            const rem = Math.max(0, enemy.attackTimer - dt);
+            const atkPct = clamp((1 - rem / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
+            setFillNoFlicker(atkEl, 'width', atkPct, true);
+          }
+        }
       }
 
       root.querySelectorAll<HTMLElement>('[data-enemy-uid] .oval.hit-flash').forEach((oval) => {

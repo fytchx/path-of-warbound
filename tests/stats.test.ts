@@ -109,3 +109,68 @@ describe('slot fitting', () => {
     expect(fitsSlot(bow, 'off_hand')).toBe(false);
   });
 });
+
+describe('master directive stat wiring', () => {
+  it('scales max_mana by +5 per level', () => {
+    expect(baseStats(2).max_mana ?? 0).toBe((baseStats(1).max_mana ?? 0) + 5);
+    expect(baseStats(5).max_mana ?? 0).toBe((baseStats(1).max_mana ?? 0) + 20);
+  });
+
+  it('wires all 4 vectors of Might, Agility, Wisdom, and Fortitude', () => {
+    const base = { ...starter(), equipment: {}, allocated: ['hub_0'] } as CharacterSave;
+    const plain = computePlayerStats(base);
+
+    const mightChest = createItem('base_chest', 'common', 1, 'v-might');
+    mightChest.affixes = [{ affixId: 'aff_mighty', tier: 5 }]; // +flat might
+    const withMight = computePlayerStats({ ...base, equipment: { chest: mightChest } });
+    expect(withMight.armorBreak).toBeGreaterThan(plain.armorBreak);
+    expect(withMight.critMultiplier).toBeGreaterThan(plain.critMultiplier);
+
+    const agiChest = createItem('base_chest', 'common', 1, 'v-agi');
+    agiChest.affixes = [{ affixId: 'aff_swift', tier: 5 }];
+    const withAgi = computePlayerStats({ ...base, equipment: { chest: agiChest } });
+    expect(withAgi.attackSpeedMultiplier).toBeGreaterThan(plain.attackSpeedMultiplier);
+    expect(withAgi.doubleHitChance).toBeGreaterThan(plain.doubleHitChance);
+    expect(withAgi.dotSpeedMultiplier).toBeGreaterThan(plain.dotSpeedMultiplier);
+    expect(withAgi.dodgePerHit).toBeGreaterThan(plain.dodgePerHit);
+
+    const wisChest = createItem('base_chest', 'common', 1, 'v-wis');
+    wisChest.affixes = [{ affixId: 'aff_wise', tier: 5 }];
+    const withWis = computePlayerStats({ ...base, equipment: { chest: wisChest } });
+    expect(withWis.castSpeedMultiplier).toBeGreaterThan(plain.castSpeedMultiplier);
+    expect(withWis.totalMaxMana).toBeGreaterThan(plain.totalMaxMana);
+    expect(withWis.manaRegen).toBeGreaterThan(plain.manaRegen);
+    expect(withWis.maxWard).toBeGreaterThan(plain.maxWard);
+    expect(withWis.wardDelay).toBeLessThan(plain.wardDelay);
+
+    const fortChest = createItem('base_chest', 'common', 1, 'v-fort');
+    fortChest.affixes = [{ affixId: 'aff_stout', tier: 5 }];
+    const withFort = computePlayerStats({ ...base, equipment: { chest: fortChest } });
+    expect(withFort.maxHp).toBeGreaterThan(plain.maxHp);
+    expect(withFort.hpRegen).toBeGreaterThan(plain.hpRegen);
+    expect(withFort.armor).toBeGreaterThan(plain.armor);
+    expect(withFort.thorns).toBeGreaterThan(plain.thorns);
+  });
+
+  it('applies Tier 1 mana reservation for Bloodlust Aura and filters supports by allowedTags', () => {
+    const save = starter();
+    const chest = createItem('base_chest', 'common', 1, 'aura-chest');
+    chest.sockets = [
+      makeGem('gem_bloodlust_aura', 1, 'both'),
+      makeGem('gem_ember_bolt', 1, 'both'),
+      makeGem('support_echo', 1, 'both'), // spell-only
+    ];
+    chest.linkedSockets = 3;
+    save.equipment.chest = chest;
+
+    const stats = computePlayerStats(save);
+    expect(stats.reservedManaPct).toBe(20);
+    expect(stats.maxMana).toBeCloseTo(stats.totalMaxMana * 0.8, 4);
+
+    const ember = stats.skills.find((s) => s.gemId === 'gem_ember_bolt')!;
+    const cleave = stats.skills.find((s) => s.gemId === 'gem_cleave')!;
+    expect(ember.linkedSupportIds).toContain('support_echo');
+    expect(cleave.linkedSupportIds).not.toContain('support_echo');
+  });
+});
+

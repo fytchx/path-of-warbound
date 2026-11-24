@@ -4,31 +4,38 @@ import { MATERIAL_ASSET } from '../../game/types';
 import { CRAFT_COSTS, canPay } from '../../game/crafting';
 import { affixValue, itemBase, RARITY_COLOR, RARITY_LABEL } from '../../game/items';
 import type { GameStore } from '../store';
-import { assetImg, escapeHtml, fmt } from '../dom';
+import { assetImg, escapeHtml, fmt, sprite } from '../dom';
 
-type CraftAction = 'upgrade' | 'reforge' | 'socket' | 'corrupt' | 'promote';
+type CraftAction = 'upgrade' | 'reforge' | 'socket' | 'link' | 'lock-reforge' | 'corrupt' | 'promote';
 
 const ACTION_COPY: Record<CraftAction, { label: string; blurb: string }> = {
   upgrade: { label: 'TEMPER', blurb: '+1 item level' },
   reforge: { label: 'REFORGE', blurb: 'Reroll affixes' },
-  socket: { label: 'SOCKET', blurb: 'Open a link' },
-  corrupt: { label: 'CORRUPT', blurb: 'One essence roll' },
   promote: { label: 'PROMOTE', blurb: 'Raise rarity' },
+  socket: { label: 'SOCKET', blurb: 'Open socket' },
+  link: { label: 'LINK', blurb: 'Fuse +1 link' },
+  'lock-reforge': { label: 'LOCK ROLL', blurb: 'Keep 1 affix' },
+  corrupt: { label: 'CORRUPT', blurb: 'Vaal mutation' },
 };
 
-const ACTION_ORDER: CraftAction[] = ['upgrade', 'reforge', 'socket', 'corrupt', 'promote'];
+const ACTION_ORDER: CraftAction[] = ['upgrade', 'reforge', 'promote', 'socket', 'link', 'lock-reforge', 'corrupt'];
 
 const ACTION_CELL: Record<CraftAction, string> = {
   upgrade: 'grid-column:1;grid-row:1',
   reforge: 'grid-column:1;grid-row:2',
+  promote: 'grid-column:1;grid-row:3',
   socket: 'grid-column:3;grid-row:1',
-  corrupt: 'grid-column:3;grid-row:2',
-  promote: 'grid-column:3;grid-row:3',
+  link: 'grid-column:3;grid-row:2',
+  'lock-reforge': 'grid-column:3;grid-row:3',
+  corrupt: 'grid-column:2;grid-row:3',
 };
 
 function affordances(store: GameStore, item: ItemInstance): Record<CraftAction, { cost: { material: string; amount: number }; disabled: boolean; why: string }> {
   const base = itemBase(item);
-  const costFor = (action: CraftAction) => CRAFT_COSTS[action](item);
+  const costFor = (action: CraftAction) => {
+    if (action === 'lock-reforge') return CRAFT_COSTS.lockReforge();
+    return CRAFT_COSTS[action](item);
+  };
   const result = {} as Record<CraftAction, { cost: { material: string; amount: number }; disabled: boolean; why: string }>;
 
   for (const action of ACTION_ORDER) {
@@ -36,8 +43,11 @@ function affordances(store: GameStore, item: ItemInstance): Record<CraftAction, 
     let why = '';
     if (!canPay(store.save, cost)) why = `Need ${cost.amount} ${cost.material.replace('mat_', '')}`;
     if (action === 'reforge' && item.rarity === 'common') why = 'Nothing to reforge';
-    if (action === 'socket' && item.sockets.length >= base.sockets) why = 'No sockets left';
-    if (action === 'corrupt' && item.corrupted) why = 'Already corrupted';
+    if (action === 'socket' && item.sockets.length >= base.sockets) why = 'Max sockets';
+    if (action === 'link' && item.sockets.length < 2) why = 'Need 2+ sockets';
+    if (action === 'link' && (item.linkedSockets ?? 1) >= item.sockets.length) why = 'Fully linked';
+    if (action === 'lock-reforge' && item.affixes.length < 2) why = 'Need 2+ affixes';
+    if (action === 'corrupt' && item.corrupted) why = 'Corrupted';
     if (action === 'promote' && item.rarity === 'mythic') why = 'Already mythic';
     result[action] = { cost, disabled: why !== '', why };
   }
@@ -78,7 +88,7 @@ export function forgeScreen(store: GameStore): string {
         .join('')}</div>`
     : `<div class="empty-note">Nothing to work. Find gear in a tier first.</div>`;
 
-  let anvil = `<div class="frame anvil"><div class="mid" style="grid-column:1 / 4">
+  let anvil = `<div class="frame anvil"><div class="mid" style="grid-column:1 / 4;grid-row:1 / 4">
     <span class="tiny muted">Choose an item from the rack to lay it on the anvil.</span>
   </div></div>`;
   let affixPanel = '';
@@ -87,20 +97,16 @@ export function forgeScreen(store: GameStore): string {
     const base = itemBase(selected);
     const equipped = Object.values(store.save.equipment).some((entry) => entry?.uid === selected.uid);
     const flags = affordances(store, selected);
-    const fullForge = store.isSystemUnlocked('forge_full');
-    const visibleActions: CraftAction[] = fullForge ? ACTION_ORDER : ['upgrade'];
-    const cards = visibleActions
-      .map((action) => {
-        const entry = ACTION_COPY[action];
-        const flag = flags[action];
-        const cost = flag.cost;
-        return `<button class="fc" style="${ACTION_CELL[action]}" data-action="craft" data-craft="${action}" ${flag.disabled ? 'disabled' : ''}>
+    const cards = ACTION_ORDER.map((action) => {
+      const entry = ACTION_COPY[action];
+      const flag = flags[action];
+      const cost = flag.cost;
+      return `<button class="fc" style="${ACTION_CELL[action]}" data-action="craft" data-craft="${action}" ${flag.disabled ? 'disabled' : ''}>
         <b>${entry.label}</b>
         <span>${flag.why || `${entry.blurb}`}</span>
         <i>${cost.amount} ${cost.material.replace('mat_', '')}</i>
       </button>`;
-      })
-      .join('');
+    }).join('');
 
     anvil = `<div class="frame anvil">
       ${cards}
@@ -112,30 +118,37 @@ export function forgeScreen(store: GameStore): string {
       </div>
     </div>`;
 
+    const lockedIdx = store.ui.lockedAffixIndex ?? 0;
     const lines = selected.affixes
       .map((roll, index) => {
         const affix = affixById.get(roll.affixId);
         if (!affix) return '';
         const value = affixValue(selected, index);
         const suffix = affix.layer === 'flat' ? '' : affix.layer === 'more' ? '% more' : '%';
-        return `<div class="affix-line"><span class="affix-name">${escapeHtml(affix.name)}</span><span class="affix-val">+${fmt(value, 1)}${suffix}</span></div>`;
+        const isLocked = index === lockedIdx;
+        return `<button class="affix-line affix-btn ${isLocked ? 'locked-affix' : ''}" data-action="lock-affix" data-index="${index}" title="Tap to select affix to lock with Rift Essence">
+          <span class="affix-name">${isLocked ? '🔒 ' : ''}${escapeHtml(affix.name)} <span class="muted tiny">T${roll.tier}</span></span>
+          <span class="affix-val">+${fmt(value, 1)}${suffix}</span>
+        </button>`;
       })
       .join('');
 
-    const linkedCount = selected.linkedSockets ?? 0;
+    const linkedCount = Math.max(1, selected.linkedSockets ?? 1);
     const socketButtons = selected.sockets
       .map((gem, index) => {
         const def = gem ? gemById.get(gem.gemId) ?? null : null;
         const linkedToNext = index + 1 < linkedCount && index + 1 < selected.sockets.length;
+        const ringColor = index < linkedCount ? '#D4AF37' : '#6d5f2e';
         return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="Socket ${index + 1}">
+          ${sprite('w-socket', 'socket-ring', '0 0 40 40', `--g:${ringColor}`)}
           ${def ? assetImg(def.assetId, def.name) : ''}
-        </button>${linkedToNext ? '<span class="socket-link" aria-hidden="true"></span>' : ''}`;
+        </button>${linkedToNext ? sprite('w-link', 'socket-link-svg', '0 0 28 10') : ''}`;
       })
       .join('');
 
     affixPanel = `<div class="frame pan">
-      <h4>Affixes<span>${RARITY_LABEL[selected.rarity]}</span></h4>
-      ${lines || '<div class="tiny muted">No affixes on this item.</div>'}
+      <h4>Affixes & Links<span>${RARITY_LABEL[selected.rarity]} · ${Math.min(linkedCount, selected.sockets.length)}/${selected.sockets.length} linked</span></h4>
+      ${lines || '<div class="tiny muted">No affixes on this item. Promote rarity with Flux.</div>'}
       <div class="socket-row">${socketButtons}</div>
     </div>`;
   }
@@ -150,10 +163,8 @@ export function forgeScreen(store: GameStore): string {
     )
     .join('');
 
-  const fullForge = store.isSystemUnlocked('forge_full');
-
   return `<section class="screen" data-screen="forge" aria-label="Forge">
-    <div class="sub-h"><h2>THE FORGE</h2><span class="tiny muted">${fullForge ? 'temper · reforge · corrupt' : 'temper with scrap · more crafts at Tier 2'}</span></div>
+    <div class="sub-h"><h2>THE FORGE</h2><span class="tiny muted">temper · reforge · link · lock · corrupt</span></div>
 
     <div class="frame cur">${materialBar}</div>
 
@@ -163,6 +174,6 @@ export function forgeScreen(store: GameStore): string {
 
     ${store.ui.craftMessage ? `<div class="frame pan" style="text-align:center"><span class="tiny gold">${escapeHtml(store.ui.craftMessage)}</span></div>` : ''}
 
-    <p class="hint">${fullForge ? 'Essence corrupts permanently. Every craft rerolls the anvil.' : 'Reinforce gear with War-Scrap. Reforge, Socket, and Essence unlock after your first Tier 2 kill.'}</p>
+    <p class="hint">Tap an affix line to choose your Essence Lock target. Sockets linked by gold bars share Support Gems.</p>
   </section>`;
 }

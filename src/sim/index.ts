@@ -35,7 +35,7 @@ export const BUILD_PRESETS: BuildPreset[] = [
     doctrine: 'blitz',
     configure: (save) => {
       save.level = 15;
-      save.skillSlots = 3;
+      save.skillSlots = 6;
       save.doctrine = 'blitz';
       save.allocated = ['hub_0', 'sec_agility', 'ks_festering_wound'];
       const dagger = createItem('base_dagger', 'rare', 10, 'sim-blitz');
@@ -57,7 +57,7 @@ export const BUILD_PRESETS: BuildPreset[] = [
     doctrine: 'bastion',
     configure: (save) => {
       save.level = 15;
-      save.skillSlots = 3;
+      save.skillSlots = 6;
       save.doctrine = 'bastion';
       save.allocated = ['hub_0', 'sec_fortitude', 'ks_lattice_skin'];
       const mace = createItem('base_mace_1h', 'rare', 10, 'sim-bastion');
@@ -89,7 +89,7 @@ export const BUILD_PRESETS: BuildPreset[] = [
     doctrine: 'weaver',
     configure: (save) => {
       save.level = 15;
-      save.skillSlots = 4;
+      save.skillSlots = 6;
       save.doctrine = 'weaver';
       save.allocated = ['hub_0', 'sec_wisdom', 'ks_pendulum'];
       const staff = createItem('base_staff', 'rare', 10, 'sim-pendulum');
@@ -110,7 +110,7 @@ export const BUILD_PRESETS: BuildPreset[] = [
     doctrine: 'tactician',
     configure: (save) => {
       save.level = 15;
-      save.skillSlots = 2;
+      save.skillSlots = 6;
       save.doctrine = 'tactician';
       save.allocated = ['hub_0', 'sec_might', 'ks_hollow_fist'];
       const axe = createItem('base_axe_1h', 'rare', 10, 'sim-hollow');

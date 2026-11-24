@@ -60,7 +60,7 @@ export function itemAffixName(item: ItemInstance): string {
 }
 
 export function itemGearscore(item: ItemInstance): number {
-  const linked = item.sockets.filter(Boolean).length;
+  const linked = item.linkedSockets ?? item.sockets.filter(Boolean).length;
   return item.itemLevel * 10 + item.affixes.reduce((sum, a) => sum + a.tier * 15, 0) + linked * 25;
 }
 
@@ -86,4 +86,8 @@ export function allSocketedGems(equipment: Partial<Record<ItemSlot, ItemInstance
 
 export function gemXpToNext(level: number): number {
   return 100 + (level - 1) * 60;
+}
+
+export function gemDustCostToLevel(level: number): number {
+  return 15 + Math.max(1, level) * 10;
 }

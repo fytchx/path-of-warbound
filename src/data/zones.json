@@ -6,7 +6,7 @@
     "tiers": 10,
     "monsterIds": ["mob_slime", "mob_wolf", "mob_ghoul", "elite_horned_brute", "elite_skeleton_champion"],
     "eliteChance": 0.14,
-    "keyDropChance": 0.2,
+    "keyDropChance": 0.18,
     "rewardMultiplier": 1.0,
     "flavour": "The first field. The soil is more ash than earth, and the markers have no names."
   },
@@ -17,7 +17,7 @@
     "tiers": 10,
     "monsterIds": ["mob_imp", "mob_golem", "mob_wolf", "elite_horned_brute", "elite_demon_sovereign"],
     "eliteChance": 0.16,
-    "keyDropChance": 0.2,
+    "keyDropChance": 0.18,
     "rewardMultiplier": 1.25,
     "flavour": "The canyon breathes heat. Somewhere below, something is still being forged."
   },
@@ -28,7 +28,7 @@
     "tiers": 10,
     "monsterIds": ["mob_specter", "mob_wolf", "mob_reaper", "elite_void_lich", "elite_skeleton_champion"],
     "eliteChance": 0.2,
-    "keyDropChance": 0.22,
+    "keyDropChance": 0.2,
     "rewardMultiplier": 1.5,
     "flavour": "The hymns are still in the ice. The congregation is not."
   }

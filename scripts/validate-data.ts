@@ -182,10 +182,23 @@ for (const slot of slots) {
   if (count < 1 || count > limit) fail(`items: slot ${group} has ${count} base(s), expected 1-${limit}`);
 }
 
-// 7. Gems: actives have damage, supports have a support rule.
+// 7. Gems: actives have damage, supports have a support rule, all have plain-English descriptions.
 for (const gem of gems) {
   if (gem.kind === 'active' && !gem.damage) fail(`gems.${gem.id}: active gem without damage profile`);
   if (gem.kind === 'support' && !gem.support) fail(`gems.${gem.id}: support gem without support rule`);
+  if (!gem.description || !gem.description.trim()) fail(`gems.${gem.id}: missing description`);
+}
+for (const item of items) {
+  if (!item.description || !item.description.trim()) fail(`items.${item.id}: missing description`);
+}
+for (const doctrine of doctrines) {
+  if (!doctrine.description || !doctrine.description.trim()) fail(`doctrines.${doctrine.id}: missing description`);
+}
+for (const [statId, def] of Object.entries(statRegistry.stats as Record<string, { description?: string }>)) {
+  if (!def.description || !def.description.trim()) fail(`stat_registry.${statId}: missing description`);
+}
+for (const node of tree.nodes as { id: string; description?: string }[]) {
+  if (!node.description || !node.description.trim()) fail(`skill_tree.${node.id}: missing description`);
 }
 
 // 8. Zones and monsters.

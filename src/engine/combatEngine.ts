@@ -1,6 +1,6 @@
 import { doctrineById, monsterById, skillTree, zoneById } from '../data';
 import type { AilmentId, DoctrineId, MonsterDef, School, ZoneDef } from '../data/types';
-import type { PlayerStats } from './stats';
+import type { CombatSkill, PlayerStats } from './stats';
 import { mulberry32, chance, pickOne, rollBetween } from './rng';
 
 export const TICK_SECONDS = 0.1;
@@ -8,7 +8,9 @@ export const TICK_SECONDS = 0.1;
 export interface AilmentInstance {
   dps: number;
   remaining: number;
+  duration?: number;
   stacks: number;
+  severity?: number;
 }
 
 export interface CombatEnemy {
@@ -20,11 +22,13 @@ export interface CombatEnemy {
   damage: number;
   armor: number;
   attackSpeed: number;
+  attackInterval: number;
   school: School;
   elite: boolean;
   level: number;
   attackTimer: number;
   dazed: number;
+  exposureRemaining?: number;
   ailments: Partial<Record<AilmentId, AilmentInstance>>;
   slamTimer?: number;
   slamTelegraph?: number;
@@ -35,7 +39,9 @@ export interface Buff {
   id: string;
   name: string;
   remaining: number;
+  duration: number;
   attackSpeed?: number;
+  castSpeed?: number;
   damageMore?: number;
 }
 
@@ -84,6 +90,7 @@ export interface CombatState {
     mana: number;
     dodgeCharge: number;
     attackTimer: number;
+    attackInterval: number;
     castLock: number;
     skillTimers: Record<string, number>;
     buffs: Buff[];
@@ -91,6 +98,8 @@ export interface CombatState {
     deaths: number;
     hitCounter: number;
     guardActive: number;
+    leechThisSecond: number;
+    leechWindowTimer: number;
   };
   enemies: CombatEnemy[];
   bossActive: boolean;
@@ -129,6 +138,10 @@ export interface CreateCombatOptions {
 
 const AILMENTS: AilmentId[] = ['bleed', 'ignite', 'chill', 'shock', 'corruption'];
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function clampTier(tier: number): number {
   return Math.max(1, Math.min(10, Math.floor(tier) || 1));
 }
@@ -140,6 +153,7 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
   const eliteScale = def.elite ? 1 + (state.tier - 1) * 0.08 : 1;
   const hp = Math.round(def.hp * hpScale * eliteScale);
   const isBoss = def.id === 'mob_boss';
+  const attackInterval = 1 / Math.max(0.2, def.attackSpeed);
   return {
     uid: `e${state.tickCount}_${Math.floor(state.rng() * 1e6)}`,
     defId: def.id,
@@ -149,11 +163,13 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
     damage: def.damage * dmgScale,
     armor: def.armor * armorScale,
     attackSpeed: def.attackSpeed,
+    attackInterval,
     school: def.school,
     elite: def.elite,
     level: state.tier + 1,
-    attackTimer: 0.4 + state.rng() * 0.8,
+    attackTimer: Math.min(attackInterval, 0.4 + state.rng() * 0.8),
     dazed: 0,
+    exposureRemaining: 0,
     ailments: {},
     ...(isBoss ? { slamTimer: 4.5, slamTelegraph: 0, slamWarned: false } : {}),
   };
@@ -201,10 +217,17 @@ export function summonBoss(state: CombatState): boolean {
   return true;
 }
 
+function computeAttackInterval(state: CombatState): number {
+  const stats = state.playerStats;
+  const haste = 1 + state.player.buffs.reduce((sum, b) => sum + (b.attackSpeed ?? 0), 0);
+  return 1 / Math.max(0.1, stats.weapon.attacksPerSecond * stats.attackSpeedMultiplier * haste);
+}
+
 export function createCombat(options: CreateCombatOptions): CombatState {
   const zone = zoneById.get(options.zoneId) ?? zoneById.values().next().value;
   if (!zone) throw new Error('No zones registered');
   const doctrine = doctrineById.get(options.doctrine)?.id ?? 'tactician';
+  const baseInterval = 1 / Math.max(0.1, options.playerStats.weapon.attacksPerSecond * options.playerStats.attackSpeedMultiplier);
   const state: CombatState = {
     tickCount: 0,
     time: 0,
@@ -219,6 +242,7 @@ export function createCombat(options: CreateCombatOptions): CombatState {
       mana: options.playerStats.maxMana,
       dodgeCharge: 0,
       attackTimer: 0.2,
+      attackInterval: baseInterval,
       castLock: 0,
       skillTimers: {},
       buffs: [],
@@ -226,6 +250,8 @@ export function createCombat(options: CreateCombatOptions): CombatState {
       deaths: 0,
       hitCounter: 0,
       guardActive: 0,
+      leechThisSecond: 0,
+      leechWindowTimer: 1,
     },
     enemies: [],
     bossActive: false,
@@ -263,7 +289,8 @@ function armorReduction(armor: number, enemyLevel: number): number {
 
 function shockBonus(enemy: CombatEnemy): number {
   const shock = enemy.ailments.shock;
-  return 1 + Math.min(0.4, 0.1 * (shock?.stacks ?? 0));
+  if (!shock) return 1;
+  return 1 + clamp(shock.severity ?? 0.1 * shock.stacks, 0.1, 0.4);
 }
 
 function hitResists(state: CombatState, school: School, raw: number): number {
@@ -285,7 +312,23 @@ function dominantSchool(state: CombatState): School {
   return best;
 }
 
-/** Applies a hit after shock, execute, crowd and armour rules. Returns actual damage. */
+function applyLifeLeech(state: CombatState, dealt: number, skill?: CombatSkill): void {
+  if (dealt <= 0) return;
+  const stats = state.playerStats;
+  const player = state.player;
+  const leechRate = stats.lifeLeech + (skill?.lifeLeechBonus ?? 0);
+  if (leechRate <= 0) return;
+  const maxPerSec = stats.maxHp * 0.06;
+  const room = Math.max(0, maxPerSec - player.leechThisSecond);
+  if (room <= 0) return;
+  const heal = Math.min(room, dealt * leechRate);
+  if (heal > 0) {
+    player.leechThisSecond += heal;
+    player.hp = Math.min(stats.maxHp, player.hp + heal);
+  }
+}
+
+/** Applies a hit after shock, execute, crowd, armor break, and chill shatter rules. Returns actual damage. */
 function damageEnemy(
   state: CombatState,
   enemy: CombatEnemy,
@@ -293,6 +336,7 @@ function damageEnemy(
   school: School,
   crit: boolean,
   source: 'auto' | 'skill' | 'ailment' | 'thorns',
+  skill?: CombatSkill,
 ): number {
   if (enemy.hp <= 0 || raw <= 0) return 0;
   let amount = raw * shockBonus(enemy);
@@ -302,10 +346,11 @@ function damageEnemy(
     amount *= 1 + 0.25 * Math.min(5, state.enemies.filter((e) => e.hp > 0).length);
   }
   if (enemy.hp / enemy.maxHp < 0.35 && source !== 'ailment') {
-    amount *= stats.executeDamageMore;
+    amount *= stats.executeDamageMore * (skill?.executeDamageMore ?? 1);
   }
   if (school === 'physical') {
-    amount *= 1 - armorReduction(enemy.armor, enemy.level);
+    const effectiveArmor = enemy.armor * (1 - stats.armorBreak);
+    amount *= 1 - armorReduction(effectiveArmor, enemy.level);
   }
   if (enemy.ailments.chill && enemy.ailments.chill.stacks >= 3 && crit) {
     amount *= 2;
@@ -317,6 +362,11 @@ function damageEnemy(
   state.rewards.damage += dealt;
   state.damageLog.push({ t: state.time, amount: dealt, school });
   if (state.damageLog.length > 200) state.damageLog.shift();
+
+  if (source === 'auto' || source === 'skill') {
+    applyLifeLeech(state, dealt, skill);
+  }
+
   if (dealt >= 1) {
     state.hitSeq += 1;
     state.recentHits.push({ id: state.hitSeq, enemyUid: enemy.uid, amount: dealt, school, crit });
@@ -330,36 +380,92 @@ function damageEnemy(
   return dealt;
 }
 
-function applyAilment(state: CombatState, enemy: CombatEnemy, ailmentId: AilmentId, dps: number, duration: number, chanceToApply: number): void {
+function applyAilment(
+  state: CombatState,
+  enemy: CombatEnemy,
+  ailmentId: AilmentId,
+  baseDps: number,
+  duration: number,
+  chanceToApply: number,
+  hitDamage = 0,
+  skill?: CombatSkill,
+): void {
   if (!chance(state.rng, chanceToApply)) return;
   const stats = state.playerStats;
-  const potency =
+  const wisdom = stats.values.wisdom ?? 0;
+  const agility = stats.values.agility ?? 0;
+
+  // Anti-Double-Dipping Ailment DoT Formula (Section 3.4)
+  const scaling =
+    (1 + wisdom / 120) *
+    (1 + agility / 150) *
     stats.ailmentPotency *
-    (1 + (stats.values.wisdom ?? 0) / 120) *
-    (1 + (stats.values.agility ?? 0) / 150) *
+    (1 + (skill?.ailmentPotencyBonus ?? 0)) *
     (ailmentId === 'corruption' && stats.keystones.has('ks_void_tithe') ? 1.5 : 1);
 
   const existing = enemy.ailments[ailmentId];
   const festering = stats.keystones.has('ks_festering_wound');
-  const maxStacks = festering ? 3 : 1;
+
+  // Weaver rule: never overwrite an ailment with >15% duration remaining unless stacking.
+  if (
+    state.doctrine === 'weaver' &&
+    existing &&
+    !festering &&
+    ailmentId !== 'bleed' &&
+    ailmentId !== 'chill' &&
+    existing.remaining > (existing.duration ?? duration) * 0.15
+  ) {
+    return;
+  }
+
+  const maxStacks = festering ? 3 : ailmentId === 'bleed' || ailmentId === 'chill' ? 3 : 1;
   const durationScale = festering ? 0.7 : 1;
   const stackMultiplier = festering ? 0.4 : 1;
+  const finalDuration = duration * durationScale;
+  const severity =
+    ailmentId === 'shock'
+      ? clamp(0.1 + (hitDamage / Math.max(1, enemy.maxHp)) * 0.5 * (1 + wisdom / 120) * stats.ailmentPotency, 0.1, 0.4)
+      : undefined;
 
   if (existing) {
     existing.stacks = Math.min(maxStacks, existing.stacks + 1);
-    existing.remaining = Math.max(existing.remaining, duration * durationScale);
-    existing.dps = dps * potency * stackMultiplier;
+    existing.remaining = Math.max(existing.remaining, finalDuration);
+    existing.duration = finalDuration;
+    existing.dps = Math.max(existing.dps, baseDps * scaling * stackMultiplier);
+    if (severity !== undefined) {
+      existing.severity = Math.max(existing.severity ?? 0.1, severity);
+    }
   } else {
     enemy.ailments[ailmentId] = {
-      dps: dps * potency * stackMultiplier,
-      remaining: duration * durationScale,
+      dps: baseDps * scaling * stackMultiplier,
+      remaining: finalDuration,
+      duration: finalDuration,
       stacks: 1,
+      severity,
     };
   }
   pushLog(state, 'ailment', `${ailmentId} applied to ${enemy.name}${existing ? ' (stack)' : ''}`);
+
+  // Ailment Proliferation: spread to 1 nearby living enemy at 50% remaining duration.
+  if (skill?.hasProliferation) {
+    const neighbor = state.enemies.find((other) => other !== enemy && other.hp > 0);
+    if (neighbor) {
+      const spreadDur = Math.max(0.5, finalDuration * 0.5);
+      const prevNeighbor = neighbor.ailments[ailmentId];
+      if (!prevNeighbor || prevNeighbor.remaining < spreadDur) {
+        neighbor.ailments[ailmentId] = {
+          dps: baseDps * scaling * stackMultiplier,
+          remaining: spreadDur,
+          duration: spreadDur,
+          stacks: 1,
+          severity,
+        };
+      }
+    }
+  }
 }
 
-function dazeEnemy(state: CombatState, enemy: CombatEnemy, seconds: number): void {
+function dazeEnemy(_state: CombatState, enemy: CombatEnemy, seconds: number): void {
   enemy.dazed = Math.max(enemy.dazed, seconds);
 }
 
@@ -377,6 +483,54 @@ function autoDamageParts(state: CombatState, base: number): { school: School; am
   return parts;
 }
 
+function skillDamageParts(state: CombatState, skill: CombatSkill, amount: number): { school: School; amount: number }[] {
+  const stats = state.playerStats;
+  if (skill.school !== 'physical') {
+    return [{ school: skill.school, amount }];
+  }
+  let physical = amount;
+  const parts: { school: School; amount: number }[] = [];
+  const fireShift = Math.min(100, Math.max(0, skill.convertPhysicalFire));
+  if (fireShift > 0) {
+    const moved = physical * (fireShift / 100);
+    physical -= moved;
+    parts.push({ school: 'fire', amount: moved });
+  }
+  if (stats.keystones.has('ks_void_tithe')) {
+    const moved = physical * 0.5;
+    physical -= moved;
+    parts.push({ school: 'void', amount: moved });
+  }
+  if (physical > 0) parts.push({ school: 'physical', amount: physical });
+  return parts;
+}
+
+function fireTriggers(state: CombatState, type: 'crit' | 'damage'): void {
+  const player = state.player;
+  const stats = state.playerStats;
+  const triggers = stats.skills
+    .filter((s) => s.triggerType === type)
+    .sort((a, b) => a.snakeRank - b.snakeRank);
+
+  for (const skill of triggers) {
+    const isEntropy = state.doctrine === 'entropy';
+    const entropyProc = isEntropy && chance(state.rng, 0.2 * stats.doctrineMultiplier);
+    const ready = (player.skillTimers[skill.id] ?? 0) <= 0;
+    if (!ready && !entropyProc) continue;
+
+    if (type === 'crit' && skill.tags.includes('guard')) continue;
+    const baseCooldown = Math.max(1, skill.effectiveCooldown || 1);
+    player.skillTimers[skill.id] = entropyProc ? 0.2 : baseCooldown * (type === 'damage' ? 0.5 : 1);
+
+    const power = entropyProc ? rollBetween(state.rng, 0.7, 1.6) : type === 'crit' ? 0.75 : 1;
+    castSkill(state, skill, power, true);
+    if (entropyProc) {
+      castSkill(state, skill, rollBetween(state.rng, 0.7, 1.6), true);
+      pushLog(state, 'trigger', `Entropy double-fires ${skill.name}!`);
+    }
+  }
+}
+
 function playerAutoAttack(state: CombatState): void {
   const targets = state.enemies.filter((e) => e.hp > 0);
   if (!targets.length) return;
@@ -384,18 +538,20 @@ function playerAutoAttack(state: CombatState): void {
   const player = state.player;
   const target = targets.reduce((lowest, enemy) => (enemy.hp < lowest.hp ? enemy : lowest), targets[0]!);
 
+  // Baseline Mana: +4 Mana per Weapon Auto-Attack hit (Section 2).
+  player.mana = Math.min(stats.maxMana, player.mana + 4);
+
   const might = stats.values.might ?? 0;
   const weapon = stats.weapon;
   const hollow = stats.keystones.has('ks_hollow_fist');
   const implicitScale = hollow ? 2 : 1;
   const buffs = player.buffs.reduce((sum, b) => sum + (b.damageMore ?? 0), 0);
-  let raw = rollBetween(state.rng, weapon.minDamage, weapon.maxDamage);
+  let raw = rollBetween(state.rng, weapon.minDamage + (stats.values.weapon_min ?? 0), weapon.maxDamage + (stats.values.weapon_max ?? 0));
   raw *= 1 + might / 100;
   raw *= 1 + (stats.schoolIncreased.physical ?? 0) + (stats.values.dmg_increased ?? 0) / 100;
   raw *= 1 + buffs;
   if (hollow) raw *= 1.4;
 
-  // Weapon implicits scale with Hollow Fist.
   const axeBonus = weapon.archetype === 'axe' && target.ailments.bleed ? 1 + 0.25 * implicitScale : 1;
 
   player.hitCounter += 1;
@@ -408,7 +564,7 @@ function playerAutoAttack(state: CombatState): void {
   }
   if (isCrit) state.damageLog.push({ t: state.time, amount: 0, school: dominantSchool(state) });
 
-  // Double hit echoes at 70% damage and can trigger on-hit effects.
+  // Double hit echoes at 70% damage and triggers on-hit effects.
   if (chance(state.rng, stats.doubleHitChance)) {
     for (const part of autoDamageParts(state, totalRaw * 0.7)) {
       damageEnemy(state, target, part.amount, part.school, false, 'auto');
@@ -425,26 +581,22 @@ function playerAutoAttack(state: CombatState): void {
         damageEnemy(state, other, part.amount, part.school, false, 'auto');
       }
     }
-    player.buffs.push({ id: 'sword_haste', name: 'Sword Haste', remaining: 3, attackSpeed: 0.1 * implicitScale });
+    player.buffs.push({ id: 'sword_haste', name: 'Sword Haste', remaining: 3, duration: 3, attackSpeed: 0.1 * implicitScale });
   }
 
   if (weapon.archetype === 'staff') {
     for (const ailment of Object.values(target.ailments)) {
       if (ailment) ailment.remaining += 1;
     }
-    player.ward = Math.min(stats.maxWard, player.ward + stats.maxWard * 0.02);
+    player.ward = Math.min(stats.maxWard, player.ward + stats.maxWard * 0.02 * implicitScale);
   }
 
   if (weapon.archetype === 'bow' && isCrit) {
-    player.mana = Math.min(stats.maxMana, player.mana + stats.maxMana * 0.03);
+    player.mana = Math.min(stats.maxMana, player.mana + stats.maxMana * 0.03 * implicitScale);
   }
 
-  if (isCrit && stats.triggerType === 'crit') {
-    const ready = stats.skills.find((skill) => (player.skillTimers[skill.id] ?? 0) <= 0 && skill.maxDamage > 0);
-    if (ready) {
-      player.skillTimers[ready.id] = 1;
-      castSkill(state, ready, 0.75, true);
-    }
+  if (isCrit) {
+    fireTriggers(state, 'crit');
   }
 }
 
@@ -461,22 +613,46 @@ function applyWeaponOnHit(state: CombatState, target: CombatEnemy, archetype: st
     applyAilment(state, target, 'bleed', 5 * scale, 4, 1);
   }
   if (archetype === 'sword' && stats.keystones.has('ks_void_tithe')) {
-    target.ailments.corruption ??= { dps: 2 * scale, remaining: 3, stacks: 1 };
+    target.ailments.corruption ??= { dps: 2 * scale, remaining: 3, duration: 3, stacks: 1 };
   }
 }
 
-function castSkill(state: CombatState, skill: PlayerStats['skills'][number], power: number, triggered = false): void {  const stats = state.playerStats;
+function isSkillBarValid(state: CombatState, skill: CombatSkill): boolean {
+  const hasPendulum = state.player.buffs.some((b) => b.id === 'pendulum');
+  const hourglassActive =
+    state.playerStats.trinketId === 'base_trinket_hourglass' && Math.floor(state.time) % 5 === 0;
+  return skill.bar === 'both' || skill.bar === state.activeBar || hasPendulum || hourglassActive;
+}
+
+function effectiveSkillRecovery(state: CombatState, skill: CombatSkill): number {
+  const stats = state.playerStats;
+  let cdr = 1;
+  if (state.doctrine === 'bastion' && skill.tags.includes('guard')) {
+    cdr += 0.25 * stats.doctrineMultiplier;
+  }
+  if (stats.trinketId === 'base_trinket_waning' && state.player.hp / stats.maxHp < 0.35) {
+    cdr += 0.1;
+  }
+  return skill.effectiveCooldown / cdr;
+}
+
+function castSkill(state: CombatState, skill: CombatSkill, power: number, triggered = false): void {
+  const stats = state.playerStats;
   const player = state.player;
   const living = state.enemies.filter((e) => e.hp > 0);
   if (!living.length) return;
 
   if (!triggered) {
-    const cost = skill.manaCost * stats.manaCostMultiplier;
-    if (player.mana < cost) return;
-    player.mana -= cost;
-    player.castLock = skill.castTime / stats.castSpeedMultiplier;
-    player.skillTimers[skill.id] = skill.cooldown;
-    if (skill.cooldown > 0) pushLog(state, 'guard', `${skill.name} cast (${skill.cooldown.toFixed(1)}s CD)`);
+    if (player.mana < skill.effectiveManaCost) return;
+    player.mana -= skill.effectiveManaCost;
+    if (skill.effectiveCastTime > 0) {
+      const hasteBuff = 1 + player.buffs.reduce((sum, b) => sum + (b.castSpeed ?? b.attackSpeed ?? 0), 0);
+      player.castLock = Math.max(0.3, skill.effectiveCastTime) / Math.max(0.4, hasteBuff);
+    }
+    player.skillTimers[skill.id] = effectiveSkillRecovery(state, skill);
+    if (skill.effectiveCooldown > 0) {
+      pushLog(state, 'guard', `${skill.name} cast (${player.skillTimers[skill.id]!.toFixed(1)}s CD)`);
+    }
   }
 
   const isGuard = skill.tags.includes('guard');
@@ -488,76 +664,232 @@ function castSkill(state: CombatState, skill: PlayerStats['skills'][number], pow
   }
 
   const area = skill.tags.includes('area');
-  const targets = area ? living : living.slice(0, 1 + stats.extraProjectiles);
+  const totalExtra = stats.extraProjectiles + skill.extraProjectiles;
+  const targets = area ? living : living.slice(0, 1 + totalExtra);
   const might = stats.values.might ?? 0;
+  const buffs = 1 + player.buffs.reduce((sum, b) => sum + (b.damageMore ?? 0), 0);
   const schoolBonus = 1 + (stats.schoolIncreased[skill.school] ?? 0) + (stats.values.dmg_increased ?? 0) / 100;
-  const base = rollBetween(state.rng, skill.minDamage, skill.maxDamage) * skill.effectiveness * (1 + might / 100) * schoolBonus * power;
   const hollowPenalty = stats.keystones.has('ks_hollow_fist') ? 0.75 : 1;
+  const apFlat = might * 0.25 * skill.effectiveness;
+  const rawRoll = rollBetween(state.rng, skill.minDamage, skill.maxDamage);
+  const base =
+    (rawRoll * skill.effectiveness * (1 + might / 100) + apFlat) *
+    schoolBonus *
+    skill.damageMoreMultiplier *
+    buffs *
+    power;
 
-  for (const target of targets) {
+  const isCurse = skill.tags.includes('curse');
+
+  targets.forEach((target, idx) => {
+    const pierceScale = !area && idx > 0 ? 0.6 : 1;
     const crit = chance(state.rng, stats.critChance);
-    const amount = base * (area ? stats.areaDamageMore : 1) * hollowPenalty * (crit ? stats.critMultiplier : 1);
-    const dealt = damageEnemy(state, target, amount, skill.school, crit, 'skill');
-    if (skill.ailment && dealt > 0) {
-      applyAilment(state, target, skill.ailment.id, skill.ailment.dps, skill.ailment.duration, skill.ailment.chance);
+    const amount =
+      base *
+      pierceScale *
+      (area ? stats.areaDamageMore : 1) *
+      hollowPenalty *
+      (crit ? stats.critMultiplier : 1);
+
+    let dealtTotal = 0;
+    for (const part of skillDamageParts(state, skill, amount)) {
+      dealtTotal += damageEnemy(state, target, part.amount, part.school, crit, 'skill', skill);
     }
-  }
+    if (isCurse) {
+      target.exposureRemaining = Math.max(target.exposureRemaining ?? 0, 6);
+    }
+    if (skill.ailment && dealtTotal > 0) {
+      applyAilment(
+        state,
+        target,
+        skill.ailment.id,
+        skill.ailment.dps,
+        skill.ailment.duration,
+        skill.ailment.chance,
+        dealtTotal,
+        skill,
+      );
+    }
+    if (chance(state.rng, stats.doubleHitChance + skill.doubleHitBonus)) {
+      let echoTotal = 0;
+      for (const part of skillDamageParts(state, skill, amount * 0.7)) {
+        echoTotal += damageEnemy(state, target, part.amount, part.school, false, 'skill', skill);
+      }
+      if (skill.ailment && echoTotal > 0) {
+        applyAilment(
+          state,
+          target,
+          skill.ailment.id,
+          skill.ailment.dps,
+          skill.ailment.duration,
+          skill.ailment.chance,
+          echoTotal,
+          skill,
+        );
+      }
+    }
+  });
+
   if (triggered) pushLog(state, 'trigger', `${skill.name} triggered`);
 }
 
-function skillScore(state: CombatState, skill: PlayerStats['skills'][number]): number {
+/**
+ * Dynamic Utility Score (Section 3.5):
+ * S_i = (B_i * U_i * M_econ * M_synergy * W_doctrine) - C_waste
+ */
+export function scoreSkillUtility(state: CombatState, skill: CombatSkill): number {
   const stats = state.playerStats;
   const player = state.player;
-  const target = state.enemies.find((e) => e.hp > 0);
+  const living = state.enemies.filter((e) => e.hp > 0);
+  const target = living[0];
   if (!target) return Number.NEGATIVE_INFINITY;
+
+  if (player.mana < skill.effectiveManaCost) return Number.NEGATIVE_INFINITY;
+
+  const isGuard = skill.tags.includes('guard');
+  const isCurse = skill.tags.includes('curse');
+  const isBuff = skill.tags.includes('buff');
+  const isNuke = !isGuard && !isCurse && !isBuff && skill.cooldown > 0;
+
+  // 1. Base Role Weight B_i
+  const baseWeight = isGuard ? 95 : isCurse ? 85 : isBuff ? 80 : isNuke ? 75 : 55;
+
+  // 2. Urgency U_i [0.05 .. 3.0]
   const doctrine = doctrineById.get(state.doctrine);
   const guardThreshold = (doctrine?.guardThreshold ?? 45) / 100;
-  const avg = (skill.minDamage + skill.maxDamage) / 2;
-  let score = avg * skill.effectiveness * (1 + (stats.values.might ?? 0) / 100);
+  const totalPool = Math.max(1, stats.maxHp + stats.maxWard);
+  const ehpRatio = (player.hp + player.ward) / totalPool;
+  const hpRatio = player.hp / Math.max(1, stats.maxHp);
+  const bossSlamSoon = state.enemies.some((e) => (e.slamTelegraph ?? 0) > 0);
 
-  const distinctAilments = AILMENTS.filter((a) => target.ailments[a]).length;
-  let utility = 1;
-  let synergy = 1;
-
-  if (skill.tags.includes('guard')) {
-    const hpRatio = player.hp / stats.maxHp;
-    utility = hpRatio < guardThreshold ? 6 : 0.1;
+  let urgency = 1.0;
+  if (isGuard) {
+    if (hpRatio <= guardThreshold || ehpRatio <= guardThreshold || (state.doctrine === 'bastion' && bossSlamSoon)) {
+      const deficit = Math.max(0.2, 1 - Math.min(hpRatio, ehpRatio));
+      urgency = clamp(1.2 + deficit * 1.8, 1.0, 3.0);
+    } else {
+      urgency = 0.05;
+    }
+  } else if (isCurse) {
+    const expRem = target.exposureRemaining ?? 0;
+    urgency = expRem < 1.5 ? 1.2 : 0.05;
+  } else {
+    if (skill.tags.includes('area') && living.length > 1) {
+      urgency += 0.25 * (living.length - 1);
+    }
+    if (!skill.tags.includes('area') && state.bossActive) {
+      urgency += 0.6;
+    }
+    if (state.doctrine === 'weaver' && skill.ailment && (target.exposureRemaining ?? 0) <= 0 && stats.skills.some((s) => s.tags.includes('curse'))) {
+      urgency *= 0.2;
+    }
   }
-  if (state.doctrine === 'weaver' && distinctAilments >= 3) synergy *= 1 - 0.1 * stats.doctrineMultiplier;
-  if (state.doctrine === 'weaver' && skill.ailment) synergy *= 0.5;
-  if (target.hp / target.maxHp < 0.2) synergy *= 1.2;
+  urgency = clamp(urgency, 0.05, 3.0);
 
-  const economy = Math.min(1.4, 1 + player.mana / Math.max(1, stats.maxMana) * 0.4);
-  const waste = player.mana < skill.manaCost * stats.manaCostMultiplier ? 0 : 1;
-  if (waste === 0) return Number.NEGATIVE_INFINITY;
+  // 3. Resource Lookahead M_econ [0.2 .. 1.2]
+  let economy = 1.0;
+  if (state.doctrine !== 'entropy') {
+    const higherComingSoon = stats.skills.find((other) => {
+      if (other.id === skill.id || !isSkillBarValid(state, other)) return false;
+      const otherWeight = other.tags.includes('guard') ? 95 : other.tags.includes('curse') ? 85 : other.cooldown > 0 ? 75 : 55;
+      if (otherWeight <= baseWeight) return false;
+      const remCd = player.skillTimers[other.id] ?? 0;
+      return remCd > 0 && remCd <= 1.2;
+    });
+    if (higherComingSoon && player.mana - skill.effectiveManaCost < higherComingSoon.effectiveManaCost) {
+      economy = 0.25;
+    } else {
+      const manaRatio = stats.maxMana > 0 ? player.mana / stats.maxMana : 1;
+      economy = clamp(0.8 + manaRatio * 0.4, 0.2, 1.2);
+    }
+  }
 
-  const doctrineWeight = state.doctrine === 'entropy' ? 1 + (state.rng() * 0.7 - 0.35) : state.doctrine === 'blitz' ? 1.1 : 1;
-  return score * utility * synergy * (state.doctrine === 'entropy' ? 1 : economy) * doctrineWeight * stats.doctrineMultiplier;
+  // 4. Combo Multiplier M_synergy [1.0 .. 2.0]
+  let synergy = 1.0;
+  if (!isGuard && !isCurse) {
+    const hasSynergyDebuff =
+      (target.exposureRemaining ?? 0) > 0 ||
+      Boolean(target.ailments.shock) ||
+      Boolean(target.ailments.corruption) ||
+      (target.ailments.chill?.stacks ?? 0) >= 3;
+    if (hasSynergyDebuff) {
+      synergy = isNuke ? 1.65 : 1.35;
+    }
+  }
+
+  // 5. Playstyle Weight W_doctrine [0.0 .. 2.5]
+  let doctrineWeight = 1.0;
+  if (state.doctrine === 'blitz') {
+    doctrineWeight = isGuard ? 0.5 : isBuff ? 1.4 : 1.2;
+  } else if (state.doctrine === 'bastion') {
+    doctrineWeight = isGuard ? 1.45 : 0.95;
+  } else if (state.doctrine === 'weaver') {
+    doctrineWeight = isCurse || skill.ailment ? 1.3 : 0.9;
+  } else if (state.doctrine === 'entropy') {
+    doctrineWeight = 1 + (state.rng() * 0.7 - 0.35);
+  }
+  doctrineWeight = clamp(doctrineWeight * (stats.doctrineMultiplier > 1 && state.doctrine !== 'entropy' ? 1.25 : 1), 0, 2.5);
+
+  // 6. Overkill / Telegraph Penalty C_waste [0 .. 150]
+  let waste = 0;
+  if (isNuke && skill.effectiveMinDamage > target.hp * 2) {
+    waste += Math.min(80, (skill.effectiveMinDamage / Math.max(1, target.hp)) * 20);
+  }
+  if (state.doctrine !== 'blitz' && skill.effectiveCastTime > 0 && bossSlamSoon) {
+    const soonestSlam = Math.min(...living.map((e) => e.slamTelegraph || 99));
+    if (soonestSlam > 0 && soonestSlam < skill.effectiveCastTime) {
+      waste += 40;
+    }
+  }
+  waste = clamp(waste, 0, 150);
+
+  return baseWeight * urgency * economy * synergy * doctrineWeight - waste;
 }
 
 function playerCastLoop(state: CombatState): void {
   const player = state.player;
   const stats = state.playerStats;
+
+  // Tier 2 — Instant Cooldown Automation (castTime <= 0, non-reservation, non-triggered)
+  for (const skill of stats.skills) {
+    if (skill.manaReservation > 0 || skill.triggerType) continue;
+    if (skill.castTime > 0) continue;
+    if (!isSkillBarValid(state, skill)) continue;
+    if ((player.skillTimers[skill.id] ?? 0) > 0) continue;
+    if (player.mana < skill.effectiveManaCost) continue;
+    if (skill.maxDamage <= 0 && !skill.tags.includes('guard') && !skill.tags.includes('buff')) continue;
+    castSkill(state, skill, 1);
+  }
+
+  // Tier 4 — Active Cast Loop (S_i Evaluation)
   if (player.castLock > 0) return;
 
   const candidates = stats.skills.filter((skill) => {
-    const barOk = skill.bar === 'both' || skill.bar === state.activeBar || player.buffs.some((b) => b.id === 'pendulum');
+    if (skill.manaReservation > 0 || skill.triggerType) return false;
+    if (skill.castTime <= 0) return false;
+    const barOk = isSkillBarValid(state, skill);
     const ready = (player.skillTimers[skill.id] ?? 0) <= 0;
-    const cost = skill.manaCost * stats.manaCostMultiplier;
-    return barOk && ready && player.mana >= cost && (skill.maxDamage > 0 || skill.tags.includes('guard'));
+    return (
+      barOk &&
+      ready &&
+      player.mana >= skill.effectiveManaCost &&
+      (skill.maxDamage > 0 || skill.tags.includes('guard') || skill.tags.includes('curse'))
+    );
   });
   if (!candidates.length) return;
 
   let best = candidates[0]!;
-  let bestScore = skillScore(state, best);
+  let bestScore = scoreSkillUtility(state, best);
   for (const skill of candidates.slice(1)) {
-    const score = skillScore(state, skill);
+    const score = scoreSkillUtility(state, skill);
     if (score > bestScore) {
       best = skill;
       bestScore = score;
     }
   }
-  if (Number.isFinite(bestScore)) castSkill(state, best, 1);
+  if (Number.isFinite(bestScore) && bestScore > 0) {
+    castSkill(state, best, 1);
+  }
 }
 
 function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, attackLabel?: string): void {
@@ -574,6 +906,9 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
   if (player.dodgeCharge >= 100) {
     player.dodgeCharge -= 100;
     pushLog(state, 'ward', `Dodged ${enemy.name}${attackLabel ? ` (${attackLabel})` : ''}`);
+    if (state.doctrine === 'bastion') {
+      player.mana = Math.min(stats.maxMana, player.mana + stats.maxMana * 0.05 * stats.doctrineMultiplier);
+    }
     if (stats.keystones.has('ks_ghostframe')) {
       const burst = (stats.values.dodge_rating ?? 0) * 0.15;
       damageEnemy(state, enemy, burst, 'physical', false, 'thorns');
@@ -589,7 +924,12 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
   const absorbed = Math.min(player.ward, incoming);
   player.ward -= absorbed;
   incoming -= absorbed;
-  if (absorbed > 0) pushLog(state, 'ward', `Ward absorbs ${absorbed.toFixed(0)}`);
+  if (absorbed > 0) {
+    pushLog(state, 'ward', `Ward absorbs ${absorbed.toFixed(0)}`);
+    if (state.doctrine === 'bastion') {
+      player.mana = Math.min(stats.maxMana, player.mana + stats.maxMana * 0.05 * stats.doctrineMultiplier);
+    }
+  }
 
   player.hp = Math.max(0, player.hp - incoming);
   player.lastDamageAt = state.time;
@@ -602,15 +942,10 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
     );
   }
 
-  const thorns = stats.values.thorns ?? 0;
-  if (thorns > 0) damageEnemy(state, enemy, thorns, 'physical', false, 'thorns');
+  if (stats.thorns > 0) damageEnemy(state, enemy, stats.thorns, 'physical', false, 'thorns');
 
-  if (stats.triggerType === 'damage' && before > stats.maxHp * 0.08) {
-    const guard = stats.skills.find((s) => s.tags.includes('guard') && (player.skillTimers[s.id] ?? 0) <= 0);
-    if (guard) {
-      player.skillTimers[guard.id] = Math.max(1, guard.cooldown * 0.5);
-      castSkill(state, guard, 1, true);
-    }
+  if (before > stats.maxHp * 0.08) {
+    fireTriggers(state, 'damage');
   }
 
   if (player.hp <= 0) killPlayer(state);
@@ -634,8 +969,16 @@ function killPlayer(state: CombatState): void {
 }
 
 function tickAilments(state: CombatState): void {
+  const stats = state.playerStats;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0) continue;
+    if ((enemy.exposureRemaining ?? 0) > 0) {
+      enemy.exposureRemaining = Math.max(0, (enemy.exposureRemaining ?? 0) - TICK_SECONDS);
+    }
+    const debuffCount = AILMENTS.filter((a) => enemy.ailments[a]).length + ((enemy.exposureRemaining ?? 0) > 0 ? 1 : 0);
+    const weaverBonus = state.doctrine === 'weaver' && debuffCount >= 3 ? 1 + 0.2 * stats.doctrineMultiplier : 1;
+    const exposureBonus = (enemy.exposureRemaining ?? 0) > 0 ? 1.2 : 1;
+
     for (const id of AILMENTS) {
       const ailment = enemy.ailments[id];
       if (!ailment) continue;
@@ -644,9 +987,8 @@ function tickAilments(state: CombatState): void {
         delete enemy.ailments[id];
         continue;
       }
-      const damage = ailment.dps * ailment.stacks * TICK_SECONDS;
+      const damage = ailment.dps * ailment.stacks * weaverBonus * exposureBonus * TICK_SECONDS;
       if (damage <= 0) continue;
-      // Corruption bypasses armour; all ailments skip execute/crowd multipliers.
       let dealt = damage;
       if (id !== 'corruption') {
         dealt *= 1 - armorReduction(enemy.armor, enemy.level) * 0.5;
@@ -654,7 +996,10 @@ function tickAilments(state: CombatState): void {
       enemy.hp = Math.max(0, enemy.hp - dealt);
       state.totalDamage += dealt;
       state.rewards.damage += dealt;
-      state.damageLog.push({ t: state.time, amount: dealt, school: id === 'ignite' ? 'fire' : id === 'chill' ? 'frost' : 'void' });
+      const school: School =
+        id === 'ignite' ? 'fire' : id === 'chill' ? 'frost' : id === 'shock' ? 'lightning' : id === 'bleed' ? 'physical' : 'void';
+      state.damageLog.push({ t: state.time, amount: dealt, school });
+      if (state.damageLog.length > 200) state.damageLog.shift();
     }
     if (enemy.dazed > 0) enemy.dazed = Math.max(0, enemy.dazed - TICK_SECONDS);
   }
@@ -666,21 +1011,53 @@ function resolveDeaths(state: CombatState): void {
     if (enemy.hp > 0) continue;
     state.enemies = state.enemies.filter((e) => e !== enemy);
     state.rewards.kills += 1;
-    state.rewards.gold += Math.round(4 * state.zone.rewardMultiplier * (1 + state.tier * 0.15) * (enemy.elite ? 2.5 : 1) * (1 + stats.goldFind));
-    state.rewards.xp += Math.round(14 * state.zone.rewardMultiplier * (1 + (state.tier - 1) * 0.2) * (enemy.elite ? 2 : 1));
-    if (enemy.elite) state.rewards.eliteKills += 1;
+
+    const baseGold = rollBetween(state.rng, 3, 8);
+    const tierGoldMult = 1 + (state.tier - 1) * 0.25;
+    const goldGain = Math.round(
+      baseGold * state.zone.rewardMultiplier * tierGoldMult * (enemy.elite ? 2.5 : 1) * (1 + stats.goldFind),
+    );
+    state.rewards.gold += goldGain;
+
+    // Pacing curve (Section 2 & 6): Tier 1 normal ~22 XP (250 XP Lv 1->2 = ~11-12 kills), Tier 2 normal ~48 XP.
+    const baseXp = state.tier === 1 ? 22 : 48 * Math.pow(1.35, state.tier - 2);
+    const xpGain = Math.round(baseXp * state.zone.rewardMultiplier * (enemy.elite ? 2 : 1));
+    state.rewards.xp += xpGain;
+
+    if (enemy.elite) {
+      state.rewards.eliteKills += 1;
+      if (stats.trinketId === 'base_trinket_soulvessel') {
+        state.player.hp = Math.min(stats.maxHp, state.player.hp + stats.maxHp * 0.06);
+        state.player.ward = Math.min(stats.maxWard, state.player.ward + stats.maxWard * 0.06);
+      }
+    }
+
+    if (state.doctrine === 'blitz') {
+      const blitzBonus = 0.15 * stats.doctrineMultiplier;
+      state.player.buffs = state.player.buffs.filter((b) => b.id !== 'blitz_haste');
+      state.player.buffs.push({
+        id: 'blitz_haste',
+        name: 'Blitz Frenzy',
+        remaining: 3,
+        duration: 3,
+        attackSpeed: blitzBonus,
+        castSpeed: blitzBonus,
+      });
+    }
+
     if (enemy.defId === 'mob_boss') {
       state.bossDefeated = true;
       state.bossActive = false;
       state.rewards.bossKills += 1;
-      state.rewards.gold += 100 * state.zone.rewardMultiplier;
-      state.rewards.xp += Math.round(45 * state.zone.rewardMultiplier);
+      state.rewards.gold += Math.round(100 * state.zone.rewardMultiplier);
+      state.rewards.xp += Math.round(90 * state.zone.rewardMultiplier * Math.pow(1.25, state.tier - 1));
       state.tier = Math.min(10, state.tier + 1);
       state.status = 'victory';
       pushLog(state, 'boss', `${enemy.name} falls. Tier ${state.tier} opens.`);
       continue;
     }
-    pushLog(state, 'kill', `${enemy.name} dies (+${Math.round(4 * state.zone.rewardMultiplier)} gold)`);
+
+    pushLog(state, 'kill', `${enemy.name} dies (+${goldGain} gold)`);
     if (!state.suppressRandomKeys && chance(state.rng, state.zone.keyDropChance)) {
       state.keys += 1;
       state.rewards.keys += 1;
@@ -739,9 +1116,14 @@ export function tickCombat(state: CombatState): void {
   const player = state.player;
   const stats = state.playerStats;
 
-  // Ward recharge: 20% max ward per second after 2s without damage.
-  const wardDelay = stats.keystones.has('ks_lattice_skin') ? 2 : 2;
-  if (state.time - player.lastDamageAt >= wardDelay) {
+  player.leechWindowTimer -= TICK_SECONDS;
+  if (player.leechWindowTimer <= 0) {
+    player.leechWindowTimer += 1;
+    player.leechThisSecond = 0;
+  }
+
+  // Ward recharge: 20% max ward per second after Wisdom-reduced delay (fixed 2.0s for Lattice Skin).
+  if (state.time - player.lastDamageAt >= stats.wardDelay) {
     const rate = stats.keystones.has('ks_lattice_skin') ? 0.25 : 0.2;
     player.ward = Math.min(stats.maxWard, player.ward + stats.maxWard * rate * TICK_SECONDS);
   }
@@ -758,7 +1140,7 @@ export function tickCombat(state: CombatState): void {
     if (state.swapTimer <= 0) {
       state.swapTimer = 5;
       state.activeBar = state.activeBar === 'bar_1' ? 'bar_2' : 'bar_1';
-      player.buffs.push({ id: 'pendulum', name: 'Pendulum', remaining: 3, damageMore: 0.3 });
+      player.buffs.push({ id: 'pendulum', name: 'Pendulum', remaining: 3, duration: 3, damageMore: 0.3 });
       pushLog(state, 'trigger', `Pendulum swaps to ${state.activeBar === 'bar_1' ? 'Bar I' : 'Bar II'} (+30% damage)`);
     }
   }
@@ -773,8 +1155,8 @@ export function tickCombat(state: CombatState): void {
 
   tickBuffs(state);
 
-  const haste = 1 + player.buffs.reduce((sum, b) => sum + (b.attackSpeed ?? 0), 0);
-  const interval = 1 / Math.max(0.1, stats.weapon.attacksPerSecond * stats.attackSpeedMultiplier * haste);
+  const interval = computeAttackInterval(state);
+  player.attackInterval = interval;
   player.attackTimer -= TICK_SECONDS;
   if (player.attackTimer <= 0) {
     player.attackTimer += interval;
@@ -787,8 +1169,12 @@ export function tickCombat(state: CombatState): void {
     if (enemy.hp <= 0) continue;
     const dazeScale = enemy.dazed > 0 ? 0.8 : 1;
     const chill = enemy.ailments.chill;
-    const chillScale = chill ? Math.max(0.5, 1 - 0.12 * chill.stacks) : 1;
+    const frozen = (chill?.stacks ?? 0) >= 3;
+    // Chill freezes enemy action bar entirely at >= 3 stacks.
+    const chillScale = frozen ? 0 : chill ? Math.max(0.55, 1 - 0.15 * chill.stacks) : 1;
     const speedFactor = TICK_SECONDS * dazeScale * chillScale;
+    if (speedFactor <= 0) continue;
+
     if (enemy.defId === 'mob_boss' && enemy.slamTimer !== undefined) {
       enemy.slamTimer -= speedFactor;
       if (enemy.slamTimer <= 1.0 && enemy.slamTimer > 0) {
@@ -809,7 +1195,7 @@ export function tickCombat(state: CombatState): void {
     }
     enemy.attackTimer -= speedFactor;
     if (enemy.attackTimer <= 0) {
-      enemy.attackTimer += 1 / Math.max(0.2, enemy.attackSpeed);
+      enemy.attackTimer += enemy.attackInterval;
       damagePlayer(state, enemy);
       if (state.status !== 'running') break;
     }
@@ -828,15 +1214,15 @@ export function runCombat(state: CombatState, ticks: number): CombatState {
   return state;
 }
 
-/** Manual cast from the skill bar; respects cooldown, bar and mana exactly like automation. */
+/** Manual cast from the skill bar; respects cooldown, bar and mana. */
 export function manualCast(state: CombatState, skillId: string): boolean {
   if (state.status !== 'running') return false;
   const skill = state.playerStats.skills.find((entry) => entry.id === skillId);
   if (!skill) return false;
-  const barOk = skill.bar === 'both' || skill.bar === state.activeBar;
-  if (!barOk) return false;
+  if (skill.manaReservation > 0 || skill.triggerType) return false;
+  if (!isSkillBarValid(state, skill)) return false;
   if ((state.player.skillTimers[skill.id] ?? 0) > 0) return false;
-  if (state.player.mana < skill.manaCost * state.playerStats.manaCostMultiplier) return false;
+  if (state.player.mana < skill.effectiveManaCost) return false;
   castSkill(state, skill, 1);
   return true;
 }

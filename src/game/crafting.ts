@@ -20,6 +20,8 @@ const COSTS = {
   upgrade: (item: ItemInstance): CraftCost => ({ material: 'mat_scrap', amount: 6 + item.itemLevel * 2 }),
   reforge: (item: ItemInstance): CraftCost => ({ material: 'mat_flux', amount: item.rarity === 'mythic' ? 18 : 8 }),
   socket: (item: ItemInstance): CraftCost => ({ material: 'mat_thread', amount: 4 + item.sockets.length * 2 }),
+  link: (item: ItemInstance): CraftCost => ({ material: 'mat_thread', amount: 3 + (item.linkedSockets ?? 1) * 2 }),
+  lockReforge: (): CraftCost => ({ material: 'mat_essence', amount: 1 }),
   corrupt: (): CraftCost => ({ material: 'mat_essence', amount: 2 }),
   promote: (item: ItemInstance): CraftCost => ({ material: 'mat_flux', amount: item.rarity === 'rare' ? 22 : 10 }),
 };
@@ -77,6 +79,35 @@ export function reforgeItem(save: CharacterSave, item: ItemInstance): CraftResul
   return { ok: true, message: `Reforged ${base.name} into ${picked.length} new affixes`, cost };
 }
 
+/** Rift Essence lock: keeps 1 chosen affix and rerolls the rest. */
+export function essenceLockReforge(save: CharacterSave, item: ItemInstance, lockedIndex = 0): CraftResult {
+  const cost = COSTS.lockReforge();
+  if (item.affixes.length < 2) return { ok: false, message: 'Need at least 2 affixes to lock one.', cost };
+  if (!canPay(save, cost)) return { ok: false, message: `Need ${cost.amount} ${cost.material}`, cost };
+  const safeIndex = Math.max(0, Math.min(item.affixes.length - 1, lockedIndex));
+  const kept = item.affixes[safeIndex]!;
+  pay(save, cost);
+
+  const rng = mulberry32(seedFor(item, `lock${item.itemLevel}${safeIndex}${save.materials.mat_essence}`));
+  const pool = eligibleAffixes(item.baseId).filter((a) => a.itemLevel <= item.itemLevel);
+  const targetCount = item.affixes.length;
+  const picked: { affixId: string; tier: number }[] = [{ ...kept }];
+  const used = new Set<string>([kept.affixId]);
+
+  while (picked.length < targetCount && pool.length > used.size) {
+    const candidate = pickOne(rng, pool);
+    if (used.has(candidate.id)) continue;
+    used.add(candidate.id);
+    picked.push({
+      affixId: candidate.id,
+      tier: Math.max(1, Math.min(5, 1 + Math.floor(rng() * Math.min(5, 1 + Math.floor(item.itemLevel / 8))))),
+    });
+  }
+  item.affixes = picked;
+  const keptDef = affixById.get(kept.affixId);
+  return { ok: true, message: `Locked ${keptDef?.name ?? 'affix'} and reforged the rest`, cost };
+}
+
 export function addSocket(save: CharacterSave, item: ItemInstance): CraftResult {
   const base = itemBase(item);
   const cost = COSTS.socket(item);
@@ -86,7 +117,24 @@ export function addSocket(save: CharacterSave, item: ItemInstance): CraftResult 
   if (!canPay(save, cost)) return { ok: false, message: `Need ${cost.amount} ${cost.material}`, cost };
   pay(save, cost);
   item.sockets.push(null);
+  if ((item.linkedSockets ?? 0) === 0) item.linkedSockets = 1;
   return { ok: true, message: `Socket ${item.sockets.length} opened`, cost };
+}
+
+/** Link-Thread fuses an additional socket link up to the current socket count. */
+export function linkSocket(save: CharacterSave, item: ItemInstance): CraftResult {
+  const cost = COSTS.link(item);
+  const currentLinks = Math.max(1, Math.min(item.sockets.length, item.linkedSockets ?? 1));
+  if (item.sockets.length < 2) {
+    return { ok: false, message: 'Open at least 2 sockets first.', cost };
+  }
+  if (currentLinks >= item.sockets.length) {
+    return { ok: false, message: 'All sockets on this item are already linked.', cost };
+  }
+  if (!canPay(save, cost)) return { ok: false, message: `Need ${cost.amount} ${cost.material}`, cost };
+  pay(save, cost);
+  item.linkedSockets = currentLinks + 1;
+  return { ok: true, message: `Fused ${item.linkedSockets}-Link!`, cost };
 }
 
 /** Essence corruption: one roll, permanent. Adds a socket if there is space, else raises an affix tier. */
@@ -149,7 +197,7 @@ export function itemTooltip(item: ItemInstance): string[] {
     const affix = affixById.get(roll.affixId);
     if (!affix) continue;
     const value = affix.values[Math.min(4, Math.max(0, roll.tier - 1))] ?? 0;
-    lines.push(`${affix.name}: ${affix.layer === 'flat' ? '+' : '+'}${value}${affix.layer === 'more' ? '% more' : affix.layer === 'increased' ? '%' : ''} ${affix.stat.replace(/_/g, ' ')}`);
+    lines.push(`${affix.name}: +${value}${affix.layer === 'more' ? '% more' : affix.layer === 'increased' ? '%' : ''} ${affix.stat.replace(/_/g, ' ')}`);
   }
   if (base.weapon) lines.push(`${base.weapon.minDamage}-${base.weapon.maxDamage} damage · ${base.weapon.attacksPerSecond}/s`);
   if (item.corrupted) lines.push('Corrupted');

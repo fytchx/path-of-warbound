@@ -10,11 +10,12 @@
     "sockets": 3,
     "implicit": [{ "stat": "crit_chance", "layer": "flat", "value": 25 }],
     "weapon": { "minDamage": 7, "maxDamage": 12, "attacksPerSecond": 1.6, "twoHanded": false, "archetype": "dagger" },
+    "description": "Dagger implicit: 50% chance on hit to apply 1 stack of Corruption; +25% Critical Strike Chance.",
     "flavour": "Quick, jealous, and fond of opening veins."
   },
   {
     "id": "base_sword_1h",
-    "name": "Ashen Sword",
+    "name": "Iron Broadsword",
     "slot": "main_hand",
     "slotTags": ["weapon", "one_hand", "sword"],
     "assetId": "weapon_sword",
@@ -23,6 +24,7 @@
     "sockets": 3,
     "implicit": [],
     "weapon": { "minDamage": 11, "maxDamage": 17, "attacksPerSecond": 1.3, "twoHanded": false, "archetype": "sword" },
+    "description": "Sword implicit: Every 3rd swing cleaves up to 3 enemies at 60% damage and grants +10% Attack Speed for 3s.",
     "flavour": "Every third swing remembers the field it fell on."
   },
   {
@@ -36,6 +38,7 @@
     "sockets": 6,
     "implicit": [],
     "weapon": { "minDamage": 18, "maxDamage": 26, "attacksPerSecond": 1.3, "twoHanded": true, "archetype": "sword" },
+    "description": "Two-Handed Sword implicit: Every 3rd swing cleaves up to 3 enemies at 60% damage and grants +10% Attack Speed for 3s. Spans Offhand.",
     "flavour": "Two hands, one argument."
   },
   {
@@ -49,6 +52,7 @@
     "sockets": 3,
     "implicit": [],
     "weapon": { "minDamage": 13, "maxDamage": 21, "attacksPerSecond": 1.0, "twoHanded": false, "archetype": "mace" },
+    "description": "Mace implicit: 30% chance on hit to Daze the target (-20% enemy attack speed & damage for 3s).",
     "flavour": "Dazed is a kind word for it."
   },
   {
@@ -62,6 +66,7 @@
     "sockets": 6,
     "implicit": [],
     "weapon": { "minDamage": 22, "maxDamage": 34, "attacksPerSecond": 1.0, "twoHanded": true, "archetype": "mace" },
+    "description": "Two-Handed Mace implicit: 30% chance on hit to Daze the target (-20% enemy attack speed & damage for 3s). Spans Offhand.",
     "flavour": "Built to disagree with walls."
   },
   {
@@ -75,6 +80,7 @@
     "sockets": 3,
     "implicit": [],
     "weapon": { "minDamage": 12, "maxDamage": 19, "attacksPerSecond": 1.2, "twoHanded": false, "archetype": "axe" },
+    "description": "Axe implicit: Inflicts Bleed on critical strikes and deals +25% damage to Bleeding targets.",
     "flavour": "It only ever asks for a little more."
   },
   {
@@ -88,6 +94,7 @@
     "sockets": 6,
     "implicit": [],
     "weapon": { "minDamage": 20, "maxDamage": 31, "attacksPerSecond": 1.2, "twoHanded": true, "archetype": "axe" },
+    "description": "Two-Handed Axe implicit: Inflicts Bleed on critical strikes and deals +25% damage to Bleeding targets. Spans Offhand.",
     "flavour": "Bleed first. Ask afterwards."
   },
   {
@@ -101,6 +108,7 @@
     "sockets": 6,
     "implicit": [{ "stat": "double_hit", "layer": "flat", "value": 20 }],
     "weapon": { "minDamage": 14, "maxDamage": 23, "attacksPerSecond": 1.45, "twoHanded": true, "archetype": "bow" },
+    "description": "Bow implicit: +20% Double-Hit Chance and restores 3% Max Mana on critical strikes. Spans Offhand.",
     "flavour": "The string is a tendon. Nobody asks whose."
   },
   {
@@ -114,6 +122,7 @@
     "sockets": 6,
     "implicit": [{ "stat": "max_mana", "layer": "flat", "value": 30 }],
     "weapon": { "minDamage": 16, "maxDamage": 25, "attacksPerSecond": 1.05, "twoHanded": true, "archetype": "staff" },
+    "description": "Staff implicit: Refreshes 1.0s of active DoTs on hit and restores 2% Max Ward per swing. Spans Offhand.",
     "flavour": "The grain runs in two directions at once."
   },
   {
@@ -129,6 +138,7 @@
       { "stat": "armor", "layer": "flat", "value": 40 },
       { "stat": "max_ward", "layer": "flat", "value": 15 }
     ],
+    "description": "Offhand Shield providing heavy Armor and flat Max Ward for defensive builds.",
     "flavour": "A wall you can carry."
   },
   {
@@ -144,6 +154,7 @@
       { "stat": "max_mana", "layer": "flat", "value": 30 },
       { "stat": "max_ward", "layer": "flat", "value": 10 }
     ],
+    "description": "Caster Offhand granting Max Mana and Max Ward to sustain spell rotations.",
     "flavour": "It holds a little of every ward that failed."
   },
   {
@@ -156,6 +167,7 @@
     "itemLevel": 1,
     "sockets": 4,
     "implicit": [{ "stat": "max_ward", "layer": "flat", "value": 8 }],
+    "description": "Light Warbound headgear woven to reinforce Max Ward.",
     "flavour": "No face beneath it. Only intent."
   },
   {
@@ -168,6 +180,7 @@
     "itemLevel": 1,
     "sockets": 4,
     "implicit": [{ "stat": "armor", "layer": "flat", "value": 25 }],
+    "description": "Plated helm providing dependable baseline Armor and up to 4 universal sockets.",
     "flavour": "The dents are a service record."
   },
   {
@@ -180,6 +193,7 @@
     "itemLevel": 1,
     "sockets": 6,
     "implicit": [{ "stat": "max_hp", "layer": "flat", "value": 40 }],
+    "description": "Core Warbound breastplate granting Max Health and up to 6 universal sockets for primary skill links.",
     "flavour": "The soul-spark burns where a heart should sit."
   },
   {
@@ -192,6 +206,7 @@
     "itemLevel": 1,
     "sockets": 4,
     "implicit": [{ "stat": "crit_chance", "layer": "flat", "value": 3 }],
+    "description": "Armored gauntlets sharpening Critical Strike precision.",
     "flavour": "They grip what the living let go."
   },
   {
@@ -204,6 +219,7 @@
     "itemLevel": 1,
     "sockets": 4,
     "implicit": [{ "stat": "fortitude", "layer": "flat", "value": 5 }],
+    "description": "Greaves anchored with Fortitude to bolster Health, Regen, Armor, and Thorns.",
     "flavour": "Mud to the knee, always."
   },
   {
@@ -216,6 +232,7 @@
     "itemLevel": 1,
     "sockets": 4,
     "implicit": [{ "stat": "dodge_rating", "layer": "flat", "value": 15 }],
+    "description": "Evasive boots boosting entropy-assisted Dodge Rating.",
     "flavour": "They make no sound on ash or snow."
   },
   {
@@ -228,6 +245,7 @@
     "itemLevel": 1,
     "sockets": 1,
     "implicit": [{ "stat": "wisdom", "layer": "flat", "value": 8 }],
+    "description": "Focuses Wisdom to expand Mana, Cast Speed, Ward, and Ailment Potency.",
     "flavour": "A spark, suspended. Not yours."
   },
   {
@@ -240,6 +258,7 @@
     "itemLevel": 1,
     "sockets": 1,
     "implicit": [{ "stat": "res_fire", "layer": "flat", "value": 12 }],
+    "description": "Woven iron collar granting baseline Fire Resistance.",
     "flavour": "Warm to the touch, even in the frozen cathedral."
   },
   {
@@ -252,6 +271,7 @@
     "itemLevel": 1,
     "sockets": 1,
     "implicit": [{ "stat": "res_fire", "layer": "flat", "value": 10 }],
+    "description": "Ring slot (Left or Right) providing Fire Resistance and a utility socket.",
     "flavour": "Set with a coal that refuses to die."
   },
   {
@@ -264,6 +284,7 @@
     "itemLevel": 1,
     "sockets": 1,
     "implicit": [{ "stat": "res_frost", "layer": "flat", "value": 10 }],
+    "description": "Ring slot (Left or Right) providing Frost Resistance and a utility socket.",
     "flavour": "Cold enough to still a heartbeat."
   },
   {
@@ -277,6 +298,7 @@
     "sockets": 1,
     "implicit": [{ "stat": "attack_speed", "layer": "increased", "value": 6 }],
     "uniqueEffect": "Every fifth second, both skill bars are considered active.",
+    "description": "Unique Trinket: Accelerates Attack Speed and bridges Bar I and Bar II every 5th second.",
     "flavour": "The sand runs upward when nobody watches."
   },
   {
@@ -290,6 +312,7 @@
     "sockets": 1,
     "implicit": [{ "stat": "cooldown_recovery", "layer": "increased", "value": 10 }],
     "uniqueEffect": "Cooldowns recover 10% faster while below 35% health.",
+    "description": "Unique Trinket: Speeds Cooldown Recovery and adds emergency CDR below 35% Health.",
     "flavour": "It keeps time with something other than you."
   },
   {
@@ -303,6 +326,7 @@
     "sockets": 1,
     "implicit": [{ "stat": "life_leech", "layer": "flat", "value": 1 }],
     "uniqueEffect": "Killing an elite restores 6% of maximum health and ward.",
+    "description": "Unique Trinket: Grants Life Leech and restores 6% Max Health & Ward when an elite falls.",
     "flavour": "A thimble for the soul. Never quite full."
   }
 ]
