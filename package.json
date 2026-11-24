@@ -1,0 +1,15 @@
+{
+  "name": "path-of-warbound",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test dist/tests/engine.test.js",
+    "sim": "node dist/src/sim/index.js",
+    "check": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,30 +1,55 @@
-# Path of Warbound
+# PATH OF WARBOUND
 
-**Path of Warbound** is a game development project currently in its early stages.
+> *"An intimidating monster in the background, simple for a solo developer to build without scope creep, deeply stimulating for theorycrafters, and effortless for the average player."*
 
-## About
+**Path of Warbound** is a mobile-portrait-first (`390px`), seasonal semi-idle autobattler set on the war-torn world of **Khorvath**. Merging *Path of Exile*'s deep itemization, linked gem engines, and passive tree pathing with the immediate, low-friction progression of *IdleArc*, the game strips away character models and rigid classes in favor of pure build-craft.
 
-This repository is the home for the development of Path of Warbound. More information about the game's concept, features, technology, and development roadmap will be added as the project grows.
+## Premise & Identity
 
-## Project Status
+Centuries ago, a planar cataclysm called **The Unmaking** saturated Khorvath in raw, unstable magic that mortal flesh cannot survive. Ancient runic smiths discovered how to bind a warrior's **Soul-Spark** directly into **Warbound Armaments**.
 
-The project is currently in pre-production. The codebase and development documentation are being established.
+- **No Physical Body, No Rigid Classes:** Equipped weapons, armor, relics, linked gems, and the passive constellation form the player's identity.
+- **Progress, Power, and Luck:** Players climb the seasonal ladder through steady upgrades, build synergy, and rare drop mutations.
 
-## Getting Started
+## Core Systems
 
-Development instructions are not available yet. As the project matures, this section will include prerequisites, setup steps, and commands for running the game locally.
+- **Soul-Forged Loadout:** Weapon, offhand, and 3x3 equipment grid with universal gem sockets.
+- **Dual-Bar Auto-Combat:** Weapon auto-attacks, swappable skill bars, and selectable Combat Doctrines.
+- **Deterministic Math Pipeline:** `Base -> Flat -> Increased -> More -> Two-Pass DAG Conversions`.
+- **Radial Constellation:** Mobile-friendly petal sectors, notable nodes, minors, and mutually exclusive keystones.
+- **Zones and Economy:** Configurable pack size, 10-tier zones, Rift Keys, boss runs, offline progression, and four crafting materials.
 
-To explore the repository:
+## Roadmap
 
-```bash
-git clone https://github.com/fytchx/path-of-warbound.git
-cd path-of-warbound
+- **v0.1 — Core Playable Slice:** Headless engine, JSON registries, portrait UI, zones, gems, gear, skill tree, and local saves.
+- **v0.2 — Seasonal Online Layer:** Leaderboards, loadout inspection, and chat.
+- **v0.3+ — Endgame Expansion:** War-Orders, Endless Survival, PvP, and group content.
+
+## Repository Map
+
+```text
+/
+├── STARTHERE.md
+├── README.md
+├── docs/
+│   ├── ACTIVE_INSTRUCTIONS.md
+│   ├── GAME_DESIGN_BIBLE.md
+│   └── DATA_SCHEMAS.md
+├── src/
+│   ├── engine/
+│   ├── data/
+│   ├── sim/
+│   └── ui/
+└── tests/
 ```
 
-## Contributing
+## Development
 
-Contributions are welcome once the project structure and development guidelines are established. Please open an issue to discuss ideas, bugs, or feature proposals.
+```bash
+npm install
+npm run build
+npm test
+npm run sim
+```
 
-## License
-
-A license has not been selected yet. Until one is added, all rights are reserved by the repository owner.
+The `src/engine` package must remain independent of UI and browser APIs. The headless simulator uses the same formulas and registries as the game.
