@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ALL_ASSET_IDS, ASSETS } from '../src/assets/assetIds';
-import { affixes, doctrines, gems, itemBases as items, monsters, registries, skillTree, statRegistry, zones } from '../src/data';
+import { affixes, doctrines, gemById, gems, itemBases as items, monsters, progression, registries, skillTree, statRegistry, zones } from '../src/data';
 import type { School } from '../src/data/types';
 
 const manifest = JSON.parse(readFileSync('assets/manifest.json', 'utf8')) as {
@@ -90,6 +90,32 @@ describe('registries', () => {
       expect(affix.values).toHaveLength(5);
       for (let i = 1; i < affix.values.length; i += 1) {
         expect(affix.values[i]).toBeGreaterThan(affix.values[i - 1]!);
+      }
+    }
+  });
+
+  it('validates progression entries, triggers, granted gems, and unlocked systems', () => {
+    expect(progression.length).toBeGreaterThan(0);
+    const ids = new Set<string>();
+    const validSystems = new Set(['altar', 'tree', 'forge', 'bar_2']);
+    for (const entry of progression) {
+      expect(ids.has(entry.id), `duplicate progression id ${entry.id}`).toBe(false);
+      ids.add(entry.id);
+      if ('level' in entry.trigger) {
+        expect(Number.isInteger(entry.trigger.level)).toBe(true);
+        expect(entry.trigger.level).toBeGreaterThanOrEqual(1);
+      } else {
+        expect(entry.trigger.event).toBe('first_death');
+      }
+      if (entry.grants.gem) {
+        expect(gemById.has(entry.grants.gem), `unknown gem ${entry.grants.gem}`).toBe(true);
+      }
+      if (entry.grants.skillSlot !== undefined) {
+        expect(Number.isInteger(entry.grants.skillSlot)).toBe(true);
+        expect(entry.grants.skillSlot).toBeGreaterThan(0);
+      }
+      for (const sys of entry.grants.unlockedSystems ?? []) {
+        expect(validSystems.has(sys), `unknown system ${sys}`).toBe(true);
       }
     }
   });

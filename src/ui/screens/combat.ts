@@ -18,31 +18,47 @@ function swingPercent(store: GameStore): number {
   return Math.min(100, Math.max(0, (1 - player.attackTimer / interval) * 100));
 }
 
+const PADLOCK_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
 function skillBar(store: GameStore): string {
-  const skills = store.stats.skills.slice(0, 8);
+  const skills = store.stats.skills;
+  const unlockedSlots = Math.max(1, store.save.skillSlots);
+  const totalSlots = Math.max(6, unlockedSlots);
   const bar = store.combat.activeBar;
-  const slots = skills.length
-    ? skills
-        .map((skill) => {
-          const gem = gemById.get(skill.gemId);
-          const remaining = store.combat.player.skillTimers[skill.id] ?? 0;
-          const cooldown = Math.max(0.001, skill.cooldown);
-          const ready = remaining <= 0;
-          const wrongBar = skill.bar !== 'both' && skill.bar !== bar;
-          const cdPct = ready ? 0 : Math.min(100, Math.max(0, (remaining / cooldown) * 100));
-          return `<button class="skill ${ready && !wrongBar ? 'hot' : ''}" data-action="cast" data-skill="${escapeHtml(skill.id)}" title="${escapeHtml(skill.name)}" aria-label="${escapeHtml(skill.name)}">
-            ${gem ? assetImg(gem.assetId, skill.name) : ''}
-            ${wrongBar ? `<span class="lock">${skill.bar === 'bar_1' ? 'I' : 'II'}</span>` : !ready ? `<span class="cd" style="height:${cdPct}%"></span><span class="cdtime">${remaining.toFixed(1)}</span>` : ''}
-          </button>`;
-        })
-        .join('')
-    : '';
+  const barTwoUnlocked = store.isSystemUnlocked('bar_2');
+
+  const slots = Array.from({ length: totalSlots }, (_, index) => {
+    const skill = skills[index];
+    if (skill) {
+      const gem = gemById.get(skill.gemId);
+      const remaining = store.combat.player.skillTimers[skill.id] ?? 0;
+      const cooldown = Math.max(0.001, skill.cooldown);
+      const ready = remaining <= 0;
+      const wrongBar = skill.bar !== 'both' && skill.bar !== bar;
+      const cdPct = ready ? 0 : Math.min(100, Math.max(0, (remaining / cooldown) * 100));
+      return `<button class="skill ${ready && !wrongBar ? 'hot' : ''}" data-action="cast" data-skill="${escapeHtml(skill.id)}" title="${escapeHtml(skill.name)}" aria-label="${escapeHtml(skill.name)}">
+        ${gem ? assetImg(gem.assetId, skill.name) : ''}
+        ${wrongBar ? `<span class="lock">${skill.bar === 'bar_1' ? 'I' : 'II'}</span>` : !ready ? `<span class="cd" style="height:${cdPct}%"></span><span class="cdtime">${remaining.toFixed(1)}</span>` : ''}
+      </button>`;
+    }
+    if (index < unlockedSlots) {
+      return `<button class="skill empty" data-action="empty-slot" title="Empty skill slot — socket an active gem in Altar" aria-label="Empty skill slot">
+        <span class="empty-plus" aria-hidden="true">+</span>
+      </button>`;
+    }
+    return `<button class="skill locked" data-action="locked-slot" title="Locked skill slot" aria-label="Locked skill slot">
+      ${PADLOCK_SVG}
+    </button>`;
+  }).join('');
+
+  const barPill = barTwoUnlocked
+    ? `<button class="pill" data-action="bar" data-bar="${bar === 'bar_1' ? 'bar_2' : 'bar_1'}" aria-label="Switch skill bar">${bar === 'bar_1' ? 'BAR I' : 'BAR II'}</button>`
+    : `<span class="pill">BAR I</span>`;
 
   return `<div class="skills">
-    <span class="pill">${bar === 'bar_1' ? 'BAR I' : 'BAR II'}</span>
-    <div class="slots">${
-      slots || '<span class="tiny muted">Socket an active gem to fill the bar</span>'
-    }</div>
+    ${barPill}
+    <div class="slots">${slots}</div>
     <div class="swing" aria-hidden="true"><b style="width:${swingPercent(store)}%"></b></div>
   </div>`;
 }

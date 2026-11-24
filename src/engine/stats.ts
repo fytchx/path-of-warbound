@@ -246,6 +246,8 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
     const skill = skillFromGem(gem, instance);
     if (skill) skills.push(skill);
   }
+  const skillLimit = Math.max(0, Math.floor(save.skillSlots ?? 0));
+  const activeSkills = skills.slice(0, skillLimit);
 
   const triggerSupports = supports.map((s) => s.id);
   const triggerType: TriggerType = triggerSupports.includes('support_cast_on_crit')
@@ -262,7 +264,7 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
     weapon: weapon.profile,
     weaponBase: weapon.base,
     weaponName: weapon.base.name,
-    skills,
+    skills: activeSkills,
     supports,
     triggerType,
     critChance: Math.min(0.95, Math.max(0, (stats.crit_chance ?? 0) / 100)),

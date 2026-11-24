@@ -51,12 +51,14 @@ const TABS: { id: ScreenId; label: string; icon: string }[] = [
 const TAB_ICONS = Object.fromEntries(TABS.map((tab) => [tab.id, tab.icon])) as Record<ScreenId, string>;
 
 function tabbar(store: GameStore): string {
-  return TABS.map(
-    (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
+  return TABS.filter((tab) => store.isSystemUnlocked(tab.id))
+    .map(
+      (tab) => `<button class="${store.ui.screen === tab.id ? 'active' : ''}" data-nav="${tab.id}" aria-label="${tab.label}" aria-current="${store.ui.screen === tab.id ? 'page' : 'false'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[tab.id]}</svg>
       <span>${tab.label}</span>
     </button>`,
-  ).join('');
+    )
+    .join('');
 }
 
 function topbar(store: GameStore): string {
@@ -92,6 +94,24 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   let renderedScreen: ScreenId | null = null;
   let renderedModal: unknown = undefined;
   let renderedToast: number | null = null;
+  let renderedUnlockNotice: number | null = null;
+  let renderedUnlocked = store.save.unlockedSystems.join(',');
+
+  const renderToastArea = (): string => {
+    const notice = store.ui.unlockNotice;
+    const toast = store.ui.toast;
+    const noticeHtml = notice
+      ? `<div class="unlock-notice" role="status">
+          <div class="unlock-copy">
+            <strong>${escapeHtml(notice.title)}</strong>
+            <span>${escapeHtml(notice.detail)}</span>
+          </div>
+          <button class="unlock-dismiss" data-action="dismiss-unlock" aria-label="Dismiss notification">✕</button>
+        </div>`
+      : '';
+    const toastHtml = toast ? `<div class="toast" role="status">${escapeHtml(toast.text)}</div>` : '';
+    return `${noticeHtml}${toastHtml}`;
+  };
 
   const paint = (dynamic: boolean): void => {
     const topbarEl = root.querySelector<HTMLElement>('#topbar');
@@ -107,7 +127,11 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     }
 
     const tabbarEl = root.querySelector<HTMLElement>('#tabbar');
-    if (tabbarEl && !dynamic) tabbarEl.innerHTML = tabbar(store);
+    const nextUnlocked = store.save.unlockedSystems.join(',');
+    if (tabbarEl && (!dynamic || nextUnlocked !== renderedUnlocked)) {
+      tabbarEl.innerHTML = tabbar(store);
+      renderedUnlocked = nextUnlocked;
+    }
 
     const modalRoot = root.querySelector<HTMLElement>('#modal-root');
     if (modalRoot && (!dynamic || renderedModal !== store.ui.modal)) {
@@ -118,9 +142,11 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
 
     const toastRoot = root.querySelector<HTMLElement>('#toast-root');
     const toast = store.ui.toast;
-    if (toastRoot && (toast?.id ?? null) !== renderedToast) {
+    const unlockNotice = store.ui.unlockNotice;
+    if (toastRoot && ((toast?.id ?? null) !== renderedToast || (unlockNotice?.id ?? null) !== renderedUnlockNotice)) {
       renderedToast = toast?.id ?? null;
-      toastRoot.innerHTML = toast ? `<div class="toast" role="status">${escapeHtml(toast.text)}</div>` : '';
+      renderedUnlockNotice = unlockNotice?.id ?? null;
+      toastRoot.innerHTML = renderToastArea();
     }
   };
 
@@ -235,6 +261,15 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         break;
       case 'claim-offline':
         store.claimOffline();
+        break;
+      case 'dismiss-unlock':
+        store.dismissUnlockNotice();
+        break;
+      case 'locked-slot':
+        store.toast('Unlock more skill slots as you progress.');
+        break;
+      case 'empty-slot':
+        store.toast(store.isSystemUnlocked('altar') ? 'Socket an active gem in the Altar.' : 'Unlocked slot — Altar opens at Level 2.');
         break;
       default:
         break;

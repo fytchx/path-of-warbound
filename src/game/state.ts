@@ -1,5 +1,5 @@
-import { affixById, affixes, itemBaseById, skillTree } from '../data';
-import type { DoctrineId, ItemSlot, Rarity } from '../data/types';
+import { affixById, affixes, itemBaseById, progression, skillTree } from '../data';
+import type { DoctrineId, ItemSlot, ProgressionEntry, Rarity } from '../data/types';
 import { buildTreeGraph, canAllocate, getArticulationPoints, strandedAfterRemoval } from '../engine/treeGraph';
 import type { CombatRewards } from '../engine/combatEngine';
 import { mulberry32, pickOne } from '../engine/rng';
@@ -13,7 +13,7 @@ import {
 import { MATERIAL_IDS, type CharacterSave, type GemInstance, type ItemInstance, type MaterialId, type OfflineSummary } from './types';
 
 export const STORAGE_KEY = 'path-of-warbound.save.v1';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const treeGraph = buildTreeGraph(skillTree);
 
@@ -93,71 +93,35 @@ function withGems(item: ItemInstance, gems: (GemInstance | null)[]): ItemInstanc
 
 export function createInitialSave(now = Date.now()): CharacterSave {
   const seed = 'warbound-v0.1';
-  const weapon = withGems(createItem('base_sword_1h', 'rare', 4, seed), [
-    makeGem('gem_cleave', 3, 'both'),
-    makeGem('support_ailment_proliferation', 2, 'both'),
-    makeGem('gem_ember_bolt', 2, 'both'),
-  ]);
-  const shield = withGems(createItem('base_shield', 'magic', 3, seed), [makeGem('gem_ward_barrier', 2, 'both'), null, null]);
-  const chest = withGems(createItem('base_chest', 'rare', 3, seed), [
-    makeGem('gem_storm_bolt', 2, 'bar_1'),
-    makeGem('support_echo', 2, 'both'),
-    makeGem('gem_void_lance', 1, 'bar_2'),
-  ]);
-  const helmet = withGems(createItem('base_cowl', 'magic', 2, seed), [makeGem('support_multistrike', 1, 'both')]);
-  const amulet = withGems(createItem('base_amulet_a', 'magic', 2, seed), [makeGem('gem_frost_shard', 3, 'bar_2')]);
+  const weapon = withGems(createItem('base_sword_1h', 'common', 1, seed), [makeGem('gem_cleave', 1, 'both'), null, null]);
 
   const equipment: Partial<Record<ItemSlot, ItemInstance>> = {
     main_hand: weapon,
-    off_hand: shield,
-    chest,
-    helmet,
-    amulet,
-    gloves: createItem('base_gloves', 'magic', 2, seed),
-    legs: createItem('base_legs', 'common', 2, seed),
-    boots: createItem('base_boots', 'magic', 2, seed),
-    ring_1: createItem('base_ring_ruby', 'magic', 2, seed),
-    ring_2: createItem('base_ring_sapphire', 'common', 2, seed),
-    trinket: createItem('base_trinket_hourglass', 'rare', 4, seed),
+    chest: createItem('base_chest', 'common', 1, seed),
+    boots: createItem('base_boots', 'common', 1, seed),
   };
-
-  const inventory: ItemInstance[] = [
-    createItem('base_axe_2h', 'rare', 6, `${seed}-inv-1`),
-    createItem('base_bow', 'magic', 4, `${seed}-inv-2`),
-    createItem('base_staff', 'magic', 5, `${seed}-inv-3`),
-    createItem('base_helm', 'rare', 5, `${seed}-inv-4`),
-    createItem('base_focus_orb', 'magic', 4, `${seed}-inv-5`),
-    createItem('base_trinket_waning', 'mythic', 8, `${seed}-inv-6`),
-    createItem('base_dagger', 'magic', 5, `${seed}-inv-7`),
-    createItem('base_ring_ruby', 'rare', 6, `${seed}-inv-8`),
-  ];
 
   return {
     version: SAVE_VERSION,
     createdAt: now,
     lastSeen: now,
-    level: 3,
-    xp: 40,
-    gold: 128,
+    level: 1,
+    xp: 0,
+    gold: 0,
     keys: 0,
-    materials: { mat_scrap: 42, mat_flux: 16, mat_thread: 10, mat_essence: 3, gem_dust: 0 },
+    materials: { mat_scrap: 0, mat_flux: 0, mat_thread: 0, mat_essence: 0, gem_dust: 0 },
     doctrine: 'tactician',
     activeBar: 'bar_1',
-    packSize: 3,
+    packSize: 2,
     zoneId: 'zone_ashen_graveyard',
     tier: 1,
     equipment,
-    inventory,
-    gemStash: [
-      makeGem('support_life_leech', 2),
-      makeGem('support_pierce', 1),
-      makeGem('support_executioner', 3),
-      makeGem('support_concussive', 1),
-      makeGem('gem_bloodlust_aura', 1),
-      makeGem('support_cast_on_crit', 1),
-      makeGem('gem_plague_skull', 1),
-    ],
-    allocated: ['hub_0', 'sec_might', 'p_might_0_entry', 'p_might_0_notable', 'sec_agility', 'p_agility_1_entry'],
+    inventory: [],
+    gemStash: [],
+    allocated: ['hub_0'],
+    skillSlots: 1,
+    unlockedSystems: [],
+    grantedProgression: [],
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
     settings: { reducedMotion: false, logCombat: true },
   };
@@ -174,10 +138,13 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   if (!Array.isArray(merged.inventory)) merged.inventory = [];
   if (!Array.isArray(merged.gemStash)) merged.gemStash = [];
   if (!Array.isArray(merged.allocated) || !merged.allocated.includes('hub_0')) merged.allocated = ['hub_0'];
+  if (!Array.isArray(merged.unlockedSystems)) merged.unlockedSystems = [];
+  if (!Array.isArray(merged.grantedProgression)) merged.grantedProgression = [];
+  merged.skillSlots = Math.max(1, Math.floor(Number(merged.skillSlots) || 1));
   if (!merged.equipment || typeof merged.equipment !== 'object') merged.equipment = {};
   if (!merged.inventory.every((item) => itemBaseById.has(item.baseId))) merged.inventory = [];
   merged.tier = Math.max(1, Math.min(10, Math.round(merged.tier) || 1));
-  merged.packSize = (Math.max(1, Math.min(5, Math.round(merged.packSize) || 3)) as CharacterSave['packSize']);
+  merged.packSize = (Math.max(1, Math.min(5, Math.round(merged.packSize) || 2)) as CharacterSave['packSize']);
   return merged;
 }
 
@@ -218,23 +185,48 @@ export function computeOffline(save: CharacterSave, now = Date.now()): OfflineSu
   return summary;
 }
 
-export function claimOffline(save: CharacterSave, summary: OfflineSummary): void {
+export function evaluateProgression(save: CharacterSave, event?: 'first_death'): ProgressionEntry[] {
+  const granted: ProgressionEntry[] = [];
+  for (const entry of progression) {
+    if (save.grantedProgression.includes(entry.id)) continue;
+    const matched =
+      'level' in entry.trigger
+        ? save.level >= entry.trigger.level
+        : event === entry.trigger.event;
+    if (!matched) continue;
+    save.grantedProgression.push(entry.id);
+    if (entry.grants.skillSlot) {
+      save.skillSlots += entry.grants.skillSlot;
+    }
+    if (entry.grants.gem) {
+      save.gemStash.push(makeGem(entry.grants.gem, 1));
+    }
+    for (const system of entry.grants.unlockedSystems ?? []) {
+      if (!save.unlockedSystems.includes(system)) save.unlockedSystems.push(system);
+    }
+    granted.push(entry);
+  }
+  return granted;
+}
+
+export function claimOffline(save: CharacterSave, summary: OfflineSummary): ProgressionEntry[] {
   save.gold += summary.gold;
   save.lifetime.gold += summary.gold;
   save.keys += summary.keys;
   save.lifetime.kills += summary.kills;
-  applyXp(save, summary.xp);
+  return applyXp(save, summary.xp);
 }
 
-export function applyXp(save: CharacterSave, amount: number): void {
+export function applyXp(save: CharacterSave, amount: number): ProgressionEntry[] {
   save.xp += Math.max(0, Math.round(amount));
   while (save.xp >= xpNeeded(save.level) && save.level < 50) {
     save.xp -= xpNeeded(save.level);
     save.level += 1;
   }
+  return evaluateProgression(save);
 }
 
-export function applyCombatRewards(save: CharacterSave, rewards: CombatRewards): void {
+export function applyCombatRewards(save: CharacterSave, rewards: CombatRewards): ProgressionEntry[] {
   save.gold += rewards.gold;
   save.keys += rewards.keys;
   save.lifetime.kills += rewards.kills;
@@ -243,7 +235,11 @@ export function applyCombatRewards(save: CharacterSave, rewards: CombatRewards):
   save.lifetime.deaths += rewards.deaths;
   save.lifetime.damage += Math.round(rewards.damage);
   save.lifetime.gold += rewards.gold;
-  applyXp(save, rewards.xp);
+  const unlocked = applyXp(save, rewards.xp);
+  if (rewards.deaths > 0) {
+    unlocked.push(...evaluateProgression(save, 'first_death'));
+  }
+  return unlocked;
 }
 
 export function totalPoints(save: CharacterSave): number {

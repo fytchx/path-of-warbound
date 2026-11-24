@@ -22,7 +22,7 @@
 > **Maintainer Note:** Update the fields below whenever advancing phases or versions. AI assistants must treat this block as the single source of truth for what to build right now.
 
 * **ACTIVE VERSION:** `v0.1 — Core Playable Slice`
-* **CURRENT PHASE:** `Phase 1 — Headless Math Engine, Tree Graph & Combat Simulator`
+* **CURRENT PHASE:** `v0.1 Onboarding Slice: progressive skill unlocks`
 * **PRIMARY INSTRUCTION FILE:** `docs/ACTIVE_INSTRUCTIONS.md`
 * **REFERENCE SPECS:** `docs/GAME_DESIGN_BIBLE.md` | `docs/DATA_SCHEMAS.md`
 

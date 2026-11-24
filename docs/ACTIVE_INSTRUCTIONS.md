@@ -1,7 +1,7 @@
-# ACTIVE DEVELOPMENT INSTRUCTIONS — `v0.1` PHASE 1
+# ACTIVE DEVELOPMENT INSTRUCTIONS — `v0.1` Onboarding Slice: progressive skill unlocks
 
-> **Current Focus:** Build and verify the **100% Headless Math, Skill Tree, and Combat Simulation Engine** (`src/engine/`, `src/data/`, `src/sim/`, `tests/`).
-> **Strict Rule:** Do **NOT** create UI components, HTML/CSS layouts, or backend networking code during Phase 1.
+> **Current Phase:** `v0.1 Onboarding Slice: progressive skill unlocks`
+> **Current Focus:** Implement data-driven progressive skill & system unlocks across `src/data/`, `src/game/`, `src/engine/`, `src/ui/`, and `tests/`. Engine code in `src/engine/` remains 100% pure headless TypeScript; UI updates for the onboarding slice are permitted in `src/ui/`.
 
 ---
 

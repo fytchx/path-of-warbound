@@ -148,6 +148,22 @@ export interface SkillTree {
   edges: [string, string][];
 }
 
+export type UnlockableSystem = 'altar' | 'tree' | 'forge' | 'bar_2';
+
+export type ProgressionTrigger = { level: number } | { event: 'first_death' };
+
+export interface ProgressionGrants {
+  skillSlot?: number;
+  gem?: string;
+  unlockedSystems?: UnlockableSystem[];
+}
+
+export interface ProgressionEntry {
+  id: string;
+  trigger: ProgressionTrigger;
+  grants: ProgressionGrants;
+}
+
 export interface Registries {
   stats: StatRegistry;
   items: ItemBase[];
@@ -157,4 +173,5 @@ export interface Registries {
   zones: ZoneDef[];
   doctrines: DoctrineDef[];
   tree: SkillTree;
+  progression: ProgressionEntry[];
 }

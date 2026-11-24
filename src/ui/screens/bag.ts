@@ -59,6 +59,7 @@ export function bagScreen(store: GameStore): string {
     </div>`,
   ).join('');
 
+  const barTwoUnlocked = store.isSystemUnlocked('bar_2');
   const gems = store.save.gemStash.length
     ? `<div class="gem-list">${store.save.gemStash
         .map((gem, index) => {
@@ -68,9 +69,9 @@ export function bagScreen(store: GameStore): string {
             ${assetImg(def.assetId, def.name)}
             <div>
               <div class="gem-name">${escapeHtml(def.name)} <span class="muted tiny">Lv ${gem.level}</span></div>
-              <div class="gem-meta">${escapeHtml(def.kind)} · ${gem.xp} XP · ${gemBarLabel(gem.bar)}</div>
+              <div class="gem-meta">${escapeHtml(def.kind)} · ${gem.xp} XP${barTwoUnlocked ? ` · ${gemBarLabel(gem.bar)}` : ''}</div>
             </div>
-            <button class="gbtn sm" data-action="gem-bar" data-index="${index}">${gemBarLabel(gem.bar)}</button>
+            ${barTwoUnlocked ? `<button class="gbtn sm" data-action="gem-bar" data-index="${index}">${gemBarLabel(gem.bar)}</button>` : ''}
           </div>`;
         })
         .join('')}</div>`
@@ -99,7 +100,7 @@ export function bagScreen(store: GameStore): string {
     </div>
 
     <div class="frame pan">
-      <h4>Gem Pouch<span>${store.save.gemStash.length} held · tap to swap bar</span></h4>
+      <h4>Gem Pouch<span>${store.save.gemStash.length} held${barTwoUnlocked ? ' · tap to swap bar' : ''}</span></h4>
       ${gems}
     </div>
   </section>`;

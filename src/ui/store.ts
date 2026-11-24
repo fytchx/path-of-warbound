@@ -1,5 +1,5 @@
-import type { DoctrineId, ItemSlot } from '../data/types';
-import { itemBaseById, monsterById, skillTree } from '../data';
+import type { DoctrineId, ItemSlot, ProgressionEntry, UnlockableSystem } from '../data/types';
+import { gemById, itemBaseById, monsterById, skillTree } from '../data';
 import {
   buildTreeGraph,
   canAllocate,
@@ -22,6 +22,7 @@ import {
   claimOffline,
   createInitialSave,
   equipItem,
+  evaluateProgression,
   loadSave,
   persistSave,
   refundNode,
@@ -50,11 +51,18 @@ export interface TreeView {
   scale: number;
 }
 
+export interface UnlockNotice {
+  id: number;
+  title: string;
+  detail: string;
+}
+
 export interface UIState {
   screen: ScreenId;
   modal: ModalState | null;
   paused: boolean;
   toast: { id: number; text: string } | null;
+  unlockNotice: UnlockNotice | null;
   previewNode: string | null;
   previewPath: string[];
   refundMode: boolean;
@@ -71,6 +79,14 @@ export interface ItemLocation {
 
 const treeGraph = buildTreeGraph(skillTree);
 let toastId = 0;
+let unlockNoticeId = 0;
+
+const SYSTEM_LABEL: Record<UnlockableSystem, string> = {
+  altar: 'Altar',
+  tree: 'Tree',
+  forge: 'Forge',
+  bar_2: 'Bar II',
+};
 
 export class GameStore {
   save: CharacterSave;
@@ -95,6 +111,7 @@ export class GameStore {
       modal: offline ? { kind: 'offline' } : null,
       paused: false,
       toast: null,
+      unlockNotice: null,
       previewNode: null,
       previewPath: [],
       refundMode: false,
@@ -151,6 +168,42 @@ export class GameStore {
     }, 600);
   }
 
+  isSystemUnlocked(system: ScreenId | UnlockableSystem): boolean {
+    if (system === 'combat' || system === 'bag') return true;
+    return this.save.unlockedSystems.includes(system);
+  }
+
+  private announceUnlocks(entries: ProgressionEntry[]): void {
+    if (!entries.length) return;
+    const parts: string[] = [];
+    for (const entry of entries) {
+      const bits: string[] = [];
+      if (entry.grants.gem) {
+        const gemName = gemById.get(entry.grants.gem)?.name ?? entry.grants.gem;
+        bits.push(`${gemName} added to Gem Pouch`);
+      }
+      if (entry.grants.skillSlot) {
+        bits.push(`+${entry.grants.skillSlot} Skill Slot`);
+      }
+      for (const sys of entry.grants.unlockedSystems ?? []) {
+        bits.push(`${SYSTEM_LABEL[sys]} unlocked`);
+      }
+      if (bits.length) parts.push(bits.join(' · '));
+    }
+    unlockNoticeId += 1;
+    this.ui.unlockNotice = {
+      id: unlockNoticeId,
+      title: 'New skill unlocked',
+      detail: parts.join(' | '),
+    };
+  }
+
+  dismissUnlockNotice(): void {
+    if (!this.ui.unlockNotice) return;
+    this.ui.unlockNotice = null;
+    this.notify();
+  }
+
   private syncCombat(): void {
     const rewards = this.combat.rewards;
     const delta: CombatRewards = {
@@ -163,15 +216,21 @@ export class GameStore {
       keys: rewards.keys - this.appliedRewards.keys,
       damage: rewards.damage - this.appliedRewards.damage,
     };
+    const unlocked: ProgressionEntry[] = [];
     if (Object.values(delta).some((value) => value !== 0)) {
-      applyCombatRewards(this.save, delta);
+      unlocked.push(...applyCombatRewards(this.save, delta));
       this.appliedRewards = { ...rewards };
     }
     this.save.keys = this.combat.keys;
     this.save.tier = this.combat.tier;
     if (this.save.level !== this.lastLevel) {
       this.lastLevel = this.save.level;
+      unlocked.push(...evaluateProgression(this.save));
       this.resyncStats();
+    }
+    if (unlocked.length) {
+      this.resyncStats();
+      this.announceUnlocks(unlocked);
     }
     this.schedulePersist();
   }
@@ -188,6 +247,7 @@ export class GameStore {
   }
 
   navigate(screen: ScreenId): void {
+    if (!this.isSystemUnlocked(screen)) return;
     this.ui.screen = screen;
     this.ui.modal = null;
     this.notify();
@@ -236,6 +296,7 @@ export class GameStore {
   }
 
   setBar(bar: 'bar_1' | 'bar_2'): void {
+    if (bar === 'bar_2' && !this.isSystemUnlocked('bar_2')) return;
     this.save.activeBar = bar;
     this.combat.activeBar = bar;
     this.notify();
@@ -446,6 +507,7 @@ export class GameStore {
   }
 
   cycleGemBar(gem: GemInstance): void {
+    if (!this.isSystemUnlocked('bar_2')) return;
     const order: GemInstance['bar'][] = ['bar_1', 'bar_2', 'both'];
     const next = order[(order.indexOf(gem.bar) + 1) % order.length]!;
     assignGemBar(gem, next);
@@ -497,11 +559,13 @@ export class GameStore {
 
   claimOffline(): void {
     if (!this.offline) return;
-    claimOffline(this.save, this.offline);
+    const unlocked = claimOffline(this.save, this.offline);
     this.offline = null;
     this.ui.modal = null;
+    this.lastLevel = this.save.level;
     this.resyncStats();
     this.restartCombat();
+    if (unlocked.length) this.announceUnlocks(unlocked);
     this.schedulePersist();
     this.toast('Offline spoils claimed.');
     this.notify();
@@ -518,7 +582,9 @@ export class GameStore {
     if (this.ui.paused || this.ui.modal?.kind === 'offline') return;
     tickCombat(this.combat);
     tickCombat(this.combat);
-    if (this.combat.tickCount % 5 === 0) this.syncCombat();
+    if (this.combat.tickCount % 5 === 0 || this.combat.rewards.deaths !== this.appliedRewards.deaths) {
+      this.syncCombat();
+    }
     if (this.combat.status === 'victory' && !this.victorySynced) {
       this.victorySynced = true;
       this.syncCombat();

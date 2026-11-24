@@ -5,6 +5,7 @@ import doctrines from '../src/data/doctrines.json';
 import gems from '../src/data/gems.json';
 import items from '../src/data/items.json';
 import monsters from '../src/data/monsters.json';
+import progression from '../src/data/progression.json';
 import tree from '../src/data/skill_tree.json';
 import statRegistry from '../src/data/stat_registry.json';
 import zones from '../src/data/zones.json';
@@ -199,6 +200,47 @@ for (const zone of zones) {
 if (zones.length !== 3) fail(`expected 3 zones, found ${zones.length}`);
 if (doctrines.length !== 5) fail(`expected 5 doctrines, found ${doctrines.length}`);
 
+// 9. Progression: unique ids, valid triggers, valid granted gem ids and system ids.
+const gemIds = new Set(gems.map((g) => g.id));
+const validSystems = new Set(['altar', 'tree', 'forge', 'bar_2']);
+const progressionIds = new Set<string>();
+if (!Array.isArray(progression) || progression.length === 0) {
+  fail('progression: expected at least 1 entry');
+} else {
+  for (const entry of progression as {
+    id?: string;
+    trigger?: { level?: number; event?: string };
+    grants?: { skillSlot?: number; gem?: string; unlockedSystems?: string[] };
+  }[]) {
+    if (!entry.id) {
+      fail('progression: entry missing id');
+      continue;
+    }
+    if (progressionIds.has(entry.id)) fail(`progression: duplicate id "${entry.id}"`);
+    progressionIds.add(entry.id);
+
+    const hasLevel = typeof entry.trigger?.level === 'number';
+    const hasEvent = typeof entry.trigger?.event === 'string';
+    if (hasLevel === hasEvent) {
+      fail(`progression.${entry.id}: trigger must specify either level or event`);
+    } else if (hasLevel && (!Number.isInteger(entry.trigger!.level) || entry.trigger!.level! < 1)) {
+      fail(`progression.${entry.id}: trigger level must be an integer >= 1`);
+    } else if (hasEvent && entry.trigger!.event !== 'first_death') {
+      fail(`progression.${entry.id}: unknown trigger event "${entry.trigger!.event}"`);
+    }
+
+    if (entry.grants?.gem && !gemIds.has(entry.grants.gem)) {
+      fail(`progression.${entry.id}: unknown granted gem "${entry.grants.gem}"`);
+    }
+    if (entry.grants?.skillSlot !== undefined && (!Number.isInteger(entry.grants.skillSlot) || entry.grants.skillSlot <= 0)) {
+      fail(`progression.${entry.id}: skillSlot grant must be a positive integer`);
+    }
+    for (const sys of entry.grants?.unlockedSystems ?? []) {
+      if (!validSystems.has(sys)) fail(`progression.${entry.id}: unknown unlockedSystem "${sys}"`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error(`validate-data: ${failures.length} problem(s)\n`);
   failures.forEach((msg) => console.error(`  - ${msg}`));
@@ -207,5 +249,5 @@ if (failures.length) {
 
 console.log(
   `validate-data: OK — ${manifest.assets.length} assets, ${items.length} bases, ${affixes.length} affixes, ` +
-    `${gems.length} gems, ${monsters.length} monsters, ${zones.length} zones, ${nodes.length} tree nodes, ${edges.length} edges`,
+    `${gems.length} gems, ${monsters.length} monsters, ${zones.length} zones, ${nodes.length} tree nodes, ${edges.length} edges, ${progression.length} progression entries`,
 );

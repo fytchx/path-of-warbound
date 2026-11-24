@@ -57,6 +57,9 @@ export interface CharacterSave {
   inventory: ItemInstance[];
   gemStash: GemInstance[];
   allocated: string[];
+  skillSlots: number;
+  unlockedSystems: string[];
+  grantedProgression: string[];
   lifetime: LifetimeStats;
   settings: { reducedMotion: boolean; logCombat: boolean };
 }
