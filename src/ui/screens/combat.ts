@@ -4,8 +4,136 @@ import type { School } from '../../data/types';
 import { recentDps } from '../../engine/combatEngine';
 import type { GameStore } from '../store';
 import { ailmentIcon, assetImg, clamp, escapeHtml, fmt, pct, schoolColor, sprite } from '../dom';
+import { setSfxAttackSpeed } from '../sfxPlayer';
 
 const SCHOOLS: School[] = ['physical', 'fire', 'frost', 'lightning', 'void'];
+
+interface DropLogNote {
+  uid: string;
+  t: number;
+  rarity: 'rare' | 'mythic';
+  text: string;
+}
+
+interface CombatUiTracker {
+  initialized: boolean;
+  saveRef: GameStore['save'];
+  lastTime: number;
+  lastKeys: number;
+  lastKeyRewards: number;
+  lastBossActive: boolean;
+  wasCasting: boolean;
+  lastHitSeq: number;
+  seenInventoryUids: Set<string>;
+  lootPulseUntil: number;
+  recentDrops: DropLogNote[];
+}
+
+const trackers = new WeakMap<GameStore, CombatUiTracker>();
+
+function emitUiSfx(key: string): void {
+  if (typeof window === 'undefined' || typeof CustomEvent === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('warbound:sfx', { detail: { key, at: Date.now() } }));
+}
+
+function syncCombatUiTracker(store: GameStore): CombatUiTracker {
+  const combat = store.combat;
+  const nowMs = Date.now();
+  const aps = store.stats.weapon.attacksPerSecond * store.stats.attackSpeedMultiplier;
+  setSfxAttackSpeed(aps);
+
+  let tracker = trackers.get(store);
+  if (!tracker || tracker.saveRef !== store.save) {
+    tracker = {
+      initialized: false,
+      saveRef: store.save,
+      lastTime: combat.time,
+      lastKeys: combat.keys,
+      lastKeyRewards: combat.rewards.keys,
+      lastBossActive: combat.bossActive,
+      wasCasting: Boolean(combat.player.cast),
+      lastHitSeq: combat.hitSeq,
+      seenInventoryUids: new Set(store.save.inventory.map((item) => item.uid)),
+      lootPulseUntil: 0,
+      recentDrops: [],
+    };
+    trackers.set(store, tracker);
+  }
+
+  if (!tracker.initialized) {
+    tracker.initialized = true;
+    tracker.lastTime = combat.time;
+    tracker.lastKeys = combat.keys;
+    tracker.lastKeyRewards = combat.rewards.keys;
+    tracker.lastBossActive = combat.bossActive;
+    tracker.wasCasting = Boolean(combat.player.cast);
+    tracker.lastHitSeq = combat.hitSeq;
+    return tracker;
+  }
+
+  if (combat.time < tracker.lastTime) {
+    tracker.lastTime = combat.time;
+    tracker.lastKeys = combat.keys;
+    tracker.lastKeyRewards = combat.rewards.keys;
+    tracker.lastBossActive = combat.bossActive;
+    tracker.wasCasting = Boolean(combat.player.cast);
+    tracker.lastHitSeq = combat.hitSeq;
+    tracker.recentDrops = [];
+  }
+
+  if (combat.rewards.keys > tracker.lastKeyRewards || combat.keys > tracker.lastKeys) {
+    emitUiSfx('key_drop');
+    tracker.lootPulseUntil = Math.max(tracker.lootPulseUntil, nowMs + 3400);
+  }
+
+  for (const item of store.save.inventory) {
+    if (tracker.seenInventoryUids.has(item.uid)) continue;
+    tracker.seenInventoryUids.add(item.uid);
+    if (item.rarity === 'rare' || item.rarity === 'mythic') {
+      emitUiSfx('rare_drop');
+      tracker.lootPulseUntil = Math.max(tracker.lootPulseUntil, nowMs + 3600);
+      const label = item.rarity === 'mythic' ? '★ MYTHIC' : '◆ RARE';
+      tracker.recentDrops.unshift({
+        uid: item.uid,
+        t: Math.round(combat.time * 10) / 10,
+        rarity: item.rarity,
+        text: `${label} drop: ${store.itemBaseName(item)}`,
+      });
+      if (tracker.recentDrops.length > 6) tracker.recentDrops.length = 6;
+    }
+  }
+
+  if (!tracker.lastBossActive && combat.bossActive) {
+    emitUiSfx('boss_summon');
+    tracker.lootPulseUntil = Math.max(tracker.lootPulseUntil, nowMs + 2800);
+  }
+
+  if (tracker.wasCasting && !combat.player.cast && combat.status === 'running') {
+    emitUiSfx('cast_release');
+  }
+
+  if (combat.hitSeq > tracker.lastHitSeq) {
+    for (const hit of combat.recentHits) {
+      if (hit.id <= tracker.lastHitSeq || !hit.crit) continue;
+      const isSpellCrit = combat.fx.some(
+        (fx) => fx.crit && fx.amount === hit.amount && fx.sfxKey !== 'melee_crit',
+      );
+      if (isSpellCrit) {
+        emitUiSfx('spell_crit');
+        break;
+      }
+    }
+  }
+
+  tracker.lastTime = combat.time;
+  tracker.lastKeys = combat.keys;
+  tracker.lastKeyRewards = combat.rewards.keys;
+  tracker.lastBossActive = combat.bossActive;
+  tracker.wasCasting = Boolean(combat.player.cast);
+  tracker.lastHitSeq = combat.hitSeq;
+
+  return tracker;
+}
 
 function zoneShort(name: string): string {
   return name.replace('Ashen ', '').replace('Frozen ', '').replace('Ember ', '');
@@ -119,7 +247,7 @@ export function enemyCardMarkup(store: GameStore): string {
       const atkPct = clamp((1 - enemy.attackTimer / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
       const wardPct = (enemy.maxWard ?? 0) > 0 ? clamp(((enemy.ward ?? 0) / (enemy.maxWard ?? 1)) * 100, 0, 100) : 0;
       const phaseLabel = enemy.boss ? `PHASE ${(enemy.phaseIndex ?? 0) + 1}` : '';
-      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''} ${enemy.boss ? 'boss' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
+      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''} ${enemy.boss ? 'boss' : ''} ${slamming ? 'telegraphing' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
         <div class="oval ${slamming ? 'slam-telegraph' : ''}" style="--c:${schoolColor(enemy.school)}">
           ${def ? assetImg(def.assetId, enemy.name) : escapeHtml(enemy.name.slice(0, 1))}
           ${sprite('w-oval', 'oval-frame', '0 0 80 104')}
@@ -136,7 +264,7 @@ export function enemyCardMarkup(store: GameStore): string {
           ${enemy.boss ? `<span class="phase-chip">${phaseLabel}</span>` : ''}
         </div>
         ${slamming
-          ? `<div class="mob-warn" role="status">⚠ ${escapeHtml((enemy.slamName ?? 'HEAVY STRIKE').toUpperCase())} — ${telegraph.toFixed(1)}s</div>`
+          ? `<div class="mob-warn" role="status">⚠ ${escapeHtml((enemy.slamName ?? 'HEAVY ATTACK').toUpperCase())} — ${telegraph.toFixed(1)}s</div>`
           : ''}
         <div class="ail" data-mob-ail>${renderEnemyAilments(enemy)}</div>
         <div class="hpbar"><b data-mob-hp style="width:${pct(enemy.hp, enemy.maxHp)}"></b></div>
@@ -148,6 +276,21 @@ export function enemyCardMarkup(store: GameStore): string {
     .join('');
 }
 
+function soundIconSvg(soundOn: boolean): string {
+  if (soundOn) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 5L6 9H3v6h3l5 4V5z"/>
+      <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+      <path d="M18.5 6a8.5 8.5 0 0 1 0 12"/>
+    </svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M11 5L6 9H3v6h3l5 4V5z"/>
+    <path d="M21 9l-6 6"/>
+    <path d="M15 9l6 6"/>
+  </svg>`;
+}
+
 function arena(store: GameStore): string {
   const combat = store.combat;
   const player = combat.player;
@@ -157,12 +300,16 @@ function arena(store: GameStore): string {
   const keyPulse = Date.now() - store.ui.keyPulseAt < 1800;
   const canSummonBoss = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
   const wardPct = stats.maxWard > 0 ? clamp((player.ward / stats.maxWard) * 100, 0, 100) : 0;
+  const soundOn = store.save.settings.sound !== false;
 
   return `<div class="frame arena ${combat.bossActive ? 'boss-mode' : ''}">
     ${assetImg(zone.assetId, zone.name, 'arena-bg')}
     <div class="arena-shade" aria-hidden="true"></div>
     <div class="arena-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="banner" data-arena-banner>${escapeHtml(zone.name)} · TIER ${combat.tier}</div>
+    <button class="arena-sound ${soundOn ? 'on' : 'muted'}" data-action="toggle-sound" aria-label="${soundOn ? 'Mute combat sound' : 'Unmute combat sound'}" title="${soundOn ? 'Sound On — tap to mute' : 'Sound Muted — tap to unmute'}">
+      ${soundIconSvg(soundOn)}
+    </button>
     <div class="badges" data-arena-badges>
       <span data-badge-status>${status}</span>
       <span>PACK <b data-badge-pack>${combat.enemies.filter((enemy) => enemy.hp > 0).length}/${combat.packSize}</b></span>
@@ -304,10 +451,31 @@ function telemetryStrip(store: GameStore): string {
   </div>`;
 }
 
-function logPanel(store: GameStore): string {
+function isGoldLootLog(kind: string, text: string): boolean {
+  if (kind === 'key' || kind === 'rare-drop') return true;
+  if (kind === 'boss' && (text.includes('falls') || text.includes('Cache'))) return true;
+  return /Rift Key|MYTHIC|RARE|Boss Cache/i.test(text);
+}
+
+function logPanel(store: GameStore, tracker: CombatUiTracker): string {
   const filter = store.ui.logFilter;
-  const lootKinds = new Set(['key', 'kill', 'boss']);
-  const entries = store.combat.log
+  const lootKinds = new Set(['key', 'kill', 'boss', 'rare-drop']);
+  const combined = [
+    ...tracker.recentDrops.map((drop) => ({
+      t: drop.t,
+      kind: 'rare-drop' as const,
+      rarity: drop.rarity,
+      text: drop.text,
+    })),
+    ...store.combat.log.map((entry) => ({
+      t: entry.t,
+      kind: entry.kind,
+      rarity: undefined as 'rare' | 'mythic' | undefined,
+      text: entry.text,
+    })),
+  ].sort((a, b) => b.t - a.t);
+
+  const entries = combined
     .filter((entry) => filter === 'all' || (filter === 'loot' ? lootKinds.has(entry.kind) : !lootKinds.has(entry.kind)))
     .slice(0, 8);
   const tabs: { id: 'all' | 'loot' | 'combat'; label: string }[] = [
@@ -316,13 +484,19 @@ function logPanel(store: GameStore): string {
     { id: 'combat', label: 'COMBAT' },
   ];
   return `<div class="frame pan">
-    <h4>War Log<span>${store.combat.log.length}</span></h4>
+    <h4>War Log<span>${combined.length}</span></h4>
     <div class="log-tabs" role="tablist">${tabs
       .map((tab) => `<button role="tab" aria-selected="${filter === tab.id}" class="${filter === tab.id ? 'active' : ''}" data-action="log-filter" data-filter="${tab.id}">${tab.label}</button>`)
       .join('')}</div>
     <div class="log">${entries.length
       ? entries
-          .map((entry) => `<div><span class="muted">[${entry.t.toFixed(0)}]</span> ${escapeHtml(entry.text)}</div>`)
+          .map((entry) => {
+            const isLoot = isGoldLootLog(entry.kind, entry.text);
+            const cls = isLoot
+              ? `log-entry log-loot${entry.rarity === 'mythic' ? ' log-mythic' : ''}`
+              : 'log-entry';
+            return `<div class="${cls}"><span class="muted">[${entry.t.toFixed(0)}]</span> ${escapeHtml(entry.text)}</div>`;
+          })
           .join('')
       : '<div class="muted">Nothing in this channel yet.</div>'}</div>
   </div>`;
@@ -347,6 +521,12 @@ function spoilsPanel(store: GameStore): string {
 export function combatDashboardMarkup(store: GameStore): string {
   const combat = store.combat;
   const tab = store.ui.combatTab;
+  const tracker = syncCombatUiTracker(store);
+  const nowMs = Date.now();
+  const lootPulse =
+    tracker.lootPulseUntil > nowMs ||
+    nowMs - store.ui.keyPulseAt < 2500;
+  const logCount = combat.log.length + tracker.recentDrops.length;
 
   const statusCard = combat.status === 'victory'
     ? `<div class="frame pan" style="text-align:center">
@@ -364,7 +544,7 @@ export function combatDashboardMarkup(store: GameStore): string {
   const tabBar = `<div class="subtabs" role="tablist" aria-label="Combat details">
     <button role="tab" aria-selected="${tab === 'overview'}" class="subtab ${tab === 'overview' ? 'on' : ''}" data-action="combat-tab" data-tab="overview">Overview</button>
     <button role="tab" aria-selected="${tab === 'breakdown'}" class="subtab ${tab === 'breakdown' ? 'on' : ''}" data-action="combat-tab" data-tab="breakdown">Breakdown</button>
-    <button role="tab" aria-selected="${tab === 'log'}" class="subtab ${tab === 'log' ? 'on' : ''}" data-action="combat-tab" data-tab="log">War Log (${combat.log.length})</button>
+    <button role="tab" aria-selected="${tab === 'log'}" class="subtab ${tab === 'log' ? 'on' : ''} ${lootPulse ? 'loot-pulse' : ''}" data-action="combat-tab" data-tab="log">War Log (${logCount})${lootPulse ? '<span class="log-pip" aria-hidden="true"></span>' : ''}</button>
   </div>`;
 
   let body = '';
@@ -379,7 +559,7 @@ export function combatDashboardMarkup(store: GameStore): string {
       ${ratePills(store)}`;
   } else {
     body = store.save.settings.logCombat
-      ? logPanel(store)
+      ? logPanel(store, tracker)
       : `<div class="frame pan"><div class="tiny muted">Combat logging is turned off in Options.</div></div>`;
   }
 
