@@ -1,4 +1,6 @@
-# PATH OF WARBOUND — GAME DESIGN BIBLE (`v0.1`)
+# PATH OF WARBOUND — GAME DESIGN BIBLE (`v0.1`, historical)
+
+> **Superseded for architecture and current values by `docs/MASTER_DIRECTIVE.md`.** This file is kept for lore, tone and long-form design intent. Where they differ (zone names, node counts, materials, rotation), the directive wins.
 
 > **Document Purpose:** Complete mechanical, mathematical, and UX specification for *Path of Warbound*. Any code written in `src/engine/` or `src/data/` must match the formulas and rules defined below.
 
