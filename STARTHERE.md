@@ -22,11 +22,11 @@ Verified at the Phase 2 checkpoint (2026-11-25):
 | Tree graph | `src/engine/treeGraph.ts` | BFS pathing, allocation, articulation-safe refunds |
 | Combat loop | `src/engine/combatEngine.ts` | `100ms` ticks, utility AI, ailments, keys, boss, death |
 | Determinism | `src/engine/rng.ts` | Seeded mulberry32 |
-| Data registries | `src/data/*.json` | 154 assets, 25 bases, 30 affixes, 18 gems, 12 monsters, 3 zones, 91 tree nodes, 106 edges |
+| Data registries | `src/data/*.json` | 154 assets, 27 bases, 30 affixes, 21 gems, 12 monsters, 3 zones, 91 tree nodes, 106 edges |
 | Save + offline | `src/game/state.ts` | Local save, 8 h offline cap |
 | UI | `src/ui/` + `src/styles/app.css` | 5 tabs: Combat, Altar, Tree, Bag, Forge |
 | Simulator | `src/sim/runSim.ts` | 4 builds × Tier 1/3 × 10,000 ticks |
-| Tests | `tests/` | 6 files, 55 tests |
+| Tests | `tests/` | 6 files, 67 tests |
 
 ## 3. Architectural guardrails
 

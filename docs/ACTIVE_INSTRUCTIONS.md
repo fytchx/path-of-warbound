@@ -22,11 +22,11 @@ Detailed acceptance criteria: `docs/MASTER_DIRECTIVE.md` §7.
 | Stat pipeline | `src/engine/stats.ts` | Base → Flat → Increased → More → two-pass conversions |
 | Tree graph | `src/engine/treeGraph.ts` | BFS pathing, allocation, Tarjan-style refund safety |
 | Combat loop | `src/engine/combatEngine.ts` | `100ms` ticks, utility scoring, ailments, keys, boss, death |
-| Data registries | `src/data/*.json` | 154 assets, 25 bases, 30 affixes, 18 gems, 12 monsters, 3 zones, 91 nodes, 106 edges |
+| Data registries | `src/data/*.json` | 154 assets, 27 bases, 30 affixes, 21 gems, 12 monsters, 3 zones, 91 nodes, 106 edges |
 | UI | `src/ui/` | 5 tabs, portrait frame, modals, toasts |
 | Saves | `src/game/state.ts` | Versioned local save, 8 h offline cap |
 | Simulator | `src/sim/runSim.ts` | 4 builds × Tier 1/3 × 10,000 ticks |
-| Tests | `tests/` | 6 files, 55 tests at checkpoint |
+| Tests | `tests/` | 6 files, 67 tests |
 
 Frozen reference HTML lives in `docs/reference/`. `warbound-sprite.svg` stays at the repository root because `vite.config.ts` inlines it into `index.html`.
 
