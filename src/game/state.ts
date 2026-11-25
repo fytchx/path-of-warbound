@@ -1,4 +1,4 @@
-import { affixById, gems, itemBaseById, itemBases, progression, skillTree } from '../data';
+import { affixById, gemById, gems, itemBaseById, itemBases, progression, skillTree } from '../data';
 import type { DoctrineId, ItemSlot, ProgressionEntry, Rarity, UnlockableSystem } from '../data/types';
 import { buildTreeGraph, canAllocate, getArticulationPoints, strandedAfterRemoval } from '../engine/treeGraph';
 import type { CombatRewards } from '../engine/combatEngine';
@@ -113,15 +113,6 @@ export function makeGem(gemId: string, level = 1, bar: GemInstance['bar'] = 'bot
 }
 
 export function createInitialSave(now = Date.now()): CharacterSave {
-  const seed = 'warbound-starter';
-  const starterSword = createItem('base_sword_1h', 'common', 1, seed);
-  starterSword.sockets = [makeGem('gem_cleave', 1, 'both')];
-  starterSword.linkedSockets = 1;
-
-  const equipment: Partial<Record<ItemSlot, ItemInstance>> = {
-    main_hand: starterSword,
-  };
-
   return {
     version: SAVE_VERSION,
     createdAt: now,
@@ -136,7 +127,7 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     packSize: 1,
     zoneId: 'zone_ashen_graveyard',
     tier: 1,
-    equipment,
+    equipment: {},
     inventory: [],
     gemStash: [],
     allocated: ['hub_0'],
@@ -145,11 +136,57 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     grantedProgression: [],
     onboardingStep: 6,
     starterKillsClaimed: 0,
+    starterArchetype: null,
+    awakened: false,
+    milestones: { packSeconds: 0, sawLowHp: false, forgeUpgrades: 0 },
+    rotation: { mode: 'auto', order: [] },
     autoAdvanceBoss: false,
     autoSalvage: false,
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
     settings: { reducedMotion: false, logCombat: true, guideSkipped: true },
   };
+}
+
+export type StarterChoice = 'melee' | 'spell' | 'dot';
+
+export const STARTERS: Record<
+  StarterChoice,
+  { name: string; baseId: string; gemId: string; attribute: string; blurb: string }
+> = {
+  melee: {
+    name: 'Melee',
+    baseId: 'base_sword_starter',
+    gemId: 'gem_crossed_slash',
+    attribute: 'Might',
+    blurb: 'Instant single-target slash. Steel first, questions never.',
+  },
+  spell: {
+    name: 'Spell',
+    baseId: 'base_staff_starter',
+    gemId: 'gem_grave_bolt',
+    attribute: 'Wisdom',
+    blurb: 'A 1.5s timed cast that hits like a falling roof.',
+  },
+  dot: {
+    name: 'DoT',
+    baseId: 'base_dagger_starter',
+    gemId: 'gem_venom_dagger',
+    attribute: 'Agility',
+    blurb: 'Fast stabs with a 25% chance to stack Corruption.',
+  },
+};
+
+/** Grants the chosen starter weapon and its socketed gem. Never locks the player in. */
+export function applyStarterChoice(save: CharacterSave, choice: StarterChoice): ItemInstance {
+  const starter = STARTERS[choice];
+  const weapon = createItem(starter.baseId, 'common', 1, `starter-${choice}`);
+  weapon.sockets = [makeGem(starter.gemId, 1, 'both')];
+  weapon.linkedSockets = 1;
+  weapon.dropped = false;
+  save.equipment.main_hand = weapon;
+  save.starterArchetype = choice;
+  save.awakened = true;
+  return weapon;
 }
 
 export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
@@ -172,7 +209,20 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   merged.skillSlots = Math.max(6, Math.floor(Number(merged.skillSlots) || 6));
   merged.onboardingStep = 6 as OnboardingStep;
   merged.starterKillsClaimed = Math.max(0, Math.floor(Number(merged.starterKillsClaimed) || 0));
-  merged.autoAdvanceBoss = Boolean(candidate.autoAdvanceBoss);
+  merged.starterArchetype =
+    candidate.starterArchetype === 'melee' || candidate.starterArchetype === 'spell' || candidate.starterArchetype === 'dot'
+      ? candidate.starterArchetype
+      : null;
+  merged.awakened = Boolean(candidate.awakened) || Object.keys(merged.equipment ?? {}).length > 0;
+  merged.milestones = { ...fallback.milestones, ...(candidate.milestones ?? {}) };
+  merged.milestones.packSeconds = Math.max(0, Number(merged.milestones.packSeconds) || 0);
+  merged.milestones.forgeUpgrades = Math.max(0, Math.floor(Number(merged.milestones.forgeUpgrades) || 0));
+  merged.milestones.sawLowHp = Boolean(merged.milestones.sawLowHp);
+  merged.rotation = {
+    mode: candidate.rotation?.mode === 'manual' ? 'manual' : 'auto',
+    order: Array.isArray(candidate.rotation?.order) ? [...candidate.rotation.order] : [],
+  };
+  merged.autoAdvanceBoss = false;
   merged.autoSalvage = Boolean(candidate.autoSalvage);
   merged.settings.guideSkipped = true;
   if (!merged.equipment || typeof merged.equipment !== 'object') merged.equipment = {};
@@ -217,7 +267,7 @@ export function computeOffline(save: CharacterSave, now = Date.now()): OfflineSu
     gold: Math.floor(kills * 5.5 * rewardMultiplier),
     xp: Math.floor(kills * (save.tier === 1 ? 22 : 48) * rewardMultiplier),
     kills,
-    keys: Math.floor(kills * 0.12),
+    keys: dropStage(save) >= 5 ? Math.floor(kills * 0.12) : 0,
   };
 }
 
@@ -261,6 +311,71 @@ function playerOwnsGem(save: CharacterSave, gemId: string): boolean {
  * - ~10% Gear (~12–15% combined Gear/Gem)
  * - ~4% Gem (duplicate gems salvage into +15 Gem Dust)
  */
+export type DropStage = 1 | 2 | 3 | 4 | 5;
+
+export function hasDroppedGearEquipped(save: CharacterSave): boolean {
+  return Object.values(save.equipment).some((item) => Boolean(item?.dropped));
+}
+
+export function hasSupportLinked(save: CharacterSave): boolean {
+  return Object.values(save.equipment).some(
+    (item) =>
+      Boolean(item) &&
+      (item?.linkedSockets ?? 0) >= 2 &&
+      (item?.sockets ?? []).some((gem) => gem && gemById.get(gem.gemId)?.kind === 'support'),
+  );
+}
+
+export function dropStage(save: CharacterSave): DropStage {
+  if (
+    save.level >= 3 &&
+    hasSupportLinked(save) &&
+    save.milestones.forgeUpgrades >= 1
+  ) {
+    return 5;
+  }
+  if (save.milestones.sawLowHp) return 4;
+  if (save.milestones.packSeconds >= 30) return 3;
+  if (save.lifetime.kills >= 5 && hasDroppedGearEquipped(save)) return 2;
+  return 1;
+}
+
+function weightedPick<T>(rng: () => number, list: T[], weight: (entry: T) => number): T {
+  const total = list.reduce((sum, entry) => sum + Math.max(0.0001, weight(entry)), 0);
+  let roll = rng() * total;
+  for (const entry of list) {
+    roll -= Math.max(0.0001, weight(entry));
+    if (roll <= 0) return entry;
+  }
+  return list[list.length - 1]!;
+}
+
+function starterBias(save: CharacterSave, baseId: string): number {
+  if (!save.starterArchetype) return 1;
+  const base = itemBaseById.get(baseId);
+  if (!base) return 1;
+  const tags = base.slotTags;
+  const match =
+    save.starterArchetype === 'melee'
+      ? tags.some((tag) => tag === 'sword' || tag === 'mace' || tag === 'axe')
+      : save.starterArchetype === 'spell'
+        ? tags.includes('staff') || tags.includes('trinket')
+        : tags.includes('dagger') || tags.includes('ring');
+  return match ? 1.4 : 1;
+}
+
+function gemBias(save: CharacterSave, gem: (typeof gems)[number]): number {
+  if (!save.starterArchetype) return 1;
+  const tags = gem.tags ?? [];
+  const match =
+    save.starterArchetype === 'melee'
+      ? tags.includes('melee') || tags.includes('attack')
+      : save.starterArchetype === 'spell'
+        ? tags.includes('spell')
+        : tags.includes('dot') || gem.school === 'void';
+  return match ? 1.4 : 1;
+}
+
 export function processKillDrops(save: CharacterSave, newKills: number, tier: number, itemFind = 0): KillDropSummary {
   const summary: KillDropSummary = {
     itemsAdded: [],
@@ -274,36 +389,51 @@ export function processKillDrops(save: CharacterSave, newKills: number, tier: nu
   };
 
   const findScale = 1 + Math.max(0, itemFind);
+  const stage = dropStage(save);
 
   for (let i = 0; i < newKills; i += 1) {
     const rng = mulberry32(hashSeed(`drop:${save.lifetime.kills}:${i}:${tier}:${save.gold}`));
 
-    if (chance(rng, 0.3)) {
+    if (stage >= 2 && chance(rng, 0.3)) {
       const scrap = 1 + Math.floor(rng() * 3) + Math.floor((tier - 1) / 2);
       save.materials.mat_scrap += scrap;
       summary.scrapAdded += scrap;
     }
-    if (chance(rng, 0.08)) {
+    if (stage >= 3 && chance(rng, 0.08)) {
       save.materials.mat_flux += 1;
       summary.fluxAdded += 1;
     }
-    if (chance(rng, 0.04)) {
+    if (stage >= 3 && chance(rng, 0.04)) {
       save.materials.mat_thread += 1;
       summary.threadAdded += 1;
     }
-    if (chance(rng, tier >= 2 ? 0.06 : 0.02)) {
+    if (stage >= 4 && chance(rng, tier >= 2 ? 0.06 : 0.02)) {
       save.materials.mat_essence += 1;
       summary.essenceAdded += 1;
     }
 
-    if (chance(rng, Math.min(0.35, 0.1 * findScale)) && itemBases.length > 0) {
-      const base = pickOne(rng, itemBases);
+    const gearChance = stage === 1 ? 0.15 : Math.min(0.35, 0.15 * findScale);
+    if (chance(rng, gearChance) && itemBases.length > 0) {
+      const base = weightedPick(rng, itemBases, (entry) => starterBias(save, entry.id));
       const roll = rng();
       const rarity: Rarity =
-        roll < 0.02 + tier * 0.005 ? 'mythic' : roll < 0.16 + tier * 0.02 ? 'rare' : roll < 0.56 ? 'magic' : 'common';
+        stage === 1
+          ? 'common'
+          : roll < 0.02 + tier * 0.005
+            ? 'mythic'
+            : roll < 0.16 + tier * 0.02
+              ? 'rare'
+              : roll < 0.56
+                ? 'magic'
+                : 'common';
       const item = createItem(base.id, rarity, Math.max(1, tier), `drop-${save.lifetime.kills}-${i}`);
+      if (stage === 1) {
+        const pool = eligibleAffixes(base.id);
+        item.affixes = pool.length ? [{ affixId: pickOne(rng, pool).id, tier: 1 }] : [];
+      }
       const maxLinks = Math.max(1, item.sockets.length);
       item.linkedSockets = Math.max(1, Math.min(maxLinks, 1 + Math.floor(rng() * maxLinks)));
+      item.dropped = true;
       if (save.autoSalvage && item.rarity === 'common') {
         const gain = salvageItem(save, item);
         summary.scrapAdded += gain.scrap;
@@ -315,14 +445,22 @@ export function processKillDrops(save: CharacterSave, newKills: number, tier: nu
       }
     }
 
-    if (chance(rng, Math.min(0.15, 0.04 * findScale)) && gems.length > 0) {
-      const def = pickOne(rng, gems);
-      if (playerOwnsGem(save, def.id)) {
-        save.materials.gem_dust += 15;
-        summary.dustAdded += 15;
-      } else {
-        save.gemStash.push(makeGem(def.id, 1, 'both'));
-        summary.gemsAdded.push(def.id);
+    if (stage >= 2 && chance(rng, Math.min(0.15, 0.04 * findScale))) {
+      const pool = gems.filter((gem) => {
+        const tags = gem.tags ?? [];
+        if (stage < 4 && (tags.includes('guard') || tags.includes('ward'))) return false;
+        if (gem.kind === 'active') return stage >= 3 && tags.includes('area') ? true : !tags.includes('area');
+        return stage >= 3 || !tags.includes('area');
+      });
+      if (pool.length) {
+        const def = weightedPick(rng, pool, (gem) => gemBias(save, gem));
+        if (playerOwnsGem(save, def.id)) {
+          save.materials.gem_dust += 15;
+          summary.dustAdded += 15;
+        } else {
+          save.gemStash.push(makeGem(def.id, 1, 'both'));
+          summary.gemsAdded.push(def.id);
+        }
       }
     }
   }

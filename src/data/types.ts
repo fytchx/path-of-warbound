@@ -42,6 +42,7 @@ export interface WeaponProfile {
   attacksPerSecond: number;
   twoHanded: boolean;
   archetype: 'dagger' | 'sword' | 'mace' | 'axe' | 'bow' | 'staff';
+  dotOnHit?: { ailment: string; chance: number; dps: number; duration: number };
 }
 
 export interface ItemBase {
@@ -176,6 +177,13 @@ export interface ProgressionEntry {
   id: string;
   trigger: ProgressionTrigger;
   grants: ProgressionGrants;
+}
+
+export interface PriorityVerbDef {
+  id: string;
+  name: string;
+  description: string;
+  unlocksAtLevel: number;
 }
 
 export interface Registries {

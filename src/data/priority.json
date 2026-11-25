@@ -1,0 +1,14 @@
+[
+  { "id": "pv_execute", "name": "Finish the Weakest", "description": "Prefers an enemy below 35% health.", "unlocksAtLevel": 1 },
+  { "id": "pv_spread", "name": "Spread the Rot", "description": "Prefers the enemy carrying the most ailment stacks.", "unlocksAtLevel": 1 },
+  { "id": "pv_focus", "name": "Focus the Boss", "description": "Always targets a summoned boss over trash.", "unlocksAtLevel": 2 },
+  { "id": "pv_break", "name": "Break the Guard", "description": "Prefers enemies with an active guard or ward.", "unlocksAtLevel": 2 },
+  { "id": "pv_crit", "name": "Press the Crit Window", "description": "Holds a big cooldown while a crit window is open.", "unlocksAtLevel": 3 },
+  { "id": "pv_hold", "name": "Hold for the Pack", "description": "Saves area skills until at least three enemies are alive.", "unlocksAtLevel": 3 },
+  { "id": "pv_burst", "name": "Burst the Elite", "description": "Prioritises elites while they are above half health.", "unlocksAtLevel": 4 },
+  { "id": "pv_sustain", "name": "Mend First", "description": "Casts a guard or heal immediately below 45% health.", "unlocksAtLevel": 4 },
+  { "id": "pv_ward", "name": "Ward Before Wounds", "description": "Refreshes ward when it falls under 20%.", "unlocksAtLevel": 5 },
+  { "id": "pv_mana", "name": "Conserve Mana", "description": "Skips expensive casts below 25% mana.", "unlocksAtLevel": 5 },
+  { "id": "pv_channel", "name": "Channel the Big Cast", "description": "Starts long casts first when the enemy is not about to die.", "unlocksAtLevel": 6 },
+  { "id": "pv_cleanse", "name": "Cleanse Exposure", "description": "Spends a cleanse effect before exposure stacks reach three.", "unlocksAtLevel": 7 }
+]

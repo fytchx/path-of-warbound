@@ -192,7 +192,7 @@ svg.i {
 /* ---------- top chrome ---------- */
 .top {
   display: grid;
-  grid-template-columns: 52px 1fr 40px;
+  grid-template-columns: 52px 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -271,6 +271,11 @@ svg.i {
   height: 100%;
   background: linear-gradient(90deg, #8a6b12, var(--gold-hi));
   transition: width 160ms ease-out;
+}
+
+.top-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .gear {
@@ -778,6 +783,48 @@ nav.tabbar button.active {
   transition: width 90ms linear;
 }
 
+.bar-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.rot-pill.manual {
+  border-color: var(--gold-hi);
+  color: #fff4d0;
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.45);
+}
+
+.cast {
+  width: 200px;
+  height: 9px;
+  border: 1px solid #8b5cf6;
+  background: #050505;
+  position: relative;
+}
+
+.cast[hidden] {
+  display: none;
+}
+
+.cast b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6d28d9, #c4b5fd);
+  transition: width 90ms linear;
+}
+
+.cast .cast-label {
+  position: absolute;
+  inset: 0;
+  font: 600 7px var(--sans, sans-serif);
+  color: #ede9fe;
+  text-align: center;
+  line-height: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .ctl {
   display: flex;
   flex-wrap: wrap;
@@ -1208,6 +1255,10 @@ tr.total td {
   stroke-width: 3px;
 }
 
+.stage-ok {
+  color: var(--good, #7fd6a5);
+}
+
 .tree-node.allocated .tree-node-label {
   fill: var(--gold-hi);
 }
@@ -1224,16 +1275,53 @@ tr.total td {
   stroke: #ff5c5c;
 }
 
+.tree-sector-label {
+  font: 700 11px var(--serif, var(--sans));
+  letter-spacing: 0.18em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #07090e;
+  stroke-width: 4px;
+  opacity: 0.82;
+}
+
+.tree-sector-label.starter {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.tree-node.starter-branch .node-glyph {
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.55));
+}
+
+.tree-node.starter-branch:not(.allocated):not(.preview) .node-glyph {
+  stroke: var(--gold-hi);
+  stroke-width: 1.2;
+}
+
 .ksrow {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-height: 38px;
   text-align: left;
   border-bottom: 1px solid rgba(212, 175, 55, 0.14);
   padding: 3px 0;
+}
+
+.ksrow > span:first-child {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.ksrow > span:last-child {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding-top: 1px;
 }
 
 /* ---------- bag ---------- */
@@ -1575,8 +1663,9 @@ tr.total td {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(11, 14, 22, 0.85);
-  backdrop-filter: blur(6px);
+  background: rgba(11, 14, 22, 0.84);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .modal {
@@ -1584,8 +1673,10 @@ tr.total td {
   max-height: min(600px, calc(100dvh - 48px));
   overflow-y: auto;
   padding: 12px;
-  background: #0d111b;
-  border: 1px solid var(--gold);
+  background: rgba(11, 14, 22, 0.84);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(212, 175, 55, 0.35);
   box-shadow: inset 0 0 0 2px #0b0e16, inset 0 0 0 3px rgba(212, 175, 55, 0.35);
   font-size: 12px;
   position: relative;
@@ -1736,12 +1827,26 @@ tr.total td {
 }
 
 .toast {
-  border: 1px solid var(--gold);
-  background: #0b0e16f2;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(11, 14, 22, 0.84);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--gold-hi);
   font-size: 11px;
   text-align: center;
   padding: 6px 10px;
+  pointer-events: auto;
+  touch-action: none;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.toast.swiping {
+  transition: none;
+}
+
+.toast.swipe-out {
+  transform: translateY(-14px);
+  opacity: 0;
 }
 
 /* ---------- combat feel ---------- */

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { aggregateStats, baseStats, computePlayerStats, equippedWeapon } from '../src/engine/stats';
-import { createInitialSave, createItem, makeGem } from '../src/game/state';
+import { applyStarterChoice, createInitialSave, createItem, makeGem } from '../src/game/state';
 import { itemGearscore, itemMods, fitsSlot } from '../src/game/items';
 import { affixById, itemBaseById, statRegistry } from '../src/data';
 import type { CharacterSave } from '../src/game/types';
 
-const starter = () => createInitialSave(0);
+const starter = () => {
+  const save = createInitialSave(0);
+  applyStarterChoice(save, 'melee');
+  return save;
+};
 
 describe('stat aggregation', () => {
   it('applies flat, additive increased and multiplicative more layers', () => {
@@ -168,9 +172,9 @@ describe('master directive stat wiring', () => {
     expect(stats.maxMana).toBeCloseTo(stats.totalMaxMana * 0.8, 4);
 
     const ember = stats.skills.find((s) => s.gemId === 'gem_ember_bolt')!;
-    const cleave = stats.skills.find((s) => s.gemId === 'gem_cleave')!;
+    const melee = stats.skills.find((s) => s.gemId === 'gem_crossed_slash')!;
     expect(ember.linkedSupportIds).toContain('support_echo');
-    expect(cleave.linkedSupportIds).not.toContain('support_echo');
+    expect(melee.linkedSupportIds).not.toContain('support_echo');
   });
 });
 

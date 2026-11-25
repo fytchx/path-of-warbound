@@ -1,6 +1,6 @@
-import { affixById, doctrines, gems, nodeById, statRegistry } from '../data';
+import { affixById, doctrines, gems, itemBaseById, nodeById, statRegistry } from '../data';
 import type { StatMod } from '../data/types';
-import { xpNeeded } from '../game/state';
+import { STARTERS, dropStage, xpNeeded } from '../game/state';
 import type { GemInstance, ItemInstance } from '../game/types';
 import { RARITY_COLOR, RARITY_LABEL, affixValue, gemDustCostToLevel, gemXpToNext, itemBase } from '../game/items';
 import type { GameStore, ModalState } from './store';
@@ -109,6 +109,59 @@ function statsModal(store: GameStore): string {
         <button class="btn ${save.settings.logCombat ? 'primary' : ''}" data-action="toggle-log">Log: ${save.settings.logCombat ? 'On' : 'Off'}</button>
         <button class="btn ${save.settings.reducedMotion ? 'primary' : ''}" data-action="toggle-motion">Motion: ${save.settings.reducedMotion ? 'Reduced' : 'Full'}</button>
       </div>
+    </div>
+  </div>`;
+}
+
+function optionsModal(store: GameStore): string {
+  const save = store.save;
+  const supportsLinked = Object.values(save.equipment).some((item) =>
+    (item?.sockets ?? []).some((gem) => gem && gems.find((entry) => entry.id === gem.gemId)?.kind === 'support'),
+  );
+  const stage = dropStage(save);
+  const checks = [
+    { ok: save.level >= 3, label: `Level 3 (now ${save.level})` },
+    { ok: supportsLinked, label: supportsLinked ? 'Support Gem linked' : 'Link a Support Gem to an Active Gem' },
+    { ok: save.milestones.forgeUpgrades >= 1, label: `One Forge upgrade (${save.milestones.forgeUpgrades}/1)` },
+  ];
+  const checklist = checks
+    .map((check) => `<div class="tiny ${check.ok ? 'stage-ok' : 'muted'}">${check.ok ? '✓' : '○'} ${escapeHtml(check.label)}</div>`)
+    .join('');
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Options">
+    ${closeButton()}
+    <h3>Options</h3>
+    <div class="modal-sub">Display, save and Rift Keys</div>
+    <div class="panel">
+      <div class="panel-title"><span>Display</span><span class="muted tiny">Saved locally</span></div>
+      <div class="modal-actions" style="margin-top:4px">
+        <button class="btn ${save.settings.logCombat ? 'primary' : ''}" data-action="toggle-log">Combat log: ${save.settings.logCombat ? 'On' : 'Off'}</button>
+        <button class="btn ${save.settings.reducedMotion ? 'primary' : ''}" data-action="toggle-motion">Motion: ${save.settings.reducedMotion ? 'Reduced' : 'Full'}</button>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:8px">
+      <div class="panel-title"><span>Rift Keys</span><span class="muted tiny">Stage ${stage} / 5</span></div>
+      <div class="tiny muted" style="margin-bottom:4px">Keys only drop once Stage 5 is reached.</div>
+      ${checklist}
+    </div>
+    <div class="panel" style="margin-top:8px">
+      <div class="panel-title"><span>Progress</span><span class="muted tiny">Cannot be undone</span></div>
+      <div class="tiny muted" style="margin:2px 0 6px">Wipes level, XP, gold, materials, gem dust, Rift Keys, bag and tree, then returns you to the Soul-Spark Awakening.</div>
+      <button class="btn danger" data-action="open-reset" style="width:100%">Reset progress…</button>
+    </div>
+  </div>`;
+}
+
+function resetModal(): string {
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Confirm reset">
+    ${closeButton()}
+    <h3>Reset all progress?</h3>
+    <p class="tiny muted" style="text-align:center;margin:4px 0 2px">
+      Your save in this browser is cleared: level 1, empty bag, no gold, materials, Gem Dust or Rift Keys, and no tree nodes.
+      Display settings are kept. You will pick a starter again.
+    </p>
+    <div class="modal-actions">
+      <button class="btn ghost" data-action="back-options">Cancel</button>
+      <button class="btn danger" data-action="reset-progress">Reset progress</button>
     </div>
   </div>`;
 }
@@ -360,10 +413,88 @@ function offlineModal(store: GameStore): string {
   </div>`;
 }
 
+function awakeningModal(store: GameStore): string {
+  const choices = (['melee', 'spell', 'dot'] as const)
+    .map((id) => {
+      const starter = STARTERS[id];
+      const weapon = itemBaseById.get(starter.baseId);
+      const gem = gems.find((entry) => entry.id === starter.gemId);
+      return `<button class="starter-card" data-action="choose-starter" data-starter="${id}">
+        <span class="starter-top"><b class="gold">${escapeHtml(starter.name)}</b><span class="tiny muted">${escapeHtml(starter.attribute)}</span></span>
+        <span class="small">${escapeHtml(weapon?.name ?? starter.baseId)} <span class="muted">+</span> ${escapeHtml(gem?.name ?? starter.gemId)}</span>
+        <span class="tiny muted">${escapeHtml(starter.blurb)}</span>
+      </button>`;
+    })
+    .join('');
+
+  return `<div class="modal awakening" role="dialog" aria-modal="true" aria-label="Soul-Spark Awakening">
+    <h3>Soul-Spark Awakening</h3>
+    <div class="modal-sub">A disembodied spark settles into cold iron. Choose the armament it binds to — this is never a lock, and every path remains open.</div>
+    <div class="starter-list">${choices}</div>
+  </div>`;
+}
+
+function rotationModal(store: GameStore): string {
+  const save = store.save;
+  const usable = store.activeSkills();
+  const mode = save.rotation.mode;
+  const byId = new Map(usable.map((skill) => [skill.id, skill]));
+  const order = save.rotation.order.filter((id) => byId.has(id));
+  for (const skill of usable) if (!order.includes(skill.id)) order.push(skill.id);
+
+  const rows = order
+    .map((id, index) => {
+      const skill = byId.get(id)!;
+      return `<div class="rot-row">
+        <span class="rot-rank">${index + 1}</span>
+        <span class="rot-name"><b>${escapeHtml(skill.name)}</b>
+          <span class="tiny muted">${skill.castTime > 0 ? `${skill.castTime.toFixed(1)}s cast` : 'instant'} · ${skill.manaCost} mana</span>
+        </span>
+        <span class="rot-move">
+          <button class="icon-btn" data-action="rot-move" data-skill="${escapeHtml(id)}" data-delta="-1" aria-label="Move up">▲</button>
+          <button class="icon-btn" data-action="rot-move" data-skill="${escapeHtml(id)}" data-delta="1" aria-label="Move down">▼</button>
+        </span>
+      </div>`;
+    })
+    .join('') || `<div class="empty-note">No active skills socketed. Socket an active gem in Altar.</div>`;
+
+  const stacks = store.combat.player.disciplineStacks;
+  const discipline =
+    usable.length >= 2
+      ? `+${(stacks * 6).toFixed(0)}% (${stacks}/4 stacks)`
+      : 'inactive — needs 2+ usable actives';
+
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Rotation priority">
+    ${closeButton()}
+    <h3>Rotation</h3>
+    <div class="modal-sub">${usable.length} usable active${usable.length === 1 ? '' : 's'}</div>
+    <div class="seg-row">
+      <button class="seg ${mode === 'auto' ? 'on' : ''}" data-action="rotation-mode" data-mode="auto">AUTO</button>
+      <button class="seg ${mode === 'manual' ? 'on' : ''}" data-action="rotation-mode" data-mode="manual">MANUAL</button>
+    </div>
+    <div class="rot-list">${rows}</div>
+    <div class="stat-modal-grid">
+      <div><span class="muted">Discipline</span><span class="gold">${discipline}</span></div>
+      <div><span class="muted">Payoff</span><span class="gold">+15% / ailment, cap +45%</span></div>
+    </div>
+    <div class="tiny muted">${mode === 'auto'
+      ? 'AUTO scores each skill by payoff, economy and synergy, minus wasted casts.'
+      : 'MANUAL follows the order above. Casting in order builds Discipline; a broken order drops it to zero.'}</div>
+  </div>`;
+}
+
 export function renderModal(store: GameStore, modal: ModalState): string {
   switch (modal.kind) {
+    case 'awakening':
+      return awakeningModal(store);
+    case 'rotation':
+      return rotationModal(store);
     case 'stats':
       return statsModal(store);
+    case 'options':
+      return optionsModal(store);
+    case 'reset':
+      return resetModal();
     case 'item':
       return itemModal(store, modal.uid);
     case 'gem':

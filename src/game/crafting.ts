@@ -46,6 +46,7 @@ export function upgradeItem(save: CharacterSave, item: ItemInstance): CraftResul
   if (!canPay(save, cost)) return { ok: false, message: `Need ${cost.amount} ${cost.material}`, cost };
   pay(save, cost);
   item.itemLevel += 1;
+  save.milestones.forgeUpgrades += 1;
   const rng = mulberry32(seedFor(item, `up${item.itemLevel}`));
   item.affixes = item.affixes.map((entry) => ({
     ...entry,

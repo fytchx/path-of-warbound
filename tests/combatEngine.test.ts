@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { createCombat, runCombat, summonBoss, tickCombat, type CombatState } from '../src/engine/combatEngine';
 import { computePlayerStats } from '../src/engine/stats';
-import { createInitialSave, createItem, makeGem } from '../src/game/state';
-import { runBalanceSim } from '../src/sim';
+import { applyStarterChoice, createInitialSave, createItem, dropStage, makeGem } from '../src/game/state';
+import type { CharacterSave } from '../src/game/types';
+import { runSimulation } from '../src/sim/runSim';
+
+function starterSave(): CharacterSave {
+  const save = createInitialSave(0);
+  applyStarterChoice(save, 'melee');
+  return save;
+}
 
 function stateFor(packSize = 3, seed = 12345): CombatState {
-  const save = createInitialSave(0);
+  const save = starterSave();
   return createCombat({
     seed,
     zoneId: save.zoneId,
@@ -56,17 +63,17 @@ describe('combat engine', () => {
     expect(state.totalDamage).toBeGreaterThan(0);
   });
 
-  it('spends three keys to summon the zone boss when autoSummonBoss is enabled', () => {
+  it('never auto-spawns the zone boss, even while holding three Rift Keys', () => {
     const state = stateFor(2);
     state.keys = 3;
     state.enemies.forEach((enemy) => (enemy.hp = 0));
-    tickCombat(state);
-    expect(state.bossActive).toBe(true);
-    expect(state.keys).toBe(0);
-    expect(state.enemies.some((enemy) => enemy.defId === 'mob_boss')).toBe(true);
+    for (let i = 0; i < 200; i += 1) tickCombat(state);
+    expect(state.bossActive).toBe(false);
+    expect(state.keys).toBeGreaterThanOrEqual(3);
+    expect(state.enemies.some((enemy) => enemy.defId === 'mob_boss')).toBe(false);
   });
 
-  it('waits for manual summonBoss when autoSummonBoss is false and telegraphs Heavy Slam', () => {
+  it('summons the boss only on manual summonBoss and telegraphs Heavy Slam', () => {
     const save = createInitialSave(0);
     const state = createCombat({
       seed: 42,
@@ -76,8 +83,7 @@ describe('combat engine', () => {
       doctrine: save.doctrine,
       activeBar: 'bar_1',
       startingKeys: 3,
-      autoSummonBoss: false,
-      suppressRandomKeys: true,
+      keysUnlocked: false,
       playerStats: computePlayerStats(save),
     });
     state.enemies.forEach((enemy) => (enemy.hp = 0));
@@ -99,6 +105,7 @@ describe('combat engine', () => {
     state.keys = 3;
     state.enemies.forEach((enemy) => (enemy.hp = 0));
     tickCombat(state);
+    expect(summonBoss(state)).toBe(true);
     const boss = state.enemies.find((enemy) => enemy.defId === 'mob_boss')!;
     boss.hp = 0.01;
     runCombat(state, 200);
@@ -198,16 +205,16 @@ describe('combat engine', () => {
   });
 
   it('runs the balance simulator across presets without NaN or zero DPS', () => {
-    const results = runBalanceSim(300);
+    const results = runSimulation({ ticks: 300 });
     expect(results).toHaveLength(8);
     for (const r of results) {
-      expect(Number.isFinite(r.avgDps)).toBe(true);
-      expect(r.avgDps).toBeGreaterThan(0);
+      expect(Number.isFinite(r.dps)).toBe(true);
+      expect(r.dps).toBeGreaterThan(0);
     }
   });
 
   it('grants +4 Mana per weapon auto-attack hit and triggers Tier 2 instant skills off-GCD', () => {
-    const save = createInitialSave(0);
+    const save = starterSave();
     const helm = createItem('base_helm', 'common', 1, 'combat-helm');
     helm.sockets = [makeGem('gem_ward_barrier', 1, 'both')];
     helm.linkedSockets = 1;
@@ -241,6 +248,7 @@ describe('combat engine', () => {
     const beforeHp = enemy.hp;
     enemy.ailments = { ignite: { dps: 100, remaining: 3, stacks: 1 } };
     enemy.exposureRemaining = 0;
+    state.player.attackTimer = 10_000;
     tickCombat(state);
     const unexposedDrop = beforeHp - enemy.hp;
 
@@ -249,6 +257,7 @@ describe('combat engine', () => {
     enemy2.hp = beforeHp;
     enemy2.ailments = { ignite: { dps: 100, remaining: 3, stacks: 1 } };
     enemy2.exposureRemaining = 6;
+    state2.player.attackTimer = 10_000;
     tickCombat(state2);
     const exposedDrop = beforeHp - enemy2.hp;
     expect(exposedDrop).toBeGreaterThan(unexposedDrop);
@@ -291,6 +300,46 @@ describe('combat engine', () => {
     tickCombat(t2);
     expect(t2.rewards.kills).toBe(1);
     expect(t2.rewards.xp).toBe(48);
+  });
+
+  it('gates Rift Key drops behind Stage 5 readiness', () => {
+    const save = starterSave();
+    expect(dropStage(save)).toBeLessThan(5);
+
+    const options = {
+      seed: 2026,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 1,
+      doctrine: save.doctrine,
+      activeBar: 'bar_1' as const,
+      startingKeys: 0,
+    };
+    const gated = createCombat({
+      ...options,
+      keysUnlocked: dropStage(save) >= 5,
+      playerStats: computePlayerStats(save),
+    });
+    runCombat(gated, 6000);
+    expect(gated.rewards.kills).toBeGreaterThan(5);
+    expect(gated.keys).toBe(0);
+
+    const sword = createItem('base_sword_1h', 'common', 3, 'stage5-sword');
+    sword.sockets = [makeGem('gem_crossed_slash', 3, 'both'), makeGem('support_echo', 1, 'both')];
+    sword.linkedSockets = 2;
+    save.equipment.main_hand = sword;
+    save.level = 3;
+    save.milestones.forgeUpgrades = 1;
+    expect(dropStage(save)).toBe(5);
+
+    const unlocked = createCombat({
+      ...options,
+      keysUnlocked: dropStage(save) >= 5,
+      playerStats: computePlayerStats(save),
+    });
+    runCombat(unlocked, 6000);
+    expect(unlocked.rewards.kills).toBeGreaterThan(5);
+    expect(unlocked.keys).toBeGreaterThan(0);
   });
 });
 

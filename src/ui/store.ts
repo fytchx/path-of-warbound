@@ -1,5 +1,5 @@
 import type { DoctrineId, ItemSlot, UnlockableSystem } from '../data/types';
-import { gemById, itemBaseById, monsterById, skillTree } from '../data';
+import { gemById, itemBaseById, monsterById, nodeById, skillTree } from '../data';
 import {
   buildTreeGraph,
   canAllocate,
@@ -19,9 +19,11 @@ import type { CharacterSave, GemInstance, ItemInstance, OfflineSummary } from '.
 import {
   allocateNode,
   applyCombatRewards,
+  applyStarterChoice,
   assignGemBar,
   claimOffline,
   createInitialSave,
+  dropStage,
   equipItem,
   levelUpGemWithDust,
   loadSave,
@@ -30,9 +32,11 @@ import {
   refundNode,
   salvageItem,
   socketGem,
+  STORAGE_KEY,
   unspentPoints,
   unequipItem,
   unsocketGem,
+  type StarterChoice,
 } from '../game/state';
 import {
   addSocket,
@@ -50,6 +54,10 @@ export type BagFilter = 'all' | 'gear' | 'gems' | 'keys';
 
 export type ModalState =
   | { kind: 'stats' }
+  | { kind: 'options' }
+  | { kind: 'reset' }
+  | { kind: 'awakening' }
+  | { kind: 'rotation' }
   | { kind: 'item'; uid: string }
   | { kind: 'node'; nodeId: string }
   | { kind: 'gem-picker'; itemUid: string; socketIndex: number }
@@ -68,6 +76,7 @@ export interface UIState {
   modal: ModalState | null;
   paused: boolean;
   toast: { id: number; text: string } | null;
+  toasts: { id: number; text: string }[];
   previewNode: string | null;
   previewPath: string[];
   refundMode: boolean;
@@ -108,9 +117,10 @@ export class GameStore {
     this.lastLevel = this.save.level;
     this.ui = {
       screen: 'combat',
-      modal: offline ? { kind: 'offline' } : null,
-      paused: false,
+      modal: offline ? { kind: 'offline' } : !this.save.awakened ? { kind: 'awakening' } : null,
+      paused: !this.save.awakened,
       toast: null,
+      toasts: [],
       previewNode: null,
       previewPath: [],
       refundMode: false,
@@ -144,8 +154,8 @@ export class GameStore {
       doctrine: this.save.doctrine,
       activeBar: this.save.activeBar,
       startingKeys: this.save.keys,
-      autoSummonBoss: this.save.autoAdvanceBoss,
-      suppressRandomKeys: false,
+      keysUnlocked: dropStage(this.save) >= 5,
+      rotation: this.save.rotation,
       playerStats: this.stats,
     });
   }
@@ -221,8 +231,6 @@ export class GameStore {
       this.toast(`Level ${this.save.level} reached (+1 Skill Point)`);
     }
 
-    this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
-
     if (this.combat.keys > prevKeys) {
       this.ui.keyPulseAt = Date.now();
     }
@@ -234,10 +242,15 @@ export class GameStore {
     toastId += 1;
     this.ui.toast = { id: toastId, text };
     if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.ui.toast = null;
-      this.notify();
-    }, 2600);
+    this.toastTimer = setTimeout(() => this.dismissToast(), 3000);
+    this.notify();
+  }
+
+  dismissToast(): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = null;
+    if (!this.ui.toast) return;
+    this.ui.toast = null;
     this.notify();
   }
 
@@ -284,6 +297,97 @@ export class GameStore {
     this.notify();
   }
 
+  chooseStarter(choice: StarterChoice): void {
+    const weapon = applyStarterChoice(this.save, choice);
+    this.lastLevel = this.save.level;
+    this.resyncStats();
+    this.restartCombat();
+    this.ui.paused = false;
+    this.ui.modal = null;
+    persistSave(this.save);
+    this.toast(`Awakened: ${itemBase(weapon)?.name ?? weapon.baseId} in hand.`);
+    this.notify();
+  }
+
+  resetProgress(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    if (this.toastTimer) {
+      clearTimeout(this.toastTimer);
+      this.toastTimer = null;
+    }
+    // Stop the tick loop first so no later tick writes the old run back.
+    this.ui.paused = true;
+    const settings = { ...this.save.settings };
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* storage unavailable: the in-memory run still resets */
+    }
+    this.save = { ...createInitialSave(), settings };
+    this.offline = null;
+    this.lastLevel = this.save.level;
+    this.victorySynced = false;
+    this.stats = computePlayerStats(this.save);
+    this.combat = this.buildCombat();
+    this.appliedRewards = { ...this.combat.rewards };
+    this.ui = {
+      ...this.ui,
+      screen: 'combat',
+      modal: { kind: 'awakening' },
+      paused: true,
+      toast: null,
+      toasts: [],
+      previewNode: null,
+      previewPath: [],
+      refundMode: false,
+      bagFilter: 'all',
+      forgeUid: null,
+      lockedAffixIndex: null,
+      treeView: { x: 0, y: 0, scale: 1 },
+      craftMessage: null,
+      keyPulseAt: 0,
+    };
+    this.notify();
+  }
+
+  activeSkills(): { id: string; name: string; manaCost: number; castTime: number; cooldown: number }[] {
+    return this.stats.skills
+      .filter((skill) => skill.manaReservation <= 0 && !skill.triggerType && skill.maxDamage > 0)
+      .map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        manaCost: Math.round(skill.effectiveManaCost),
+        castTime: skill.effectiveCastTime,
+        cooldown: skill.effectiveCooldown,
+      }));
+  }
+
+  setRotationMode(mode: 'auto' | 'manual'): void {
+    this.save.rotation.mode = mode;
+    this.combat.rotationMode = mode;
+    this.combat.player.disciplineStacks = 0;
+    this.schedulePersist();
+    this.notify();
+  }
+
+  moveRotation(skillId: string, delta: number): void {
+    const usable = this.activeSkills().map((skill) => skill.id);
+    const order = this.save.rotation.order.filter((id) => usable.includes(id));
+    for (const id of usable) if (!order.includes(id)) order.push(id);
+    const from = order.indexOf(skillId);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(order.length - 1, from + delta));
+    if (to === from) return;
+    order.splice(to, 0, order.splice(from, 1)[0]!);
+    this.save.rotation.order = order;
+    this.combat.rotationOrder = [...order];
+    this.schedulePersist();
+    this.notify();
+  }
+
   togglePause(): void {
     this.ui.paused = !this.ui.paused;
     this.notify();
@@ -297,13 +401,6 @@ export class GameStore {
     this.save.keys = this.combat.keys;
     this.schedulePersist();
     this.toast(`${this.combat.zone.name} Boss summoned!`);
-    this.notify();
-  }
-
-  toggleAutoAdvanceBoss(): void {
-    this.save.autoAdvanceBoss = !this.save.autoAdvanceBoss;
-    this.combat.autoSummonBoss = this.save.autoAdvanceBoss;
-    this.schedulePersist();
     this.notify();
   }
 
@@ -379,10 +476,11 @@ export class GameStore {
     if (!check.ok) {
       this.ui.previewNode = null;
       this.ui.previewPath = [];
+      const name = nodeById(nodeId)?.name ?? 'That node';
       const reasons: Record<string, string> = {
         excluded: `Locked out by ${check.blockedBy ?? 'a rival keystone'}.`,
         unreachable: 'No path from your allocated tree.',
-        'not-enough-points': `Needs ${check.cost} points; you have ${this.unspent()}.`,
+        'not-enough-points': `${name} needs ${check.cost} points; you have ${this.unspent()}.`,
         'already-allocated': 'Already allocated.',
       };
       this.toast(reasons[check.reason ?? ''] ?? 'Cannot allocate that node.');
@@ -678,6 +776,7 @@ export class GameStore {
 
   tick(): void {
     if (this.ui.paused || this.ui.modal?.kind === 'offline') return;
+    this.combat.keysUnlocked = dropStage(this.save) >= 5;
     tickCombat(this.combat);
     tickCombat(this.combat);
     this.ui.lastTickAt = typeof performance !== 'undefined' ? performance.now() : Date.now();

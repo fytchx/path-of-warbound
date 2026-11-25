@@ -3,6 +3,7 @@ import doctrinesJson from './doctrines.json';
 import gemsJson from './gems.json';
 import itemsJson from './items.json';
 import monstersJson from './monsters.json';
+import priorityJson from './priority.json';
 import progressionJson from './progression.json';
 import skillTreeJson from './skill_tree.json';
 import statRegistryJson from './stat_registry.json';
@@ -14,6 +15,7 @@ import type {
   ItemBase,
   MonsterDef,
   ProgressionEntry,
+  PriorityVerbDef,
   Registries,
   SkillTree,
   StatRegistry,
@@ -29,6 +31,7 @@ export const zones = zonesJson as unknown as ZoneDef[];
 export const doctrines = doctrinesJson as unknown as DoctrineDef[];
 export const skillTree = skillTreeJson as unknown as SkillTree;
 export const progression = progressionJson as unknown as ProgressionEntry[];
+export const priorityVerbs = priorityJson as unknown as PriorityVerbDef[];
 
 export const registries: Registries = {
   stats: statRegistry,

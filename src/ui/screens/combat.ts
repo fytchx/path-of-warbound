@@ -17,6 +17,21 @@ export function swingPercent(store: GameStore, dt = 0): number {
   return clamp((1 - remaining / interval) * 100, 0, 100);
 }
 
+export function castPercent(store: GameStore, dt = 0): number {
+  const player = store.combat.player;
+  const cast = player.cast;
+  if (!cast || cast.duration <= 0) return player.castLock > 0 ? 100 : 0;
+  const elapsed = cast.duration - Math.max(0, cast.remaining - dt);
+  return clamp((elapsed / cast.duration) * 100, 0, 100);
+}
+
+function rotationPill(store: GameStore): string {
+  const mode = store.save.rotation.mode;
+  const stacks = store.combat.player.disciplineStacks;
+  const bonus = mode === 'manual' && stacks > 0 ? ` +${stacks * 6}%` : '';
+  return `<button class="pill rot-pill" data-action="open-rotation" aria-label="Rotation priority">ROT · ${mode.toUpperCase()}${bonus}</button>`;
+}
+
 function skillBar(store: GameStore): string {
   const skills = store.stats.skills;
   const totalSlots = Math.max(6, skills.length);
@@ -48,8 +63,12 @@ function skillBar(store: GameStore): string {
   }).join('');
 
   return `<div class="skills">
-    <button class="pill ${pendulum ? 'locked' : ''}" data-action="bar" data-bar="${bar === 'bar_1' ? 'bar_2' : 'bar_1'}" aria-label="Switch skill bar">${pendulum ? `AUTO · ${bar === 'bar_1' ? 'BAR I' : 'BAR II'}` : bar === 'bar_1' ? 'BAR I' : 'BAR II'}</button>
+    <div class="bar-row">
+      <button class="pill ${pendulum ? 'locked' : ''}" data-action="bar" data-bar="${bar === 'bar_1' ? 'bar_2' : 'bar_1'}" aria-label="Switch skill bar">${pendulum ? `AUTO · ${bar === 'bar_1' ? 'BAR I' : 'BAR II'}` : bar === 'bar_1' ? 'BAR I' : 'BAR II'}</button>
+      ${rotationPill(store)}
+    </div>
     <div class="slots">${slots}</div>
+    <div class="cast" data-cast-bar hidden aria-hidden="true"><b data-cast-fill style="width:0%"></b><span class="cast-label" data-cast-label></span></div>
     <div class="swing" aria-hidden="true"><b data-swing style="width:${swingPercent(store).toFixed(1)}%"></b></div>
   </div>`;
 }
@@ -164,7 +183,6 @@ function controlStrip(store: GameStore): string {
       <span data-ctl-pack><small>PACK</small>${combat.packSize}</span>
       <button data-action="pack-next" aria-label="More enemies">+</button>
     </div>
-    <button class="gbtn sm ${store.save.autoAdvanceBoss ? 'on' : ''}" data-action="toggle-auto-boss" title="Auto-summon boss when 3 Rift Keys are gathered">AUTO-BOSS</button>
     <button class="icon-btn" data-action="pause" aria-label="${store.ui.paused ? 'Resume' : 'Pause'}" title="${store.ui.paused ? 'Resume' : 'Pause'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${store.ui.paused ? '<path d="M8 5l11 7-11 7z"/>' : '<path d="M9 5v14M15 5v14"/>'}</svg>
     </button>

@@ -29,6 +29,7 @@ export interface ItemInstance {
   sockets: (GemInstance | null)[];
   linkedSockets?: number;
   corrupted: boolean;
+  dropped?: boolean;
 }
 
 export interface LifetimeStats {
@@ -65,6 +66,10 @@ export interface CharacterSave {
   grantedProgression: string[];
   onboardingStep: OnboardingStep;
   starterKillsClaimed: number;
+  starterArchetype: 'melee' | 'spell' | 'dot' | null;
+  awakened: boolean;
+  milestones: { packSeconds: number; sawLowHp: boolean; forgeUpgrades: number };
+  rotation: { mode: 'auto' | 'manual'; order: string[] };
   autoAdvanceBoss: boolean;
   autoSalvage: boolean;
   lifetime: LifetimeStats;

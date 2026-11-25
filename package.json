@@ -7,7 +7,7 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "sim": "tsx src/sim/index.ts",
+    "sim": "tsx src/sim/runSim.ts",
     "validate": "tsx scripts/validate-data.ts",
     "gen-assets": "tsx scripts/gen-asset-types.ts",
     "report-assets": "tsx scripts/optimize-webp.ts",

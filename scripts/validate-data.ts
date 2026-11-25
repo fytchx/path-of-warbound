@@ -178,7 +178,7 @@ for (const item of items) {
 for (const slot of slots) {
   const group = slot.startsWith('ring') ? 'ring' : slot;
   const count = slotCount.get(group) ?? 0;
-  const limit = group === 'main_hand' ? 9 : group === 'trinket' ? 3 : 2;
+  const limit = group === 'main_hand' ? 12 : group === 'trinket' ? 3 : 2;
   if (count < 1 || count > limit) fail(`items: slot ${group} has ${count} base(s), expected 1-${limit}`);
 }
 

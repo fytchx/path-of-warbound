@@ -5,6 +5,7 @@ import {
   SAVE_VERSION,
   allocateNode,
   applyCombatRewards,
+  applyStarterChoice,
   applyXp,
   awardGemXp,
   claimOffline,
@@ -33,6 +34,12 @@ import {
 } from '../src/game/crafting';
 import { gemDustCostToLevel, itemBase } from '../src/game/items';
 
+const starter = () => {
+  const save = createInitialSave(0);
+  applyStarterChoice(save, 'melee');
+  return save;
+};
+
 describe('save state', () => {
   it('round-trips through JSON and rejects foreign versions', () => {
     const save = createInitialSave(1000);
@@ -52,7 +59,7 @@ describe('save state', () => {
     expect(broken.allocated).toEqual(['hub_0']);
   });
 
-  it('starts a new save with pristine starter loadout and all systems unlocked', () => {
+  it('starts a new save as a blank slate with every system unlocked', () => {
     const save = createInitialSave(0);
     expect(save.level).toBe(1);
     expect(save.packSize).toBe(1);
@@ -71,7 +78,18 @@ describe('save state', () => {
     for (const sys of ALL_UNLOCKABLE_SYSTEMS) {
       expect(save.unlockedSystems).toContain(sys);
     }
-    expect(save.equipment.main_hand?.baseId).toBe('base_sword_1h');
+    expect(save.awakened).toBe(false);
+    expect(save.equipment.main_hand).toBeUndefined();
+    expect(save.equipment.off_hand).toBeUndefined();
+    expect(save.equipment.trinket).toBeUndefined();
+    expect(computePlayerStats(save).skills).toHaveLength(0);
+  });
+
+  it('grants only the chosen starter weapon and its level 1 gem', () => {
+    const save = createInitialSave(0);
+    applyStarterChoice(save, 'melee');
+    expect(save.awakened).toBe(true);
+    expect(save.equipment.main_hand?.baseId).toBe('base_sword_starter');
     expect(save.equipment.main_hand?.rarity).toBe('common');
     expect(save.equipment.main_hand?.sockets).toHaveLength(1);
     expect(save.equipment.main_hand?.linkedSockets).toBe(1);
@@ -80,7 +98,8 @@ describe('save state', () => {
 
     const stats = computePlayerStats(save);
     expect(stats.skills).toHaveLength(1);
-    expect(stats.skills[0]!.gemId).toBe('gem_cleave');
+    expect(stats.skills[0]!.gemId).toBe('gem_crossed_slash');
+    expect(stats.skills[0]!.level).toBe(1);
   });
 
   it('applies combat rewards and levels up on the 250 * level^1.45 curve', () => {
@@ -150,15 +169,23 @@ describe('progression, loot, and gem leveling', () => {
     expect(save.gemStash.filter((g) => g.gemId === 'gem_ward_barrier')).toHaveLength(1);
   });
 
-  it('drops materials, gear, gems, salvages duplicate gems into +15 Gem Dust, and supports autoSalvage', () => {
-    const save = createInitialSave(0);
+  it('drops gear from stage 1, adds materials from stage 2, and salvages duplicates for Gem Dust', () => {
+    const stageOne = processKillDrops(createInitialSave(0), 200, 2, 0);
+    expect(stageOne.itemsAdded.length).toBeGreaterThan(0);
+    expect(stageOne.scrapAdded).toBe(0);
+
+    const save = starter();
+    save.lifetime.kills = 10;
+    const worn = createItem('base_chest', 'common', 1, 'stage-2-chest');
+    worn.dropped = true;
+    save.equipment.chest = worn;
     const drops = processKillDrops(save, 120, 2, 0);
     expect(drops.scrapAdded).toBeGreaterThan(0);
     expect(drops.itemsAdded.length).toBeGreaterThan(0);
     expect(drops.gemsAdded.length + drops.dustAdded).toBeGreaterThan(0);
 
     // Duplicate gem protection: when player owns all gems, gem drops yield +15 gem_dust
-    const dustSave = createInitialSave(0);
+    const dustSave = starter();
     dustSave.autoSalvage = true;
     const bulkDrops = processKillDrops(dustSave, 200, 2, 0.5);
     expect(bulkDrops.itemsSalvaged).toBeGreaterThan(0);
@@ -166,7 +193,7 @@ describe('progression, loot, and gem leveling', () => {
   });
 
   it('awards gem XP on kills and levels gems with Gem Dust', () => {
-    const save = createInitialSave(0);
+    const save = starter();
     const gem = save.equipment.main_hand!.sockets[0]!;
     awardGemXp(save, 5);
     expect(gem.xp).toBe(20);
@@ -223,7 +250,7 @@ describe('allocation', () => {
 
 describe('equipment rules', () => {
   it('refuses a two-hander while the off hand is occupied, then frees the off hand', () => {
-    const save = createInitialSave(0);
+    const save = starter();
     const shield = createItem('base_shield', 'magic', 1, 'test-shield');
     const bow = createItem('base_bow', 'magic', 2, 'test-bow');
     save.inventory.push(shield, bow);
@@ -237,7 +264,7 @@ describe('equipment rules', () => {
   });
 
   it('returns replaced gear to the bag', () => {
-    const save = createInitialSave(0);
+    const save = starter();
     const old = save.equipment.main_hand!;
     const replacement = createItem('base_bow', 'magic', 2, 'test-bow-replace');
     save.inventory.push(replacement);
@@ -270,7 +297,7 @@ describe('offline progression', () => {
 
 describe('crafting', () => {
   it('upgrades item level and consumes scrap', () => {
-    const save = createInitialSave(0);
+    const save = starter();
     save.materials.mat_scrap = 50;
     const item = save.equipment.main_hand!;
     const before = { level: item.itemLevel, scrap: save.materials.mat_scrap };

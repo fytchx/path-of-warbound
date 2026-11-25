@@ -7,6 +7,7 @@ import { renderModal } from './modals';
 import { altarScreen } from './screens/altar';
 import { bagScreen } from './screens/bag';
 import {
+  castPercent,
   combatDashboardMarkup,
   combatScreen,
   enemyCardMarkup,
@@ -80,9 +81,14 @@ function topbar(store: GameStore): string {
       <div class="sub" data-topbar-sub>${titleCase(save.doctrine)} Doctrine</div>
       <div class="xp"><span data-topbar-lv>Lv. ${save.level}</span><i><b data-xp-fill style="width:${xpPercent.toFixed(1)}%"></b></i><span data-xp-pct>${xpRounded}%</span></div>
     </div>
-    <button class="gear" data-action="modal-stats" aria-label="Character stats & settings" title="Character stats & settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
-    </button>`;
+    <div class="top-actions">
+      <button class="gear" data-action="modal-stats" aria-label="Character stats & settings" title="Character stats & settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+      </button>
+      <button class="gear" data-action="modal-options" aria-label="Options" title="Options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      </button>
+    </div>`;
 }
 
 interface TreeGestureState {
@@ -408,14 +414,30 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
 
     setFillNoFlicker(root.querySelector<HTMLElement>('[data-swing]'), 'width', swingPercent(store), true);
 
-    // Control strip labels
+    const rotPill = root.querySelector<HTMLElement>('.rot-pill');
+    if (rotPill) {
+      const mode = store.save.rotation.mode;
+      const stacks = combat.player.disciplineStacks;
+      const nextLabel = `ROT · ${mode.toUpperCase()}${mode === 'manual' && stacks > 0 ? ` +${stacks * 6}%` : ''}`;
+      if (rotPill.textContent !== nextLabel) rotPill.textContent = nextLabel;
+      rotPill.classList.toggle('manual', mode === 'manual');
+    }
+
+    const castBar = root.querySelector<HTMLElement>('[data-cast-bar]');
+    const activeCast = combat.player.cast;
+    if (castBar) {
+      castBar.hidden = !activeCast;
+      const label = castBar.querySelector<HTMLElement>('[data-cast-label]');
+      if (label) {
+        const name = activeCast ? stats.skills.find((skill) => skill.id === activeCast.skillId)?.name ?? 'Casting' : '';
+        if (label.textContent !== name) label.textContent = name;
+      }
+    }
+    setFillNoFlicker(root.querySelector<HTMLElement>('[data-cast-fill]'), 'width', castPercent(store), true);
     const tierEl = root.querySelector<HTMLElement>('[data-ctl-tier]');
     if (tierEl) tierEl.innerHTML = `<small>TIER</small>${combat.tier}`;
     const packEl = root.querySelector<HTMLElement>('[data-ctl-pack]');
     if (packEl) packEl.innerHTML = `<small>PACK</small>${combat.packSize}`;
-    const autoBossBtn = root.querySelector<HTMLElement>('[data-action="toggle-auto-boss"]');
-    if (autoBossBtn) autoBossBtn.classList.toggle('on', store.save.autoAdvanceBoss);
-
     // Dashboard panels below arena
     const dashEl = root.querySelector<HTMLElement>('#combat-dash');
     if (dashEl) dashEl.innerHTML = combatDashboardMarkup(store);
@@ -496,9 +518,6 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'summon-boss':
         store.summonBoss();
         break;
-      case 'toggle-auto-boss':
-        store.toggleAutoAdvanceBoss();
-        break;
       case 'toggle-auto-salvage':
         store.toggleAutoSalvage();
         break;
@@ -548,6 +567,18 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         break;
       case 'close-modal':
         store.closeModal();
+        break;
+      case 'modal-options':
+        store.openModal({ kind: 'options' });
+        break;
+      case 'open-reset':
+        store.openModal({ kind: 'reset' });
+        break;
+      case 'back-options':
+        store.openModal({ kind: 'options' });
+        break;
+      case 'reset-progress':
+        store.resetProgress();
         break;
       case 'open-item':
         if (data.uid) store.openModal({ kind: 'item', uid: data.uid });
@@ -635,6 +666,20 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'tree-reset':
         store.resetTree();
         break;
+      case 'choose-starter':
+        if (data.starter === 'melee' || data.starter === 'spell' || data.starter === 'dot') {
+          store.chooseStarter(data.starter);
+        }
+        break;
+      case 'open-rotation':
+        store.openModal({ kind: 'rotation' });
+        break;
+      case 'rotation-mode':
+        if (data.mode === 'auto' || data.mode === 'manual') store.setRotationMode(data.mode);
+        break;
+      case 'rot-move':
+        if (data.skill) store.moveRotation(data.skill, Number(data.delta ?? 0));
+        break;
       case 'claim-offline':
         store.claimOffline();
         break;
@@ -657,6 +702,40 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     if (!el || el.hasAttribute('disabled')) return;
     act(el);
   });
+
+  let toastDrag: { el: HTMLElement; startX: number; startY: number; dx: number; dy: number } | null = null;
+
+  root.addEventListener('pointerdown', (event) => {
+    const toastEl = (event.target as Element | null)?.closest<HTMLElement>('.toast');
+    if (!toastEl) return;
+    toastDrag = { el: toastEl, startX: event.clientX, startY: event.clientY, dx: 0, dy: 0 };
+    toastEl.classList.add('swiping');
+    toastEl.setPointerCapture?.(event.pointerId);
+  });
+
+  root.addEventListener('pointermove', (event) => {
+    if (!toastDrag) return;
+    toastDrag.dx = event.clientX - toastDrag.startX;
+    toastDrag.dy = event.clientY - toastDrag.startY;
+    toastDrag.el.style.transform = `translate(${toastDrag.dx}px, ${toastDrag.dy}px)`;
+    toastDrag.el.style.opacity = String(Math.max(0.2, 1 - Math.hypot(toastDrag.dx, toastDrag.dy) / 120));
+  });
+
+  const endToastSwipe = (): void => {
+    const drag = toastDrag;
+    toastDrag = null;
+    if (!drag) return;
+    drag.el.classList.remove('swiping');
+    const { dx, dy } = drag;
+    drag.el.style.transform = '';
+    drag.el.style.opacity = '';
+    if (Math.abs(dx) > 40 || Math.abs(dy) > 32) {
+      drag.el.classList.add('swipe-out');
+      setTimeout(() => store.dismissToast(), 120);
+    }
+  };
+  root.addEventListener('pointerup', endToastSwipe);
+  root.addEventListener('pointercancel', endToastSwipe);
 
   const pointerDistance = (pts: Map<number, { x: number; y: number }>): number => {
     const [a, b] = [...pts.values()];
@@ -768,6 +847,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       if (!store.ui.paused && store.combat.status === 'running' && !reduced) {
         const dt = Math.max(0, Math.min(0.22, (now - store.ui.lastTickAt) / 1000));
         setFillNoFlicker(root.querySelector<HTMLElement>('[data-swing]'), 'width', swingPercent(store, dt), true);
+        setFillNoFlicker(root.querySelector<HTMLElement>('[data-cast-fill]'), 'width', castPercent(store, dt), true);
 
         root.querySelectorAll<HTMLElement>('.skill[data-skill][data-cd]').forEach((btn) => {
           const skillId = btn.dataset.skill ?? '';
