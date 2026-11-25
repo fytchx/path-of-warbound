@@ -1,11 +1,11 @@
-import { doctrines, itemBaseById } from '../../data';
+import { doctrines, gemById, itemBaseById, uniqueById } from '../../data';
 import type { ItemSlot } from '../../data/types';
-import { RARITY_COLOR } from '../../game/items';
+import { itemDisplayName, RARITY_COLOR } from '../../game/items';
 import type { GameStore } from '../store';
 import { assetImg, escapeHtml, fmt, sprite, titleCase } from '../dom';
 
 /**
- * Soul-Forged Altar Grid Layout (Section 4.1):
+ * Soul-Forged Altar Grid Layout:
  * Row 1: Main-Hand (2 rows) | Amulet | Helmet | Trinket
  * Row 2: Main-Hand (cont.)  | Gloves | Chest  | Ring 1
  * Row 3: Offhand (locked 2H)| Boots  | Legs   | Ring 2
@@ -48,6 +48,7 @@ function slotMarkup(store: GameStore, slot: ItemSlot): string {
   }
 
   const base = itemBaseById.get(item.baseId);
+  const name = itemDisplayName(item);
   const color = RARITY_COLOR[item.rarity];
   const linked = item.linkedSockets ?? 1;
   const sockets = item.sockets
@@ -57,11 +58,46 @@ function slotMarkup(store: GameStore, slot: ItemSlot): string {
     })
     .join('');
 
-  return `<button class="eq rarity${wide}" data-slot="${slot}" data-action="open-item" data-uid="${item.uid}" data-rarity="${item.rarity}" style="--c:${color}" aria-label="${escapeHtml(store.itemBaseName(item))}">
-    ${base ? assetImg(base.assetId, base.name) : ''}
+  return `<button class="eq rarity${wide}" data-slot="${slot}" data-action="open-item" data-uid="${item.uid}" data-rarity="${item.rarity}" style="--c:${color}" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}">
+    ${base ? assetImg(base.assetId, name) : ''}
+    ${item.uniqueId ? '<span class="mythic-star" title="Mythic Unique">✦</span>' : ''}
     <small>${label}</small>
     ${sockets ? `<span class="pips">${sockets}</span>` : ''}
   </button>`;
+}
+
+function linkedSkillsSummary(store: GameStore): string {
+  const skills = store.stats.skills;
+  if (!skills.length) {
+    return `<div class="frame pan">
+      <h4>Socketed Skills<span>0 active</span></h4>
+      <p class="tiny muted">Tap any equipped item above to socket a Skill Gem or Support Gem.</p>
+    </div>`;
+  }
+  const rows = skills
+    .map((skill) => {
+      const gem = gemById.get(skill.gemId);
+      const slotLabel = store.itemSlotLabel(skill.sourceSlot as ItemSlot);
+      const supportText = skill.linkedSupportNames.length
+        ? `Linked: ${skill.linkedSupportNames.join(', ')}`
+        : skill.manaReservation > 0
+          ? `Reserves ${skill.manaReservation}% mana`
+          : 'No linked supports yet';
+      return `<button class="skill-link-row" data-action="open-slot-gem" data-gem-uid="${escapeHtml(skill.sourceSlot)}" data-gem-idx="${skill.sourceSocketIndex}">
+        ${gem ? assetImg(gem.assetId, skill.name) : ''}
+        <span class="skill-link-info">
+          <b>${escapeHtml(skill.name)} <small class="muted">(${escapeHtml(slotLabel)})</small></b>
+          <span class="tiny muted">${escapeHtml(supportText)}</span>
+        </span>
+        <span class="tiny gold">Inspect ›</span>
+      </button>`;
+    })
+    .join('');
+
+  return `<div class="frame pan">
+    <h4>Socketed Skills<span>${skills.length} active · tap to edit</span></h4>
+    <div class="skill-link-list">${rows}</div>
+  </div>`;
 }
 
 export function altarScreen(store: GameStore): string {
@@ -69,6 +105,7 @@ export function altarScreen(store: GameStore): string {
   const values = stats.values;
   const trinket = store.save.equipment.trinket;
   const trinketBase = trinket ? itemBaseById.get(trinket.baseId) : null;
+  const trinketUnique = trinket?.uniqueId ? uniqueById.get(trinket.uniqueId) : null;
   const doctrine = doctrines.find((entry) => entry.id === store.save.doctrine);
   const doctrineLocked = stats.keystones.has('ks_zealots_mandate');
 
@@ -76,7 +113,7 @@ export function altarScreen(store: GameStore): string {
     <div class="sub-h">
       <h2>GEARSCORE: ${fmt(store.gearscore())}</h2>
       <div class="row" style="gap:4px">
-        <button class="gbtn" data-action="modal-stats">STATS ›</button>
+        <button class="gbtn" data-action="modal-stats">FULL STATS ›</button>
       </div>
     </div>
 
@@ -92,6 +129,8 @@ export function altarScreen(store: GameStore): string {
     <div class="frame grid">
       ${SLOT_ORDER.map((slot) => slotMarkup(store, slot)).join('')}
     </div>
+
+    ${linkedSkillsSummary(store)}
 
     <div class="frame pan">
       <h4>Combat Doctrine<span>${doctrine?.guardThreshold ?? 45}% guard${doctrineLocked ? ' · Locked' : ''}</span></h4>
@@ -143,8 +182,8 @@ export function altarScreen(store: GameStore): string {
     ${
       trinketBase
         ? `<div class="frame pan">
-            <h4>Trinket<span>${escapeHtml(trinketBase.name)}</span></h4>
-            <p class="tiny" style="line-height:1.45">${escapeHtml(trinketBase.description || trinketBase.flavour)}</p>
+            <h4>Trinket<span>${escapeHtml(trinketUnique ? trinketUnique.name : trinketBase.name)}</span></h4>
+            <p class="tiny" style="line-height:1.45">${escapeHtml(trinketUnique ? trinketUnique.description : trinketBase.description || trinketBase.flavour)}</p>
           </div>`
         : ''
     }

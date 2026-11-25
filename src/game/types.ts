@@ -86,7 +86,7 @@ export interface CharacterSave {
   firstClearCaches: string[];
   /** Extra Skill Points earned from first-clear Boss Caches. */
   bonusSkillPoints: number;
-  settings: { reducedMotion: boolean; logCombat: boolean; guideSkipped: boolean };
+  settings: { reducedMotion: boolean; logCombat: boolean; guideSkipped: boolean; sound: boolean };
 }
 
 export interface OfflineSummary {

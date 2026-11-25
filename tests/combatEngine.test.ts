@@ -343,3 +343,107 @@ describe('combat engine', () => {
   });
 });
 
+describe('combat VFX & SFX bindings and mythic rules', () => {
+  it('emits slash, fireball, bolt, and poison/ignite/bleed DoT FX events with .ogg SFX filenames', () => {
+    const save = starterSave();
+    const chest = createItem('base_chest', 'rare', 4, 'fx-chest');
+    chest.sockets = [makeGem('gem_ember_bolt', 2, 'both')];
+    chest.linkedSockets = 1;
+    chest.socketColors = ['blue'];
+    save.equipment.chest = chest;
+
+    const state = createCombat({
+      seed: 123,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 1,
+      doctrine: 'tactician',
+      activeBar: 'bar_1',
+      playerStats: computePlayerStats(save),
+    });
+
+    const target = state.enemies[0]!;
+    target.maxHp = 5000;
+    target.hp = 5000;
+    target.ailments.corruption = { dps: 12, remaining: 5, stacks: 2 };
+    target.ailments.ignite = { dps: 10, remaining: 5, stacks: 1 };
+    target.ailments.bleed = { dps: 8, remaining: 5, stacks: 1 };
+
+    runCombat(state, 35);
+
+    expect(state.fx.some((f) => f.kind === 'slash' && f.sfx.startsWith('sfx/combat/') && f.sfx.endsWith('.ogg'))).toBe(true);
+    expect(state.fx.some((f) => f.kind === 'bolt' && f.sfx === 'sfx/combat/fireball_cast.ogg')).toBe(true);
+    expect(state.fx.some((f) => f.kind === 'fireball' && f.sfx === 'sfx/combat/fireball_impact.ogg')).toBe(true);
+    expect(state.fx.some((f) => f.kind === 'dot' && f.ailment === 'corruption' && f.sfx === 'sfx/combat/poison_tick.ogg')).toBe(true);
+    expect(state.fx.some((f) => f.kind === 'dot' && f.ailment === 'ignite' && f.sfx === 'sfx/combat/ignite_tick.ogg')).toBe(true);
+    expect(state.fx.some((f) => f.kind === 'dot' && f.ailment === 'bleed' && f.sfx === 'sfx/combat/bleed_tick.ogg')).toBe(true);
+  });
+
+  it('triggers Chrono-Spindle free auto-attack on cast completion and Emberheart ignite spread on kill', () => {
+    const save = starterSave();
+    save.equipment.main_hand = createItem('base_staff', 'magic', 4, 'chrono-staff');
+    save.equipment.main_hand.sockets = [makeGem('gem_ember_bolt', 2, 'both')];
+    save.equipment.main_hand.socketColors = ['blue'];
+    save.equipment.off_hand = { ...createItem('base_focus_orb', 'mythic', 5, 'chrono-orb'), uniqueId: 'uq_chrono_spindle' };
+    save.equipment.amulet = { ...createItem('base_amulet_a', 'mythic', 5, 'ember-amulet'), uniqueId: 'uq_emberheart_censer' };
+
+    const state = createCombat({
+      seed: 314,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 2,
+      doctrine: 'weaver',
+      activeBar: 'bar_1',
+      playerStats: computePlayerStats(save),
+    });
+
+    const [first, second] = state.enemies;
+    expect(first && second).toBeTruthy();
+    first!.ailments.ignite = { dps: 30, remaining: 5, duration: 5, stacks: 1 };
+    first!.hp = 0.05;
+    state.player.cast = { skillId: 'skill_gem_ember_bolt', remaining: 0.05, duration: 0.8, power: 1 };
+    state.player.hitCounter = 0;
+
+    tickCombat(state);
+
+    expect(state.log.some((entry) => entry.text.includes('Chrono-Spindle'))).toBe(true);
+    expect(state.player.hitCounter).toBeGreaterThanOrEqual(1);
+    expect(second!.ailments.ignite).toBeDefined();
+    expect(state.fx.some((f) => f.kind === 'spread')).toBe(true);
+  });
+
+  it('refunds 20% damage taken as Ward with Mirror of the Hollow Choir and grants Riftwalk haste on dodge', () => {
+    const save = starterSave();
+    save.equipment.trinket = { ...createItem('base_trinket_waning', 'mythic', 5, 'mirror-trinket'), uniqueId: 'uq_hollow_mirror' };
+    save.equipment.boots = { ...createItem('base_boots', 'mythic', 5, 'rift-boots'), uniqueId: 'uq_riftwalker_treads' };
+
+    const state = createCombat({
+      seed: 777,
+      zoneId: save.zoneId,
+      tier: 1,
+      packSize: 1,
+      doctrine: 'tactician',
+      activeBar: 'bar_1',
+      playerStats: computePlayerStats(save),
+    });
+
+    state.player.ward = 0;
+    state.player.dodgeCharge = 0;
+    state.playerStats.dodgePerHit = 0;
+    const enemy = state.enemies[0]!;
+    enemy.maxHp = 5000;
+    enemy.hp = 5000;
+    enemy.damage = 25;
+    enemy.attackTimer = 0;
+    tickCombat(state);
+    expect(state.player.ward).toBeGreaterThan(0);
+
+    state.player.dodgeCharge = 100;
+    state.playerStats.dodgePerHit = 100;
+    enemy.attackTimer = 0;
+    tickCombat(state);
+    expect(state.player.buffs.some((b) => b.id === 'riftwalk')).toBe(true);
+  });
+});
+
+

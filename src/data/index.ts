@@ -5,6 +5,7 @@ import itemsJson from './items.json';
 import monstersJson from './monsters.json';
 import priorityJson from './priority.json';
 import progressionJson from './progression.json';
+import sfxJson from './sfx.json';
 import skillTreeJson from './skill_tree.json';
 import statRegistryJson from './stat_registry.json';
 import uniquesJson from './uniques.json';
@@ -18,6 +19,7 @@ import type {
   ProgressionEntry,
   PriorityVerbDef,
   Registries,
+  SfxDef,
   SkillTree,
   StatRegistry,
   UniqueDef,
@@ -35,6 +37,7 @@ export const skillTree = skillTreeJson as unknown as SkillTree;
 export const progression = progressionJson as unknown as ProgressionEntry[];
 export const priorityVerbs = priorityJson as unknown as PriorityVerbDef[];
 export const uniques = uniquesJson as unknown as UniqueDef[];
+export const sfxDefs = sfxJson as unknown as SfxDef[];
 
 export const registries: Registries = {
   stats: statRegistry,
@@ -47,6 +50,7 @@ export const registries: Registries = {
   tree: skillTree,
   progression,
   uniques,
+  sfx: sfxDefs,
 };
 
 const byId = <T extends { id: string }>(list: T[]): Map<string, T> => new Map(list.map((entry) => [entry.id, entry]));
@@ -58,6 +62,11 @@ export const monsterById = byId(monsters);
 export const zoneById = byId(zones);
 export const doctrineById = byId(doctrines);
 export const uniqueById = byId(uniques);
+export const sfxById = byId(sfxDefs);
+
+export function sfxFileFor(id: string): string {
+  return sfxById.get(id)?.file ?? `sfx/combat/${id}.ogg`;
+}
 
 export function nodeById(id: string) {
   return skillTree.nodes.find((node) => node.id === id);

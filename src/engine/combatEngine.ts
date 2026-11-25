@@ -1,4 +1,4 @@
-import { doctrineById, monsterById, skillTree, zoneById } from '../data';
+import { doctrineById, monsterById, sfxFileFor, skillTree, zoneById } from '../data';
 import type { AilmentId, DoctrineId, MonsterDef, School, ZoneDef } from '../data/types';
 import type { CombatSkill, PlayerStats } from './stats';
 import { mulberry32, chance, pickOne, rollBetween } from './rng';
@@ -11,6 +11,8 @@ export interface AilmentInstance {
   duration?: number;
   stacks: number;
   severity?: number;
+  dotFxAccum?: number;
+  lastDotFxAt?: number;
 }
 
 export interface CombatEnemy {
@@ -76,12 +78,34 @@ export interface CombatHitEvent {
 
 export type DamageSource = 'auto' | 'skill' | 'ailment' | 'thorns';
 
-/** Short-lived presentation event the UI turns into combat juice. */
+export type CombatFxKind =
+  | 'slash'
+  | 'impact'
+  | 'bolt'
+  | 'cast'
+  | 'fireball'
+  | 'aoe'
+  | 'dot'
+  | 'lunge'
+  | 'telegraph'
+  | 'mitigated'
+  | 'punished'
+  | 'phase'
+  | 'death'
+  | 'spread'
+  | 'ward';
+
+/** Short-lived presentation event the UI turns into combat juice and SFX hooks. */
 export interface CombatFxEvent {
   id: number;
-  kind: 'slash' | 'impact' | 'bolt' | 'aoe' | 'lunge' | 'mitigated' | 'punished' | 'phase' | 'death' | 'spread' | 'ward';
+  kind: CombatFxKind;
   school: School;
+  sfxKey: string;
+  sfx: string;
   enemyUid?: string;
+  ailment?: AilmentId;
+  amount?: number;
+  crit?: boolean;
   text?: string;
   at: number;
 }
@@ -336,16 +360,81 @@ export function createCombat(options: CreateCombatOptions): CombatState {
   return state;
 }
 
+function defaultSfxKeyForFx(kind: CombatFxKind, school: School, crit?: boolean, ailment?: AilmentId): string {
+  switch (kind) {
+    case 'slash':
+      return crit ? 'melee_crit' : 'melee_slash';
+    case 'fireball':
+      return 'fireball_impact';
+    case 'aoe':
+      return school === 'frost'
+        ? 'frost_impact'
+        : school === 'lightning'
+          ? 'lightning_impact'
+          : school === 'void'
+            ? 'void_impact'
+            : 'aoe_pulse';
+    case 'bolt':
+    case 'cast':
+      if (school === 'fire') return 'fireball_cast';
+      if (school === 'frost') return 'frost_cast';
+      if (school === 'lightning') return 'lightning_cast';
+      if (school === 'void') return 'void_cast';
+      return 'auto_shot';
+    case 'impact':
+      if (school === 'fire') return 'fireball_impact';
+      if (school === 'frost') return 'frost_impact';
+      if (school === 'lightning') return 'lightning_impact';
+      if (school === 'void') return 'void_impact';
+      return crit ? 'melee_crit' : 'melee_slash';
+    case 'dot':
+      if (ailment === 'corruption') return 'poison_tick';
+      if (ailment === 'ignite') return 'ignite_tick';
+      return 'bleed_tick';
+    case 'spread':
+      return 'ignite_tick';
+    case 'ward':
+      return 'guard_ward';
+    case 'mitigated':
+      return 'dodge_mitigate';
+    case 'punished':
+      return 'telegraph_punish';
+    case 'telegraph':
+      return 'telegraph_warn';
+    case 'phase':
+      return 'boss_phase';
+    case 'death':
+      return 'enemy_death';
+    case 'lunge':
+    default:
+      return 'melee_slash';
+  }
+}
+
 function pushFx(
   state: CombatState,
-  kind: CombatFxEvent['kind'],
+  kind: CombatFxKind,
   school: School,
   enemyUid?: string,
   text?: string,
+  extra?: { sfxKey?: string; ailment?: AilmentId; amount?: number; crit?: boolean },
 ): void {
   state.fxSeq += 1;
-  state.fx.push({ id: state.fxSeq, kind, school, enemyUid, text, at: state.time });
-  if (state.fx.length > 48) state.fx.splice(0, state.fx.length - 48);
+  const sfxKey = extra?.sfxKey ?? defaultSfxKeyForFx(kind, school, extra?.crit, extra?.ailment);
+  state.fx.push({
+    id: state.fxSeq,
+    kind,
+    school,
+    sfxKey,
+    sfx: sfxFileFor(sfxKey),
+    enemyUid,
+    ailment: extra?.ailment,
+    amount: extra?.amount,
+    crit: extra?.crit,
+    text,
+    at: state.time,
+  });
+  if (state.fx.length > 64) state.fx.splice(0, state.fx.length - 64);
 }
 
 function pushLog(state: CombatState, kind: CombatEvent['kind'], text: string): void {
@@ -455,7 +544,32 @@ function damageEnemy(
 
   if (source === 'auto' || source === 'skill') {
     applyLifeLeech(state, applied, skill);
-    pushFx(state, source === 'auto' ? 'slash' : 'impact', school, enemy.uid, crit ? 'CRIT' : undefined);
+    let fxKind: CombatFxKind = 'slash';
+    let sfxKey: string | undefined;
+    if (source === 'auto') {
+      const arch = stats.weapon.archetype;
+      if (arch === 'bow' || arch === 'staff') {
+        fxKind = 'bolt';
+        sfxKey = crit ? 'melee_crit' : 'auto_shot';
+      } else {
+        fxKind = 'slash';
+        sfxKey = crit ? 'melee_crit' : 'melee_slash';
+      }
+    } else if (skill) {
+      if (school === 'fire' && (skill.tags.includes('projectile') || skill.tags.includes('fire'))) {
+        fxKind = 'fireball';
+        sfxKey = 'fireball_impact';
+      } else if (skill.tags.includes('area')) {
+        fxKind = 'aoe';
+        sfxKey = school === 'physical' ? 'aoe_pulse' : undefined;
+      } else if (skill.tags.includes('melee')) {
+        fxKind = 'slash';
+        sfxKey = crit ? 'melee_crit' : 'melee_slash';
+      } else {
+        fxKind = 'impact';
+      }
+    }
+    pushFx(state, fxKind, school, enemy.uid, crit ? 'CRIT' : undefined, { crit, sfxKey, amount: applied });
     if (punishWindow) {
       pushFx(state, 'punished', school, enemy.uid, 'PUNISHED!');
       pushLog(state, 'trigger', `Telegraph punished on ${enemy.name} (+15% damage)`);
@@ -762,6 +876,7 @@ function castSkill(state: CombatState, skill: CombatSkill, power: number, trigge
       player.castLock = duration;
       if (!skill.tags.includes('guard')) {
         player.cast = { skillId: skill.id, remaining: duration, duration, power };
+        pushFx(state, 'cast', skill.school, living[0]?.uid, skill.name);
         pushLog(state, 'cast', `${skill.name} begins casting (${duration.toFixed(1)}s)`);
         player.skillTimers[skill.id] = effectiveSkillRecovery(state, skill);
         return;
@@ -777,8 +892,13 @@ function castSkill(state: CombatState, skill: CombatSkill, power: number, trigge
   if (isGuard) {
     player.ward = Math.min(stats.maxWard, player.ward + stats.maxWard * 0.18);
     player.guardActive = 2;
+    pushFx(state, 'ward', skill.school, undefined, 'WARD');
     pushLog(state, 'ward', `${skill.name} restores ward (${player.ward.toFixed(0)}/${stats.maxWard.toFixed(0)})`);
     return;
+  }
+
+  if (skill.tags.includes('projectile')) {
+    pushFx(state, 'bolt', skill.school, living[0]?.uid);
   }
 
   const area = skill.tags.includes('area');
@@ -1201,6 +1321,17 @@ function tickAilments(state: CombatState): void {
         id === 'ignite' ? 'fire' : id === 'chill' ? 'frost' : id === 'shock' ? 'lightning' : id === 'bleed' ? 'physical' : 'void';
       state.damageLog.push({ t: state.time, amount: dealt, school, source: 'ailment' });
       if (state.damageLog.length > 200) state.damageLog.shift();
+
+      if (id === 'corruption' || id === 'bleed' || id === 'ignite') {
+        ailment.dotFxAccum = (ailment.dotFxAccum ?? 0) + dealt;
+        const lastAt = ailment.lastDotFxAt ?? -1;
+        if (state.time - lastAt >= 0.55 && ailment.dotFxAccum >= 0.45) {
+          const tickAmount = Math.round(ailment.dotFxAccum * 10) / 10;
+          ailment.dotFxAccum = 0;
+          ailment.lastDotFxAt = state.time;
+          pushFx(state, 'dot', school, enemy.uid, undefined, { ailment: id, amount: tickAmount });
+        }
+      }
     }
     if (enemy.dazed > 0) enemy.dazed = Math.max(0, enemy.dazed - TICK_SECONDS);
   }
@@ -1212,6 +1343,7 @@ function resolveDeaths(state: CombatState): void {
     if (enemy.hp > 0) continue;
     state.enemies = state.enemies.filter((e) => e !== enemy);
     state.rewards.kills += 1;
+    pushFx(state, 'death', enemy.school, enemy.uid, enemy.boss ? 'SLAIN!' : undefined);
 
     // Ashen Executioner: ignite spreads to one living neighbour on kill.
     if (stats.mythic.igniteSpreadOnKill && enemy.ailments.ignite) {
@@ -1223,7 +1355,7 @@ function resolveDeaths(state: CombatState): void {
           remaining: Math.max(2, (source.remaining ?? 3) * 0.6),
           duration: Math.max(2, (source.duration ?? 4) * 0.6),
         };
-        pushFx(state, 'impact', 'fire', neighbour.uid, 'SPREAD');
+        pushFx(state, 'spread', 'fire', neighbour.uid, 'SPREAD');
         pushLog(state, 'ailment', `Ignite spreads from ${enemy.name} to ${neighbour.name}`);
       }
     }
@@ -1393,7 +1525,6 @@ export function tickCombat(state: CombatState): void {
       const skill = stats.skills.find((entry) => entry.id === pending.skillId);
       if (skill) {
         pushLog(state, 'cast', `${skill.name} fires`);
-        pushFx(state, 'bolt', skill.school ?? 'arcane', state.enemies[0]?.uid);
         castSkill(state, skill, pending.power, true);
         if (stats.mythic.castFreeAttack) {
           pushLog(state, 'trigger', 'Chrono-Spindle: free Auto-Attack');
@@ -1455,6 +1586,7 @@ export function tickCombat(state: CombatState): void {
         if (!enemy.slamWarned) {
           enemy.slamWarned = true;
           enemy.punishUsed = false;
+          pushFx(state, 'telegraph', enemy.school, enemy.uid, enemy.slamName ?? 'TELEGRAPH');
           pushLog(
             state,
             'boss',

@@ -6,6 +6,7 @@ import gems from '../src/data/gems.json';
 import items from '../src/data/items.json';
 import monsters from '../src/data/monsters.json';
 import progression from '../src/data/progression.json';
+import sfx from '../src/data/sfx.json';
 import tree from '../src/data/skill_tree.json';
 import statRegistry from '../src/data/stat_registry.json';
 import zones from '../src/data/zones.json';
@@ -267,6 +268,34 @@ if (!Array.isArray(progression) || progression.length === 0) {
   }
 }
 
+// 10. SFX registry: unique ids, sfx/<category>/<id>.ogg naming, valid categories and cooldowns.
+const sfxIds = new Set<string>();
+const sfxFiles = new Set<string>();
+for (const entry of sfx as { id?: string; file?: string; category?: string; cooldownMs?: number; description?: string }[]) {
+  if (!entry.id) {
+    fail('sfx: entry missing id');
+    continue;
+  }
+  if (sfxIds.has(entry.id)) fail(`sfx: duplicate id "${entry.id}"`);
+  sfxIds.add(entry.id);
+  if (entry.category !== 'combat' && entry.category !== 'ui') {
+    fail(`sfx.${entry.id}: invalid category "${String(entry.category)}"`);
+  }
+  if (!entry.file || !/^sfx\/(combat|ui)\/[a-z0-9_]+\.ogg$/.test(entry.file)) {
+    fail(`sfx.${entry.id}: file must match sfx/(combat|ui)/<name>.ogg`);
+  } else if (sfxFiles.has(entry.file)) {
+    fail(`sfx: duplicate file "${entry.file}"`);
+  } else {
+    sfxFiles.add(entry.file);
+  }
+  if (typeof entry.cooldownMs !== 'number' || entry.cooldownMs < 0) {
+    fail(`sfx.${entry.id}: invalid cooldownMs`);
+  }
+  if (!entry.description || !entry.description.trim()) {
+    fail(`sfx.${entry.id}: missing description`);
+  }
+}
+
 if (failures.length) {
   console.error(`validate-data: ${failures.length} problem(s)\n`);
   failures.forEach((msg) => console.error(`  - ${msg}`));
@@ -275,5 +304,5 @@ if (failures.length) {
 
 console.log(
   `validate-data: OK — ${manifest.assets.length} assets, ${items.length} bases, ${affixes.length} affixes, ` +
-    `${gems.length} gems, ${monsters.length} monsters, ${zones.length} zones, ${nodes.length} tree nodes, ${edges.length} edges, ${progression.length} progression entries`,
+    `${gems.length} gems, ${monsters.length} monsters, ${zones.length} zones, ${nodes.length} tree nodes, ${edges.length} edges, ${progression.length} progression entries, ${sfx.length} sfx bindings`,
 );

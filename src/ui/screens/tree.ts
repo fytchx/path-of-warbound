@@ -1,6 +1,6 @@
 import { keystones, skillTree } from '../../data';
 import type { TreeNode } from '../../data/types';
-import type { GameStore } from '../store';
+import type { GameStore, TreeFocus } from '../store';
 import { escapeHtml, fmt, statLabel } from '../dom';
 
 const VIEW = { w: 390, h: 430 };
@@ -11,6 +11,14 @@ const SECTOR_COLOR: Record<string, string> = {
   fortitude: '#D4AF37',
   core: '#9B51E0',
 };
+
+const SECTORS: { id: TreeFocus; label: string; color?: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'might', label: 'Might', color: SECTOR_COLOR.might },
+  { id: 'agility', label: 'Agility', color: SECTOR_COLOR.agility },
+  { id: 'wisdom', label: 'Wisdom', color: SECTOR_COLOR.wisdom },
+  { id: 'fortitude', label: 'Fort', color: SECTOR_COLOR.fortitude },
+];
 
 function nodeRadius(node: TreeNode): number {
   switch (node.kind) {
@@ -81,7 +89,16 @@ function nodesNearHub(sector: string, maxHops = 2): Set<string> {
   );
 }
 
-function sectorLabels(active: string | null): string {
+function reachableFrontier(allocated: Set<string>): Set<string> {
+  const frontier = new Set<string>();
+  for (const [a, b] of skillTree.edges) {
+    if (allocated.has(a) && !allocated.has(b)) frontier.add(b);
+    if (allocated.has(b) && !allocated.has(a)) frontier.add(a);
+  }
+  return frontier;
+}
+
+function sectorCentroids(): Map<string, { x: number; y: number }> {
   const groups = new Map<string, { x: number; y: number; count: number }>();
   for (const node of skillTree.nodes) {
     if (!SECTOR_COLOR[node.sector] || node.sector === 'core') continue;
@@ -91,9 +108,26 @@ function sectorLabels(active: string | null): string {
     group.count += 1;
     groups.set(node.sector, group);
   }
-  return [...groups.entries()]
+  const out = new Map<string, { x: number; y: number }>();
+  for (const [sector, g] of groups.entries()) {
+    out.set(sector, { x: g.x / g.count, y: g.y / g.count });
+  }
+  return out;
+}
+
+function sectorAuras(centroids: Map<string, { x: number; y: number }>, activeFocus: TreeFocus): string {
+  return [...centroids.entries()]
+    .map(([sector, c]) => {
+      const focused = activeFocus === sector;
+      return `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${focused ? 105 : 88}" fill="${SECTOR_COLOR[sector]}" fill-opacity="${focused ? '0.11' : '0.05'}" pointer-events="none" />`;
+    })
+    .join('');
+}
+
+function sectorLabels(centroids: Map<string, { x: number; y: number }>, active: string | null): string {
+  return [...centroids.entries()]
     .map(([sector, group]) => {
-      const angle = Math.atan2(group.y / group.count, group.x / group.count);
+      const angle = Math.atan2(group.y, group.x);
       const lx = Math.max(-150, Math.min(150, Math.cos(angle) * 178));
       const ly = Math.max(-188, Math.min(188, Math.sin(angle) * 178));
       return `<text class="tree-sector-label${sector === active ? ' starter' : ''}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${SECTOR_COLOR[sector]}">${sector.toUpperCase()}</text>`;
@@ -101,9 +135,9 @@ function sectorLabels(active: string | null): string {
     .join('');
 }
 
-function cumulativePreviewSummary(pathIds: string[]): string {
+function summarizeNodesMods(nodeIds: string[]): string[] {
   const sums = new Map<string, number>();
-  for (const id of pathIds) {
+  for (const id of nodeIds) {
     const node = skillTree.nodes.find((n) => n.id === id);
     if (!node) continue;
     for (const mod of node.mods) {
@@ -111,27 +145,48 @@ function cumulativePreviewSummary(pathIds: string[]): string {
       sums.set(key, (sums.get(key) ?? 0) + mod.value);
     }
   }
-  if (!sums.size) return '';
-  return [...sums.entries()]
-    .map(([key, val]) => {
-      const [layer, stat] = key.split(':');
-      const unit = layer === 'more' ? '% more' : layer === 'increased' ? '%' : '';
-      return `+${fmt(val, 1)}${unit} ${statLabel(stat ?? '')}`;
+  return [...sums.entries()].map(([key, val]) => {
+    const [layer, stat] = key.split(':');
+    const unit = layer === 'more' ? '% more' : layer === 'increased' ? '%' : '';
+    return `+${fmt(val, 1)}${unit} ${statLabel(stat ?? '')}`;
+  });
+}
+
+function closestGoals(allocated: Set<string>): TreeNode[] {
+  const frontier = reachableFrontier(allocated);
+  const candidates = skillTree.nodes.filter(
+    (node) =>
+      !allocated.has(node.id) &&
+      (node.kind === 'notable' || node.kind === 'keystone' || frontier.has(node.id)) &&
+      !(node.excludes ?? []).some((id) => allocated.has(id)),
+  );
+  // Rank notables/keystones nearest to any allocated node
+  const allocatedNodes = skillTree.nodes.filter((n) => allocated.has(n.id));
+  const distToAllocated = (n: TreeNode) =>
+    Math.min(...allocatedNodes.map((a) => Math.hypot(a.x - n.x, a.y - n.y)));
+  return candidates
+    .sort((a, b) => {
+      const rankA = a.kind === 'notable' ? 0 : a.kind === 'keystone' ? 1 : 2;
+      const rankB = b.kind === 'notable' ? 0 : b.kind === 'keystone' ? 1 : 2;
+      if (rankA !== rankB) return rankA - rankB;
+      return distToAllocated(a) - distToAllocated(b);
     })
-    .join(' · ');
+    .slice(0, 4);
 }
 
 export function treeScreen(store: GameStore): string {
   const ui = store.ui;
   const allocated = new Set(store.save.allocated);
   const preview = new Set(ui.previewPath);
+  const frontier = reachableFrontier(allocated);
   const articulation = ui.refundMode ? store.articulationPoints() : new Set<string>();
   const highlighted = new Set([...allocated, ...preview]);
   const activeSector = starterSector(store);
   const starterBranch = activeSector ? nodesNearHub(activeSector) : new Set<string>();
   const previewNode = ui.previewNode ? skillTree.nodes.find((n) => n.id === ui.previewNode) ?? null : null;
   const previewCost = ui.previewPath.length;
-  const previewTotals = previewCost > 0 ? cumulativePreviewSummary(ui.previewPath) : '';
+  const previewLines = previewCost > 0 ? summarizeNodesMods(ui.previewPath) : [];
+  const centroids = sectorCentroids();
 
   const edgeMarkup = skillTree.edges
     .map(([a, b]) => {
@@ -145,90 +200,117 @@ export function treeScreen(store: GameStore): string {
     })
     .join('');
 
-  const nodeObstacles = skillTree.nodes.map((node) => ({
-    id: node.id,
-    x: node.x,
-    y: node.y,
-    half: nodeRadius(node) + 2,
-    halfH: nodeRadius(node) + 2,
-  }));
-  const sectorGroups = new Map<string, { x: number; y: number; count: number }>();
-  for (const node of skillTree.nodes) {
-    if (!SECTOR_COLOR[node.sector] || node.sector === 'core') continue;
-    const group = sectorGroups.get(node.sector) ?? { x: 0, y: 0, count: 0 };
-    group.x += node.x;
-    group.y += node.y;
-    group.count += 1;
-    sectorGroups.set(node.sector, group);
-  }
-  const sectorObstacles = [...sectorGroups.entries()].map(([sector, group]) => {
-    const angle = Math.atan2(group.y / group.count, group.x / group.count);
-    return {
-      x: Math.max(-150, Math.min(150, Math.cos(angle) * 178)),
-      y: Math.max(-188, Math.min(188, Math.sin(angle) * 178)),
-      half: sector.length * 4.6,
-      halfH: 8,
-    };
-  });
-
-  const labelSlots: { x: number; y: number; half: number }[] = [];
-  const labelYFor = (node: TreeNode, radius: number): number => {
-    const half = (node.name.length * 4.9) / 2 + 3;
-    let best = radius + 16;
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (const offset of [radius + 16, radius + 28, radius + 40, radius + 52]) {
-      const y = node.y + offset;
-      const glyphs = nodeObstacles.filter(
-        (box) => box.id !== node.id && Math.abs(box.x - node.x) < box.half + half && Math.abs(box.y - y) < box.halfH + 9,
-      ).length;
-      const sectors = sectorObstacles.filter(
-        (box) => Math.abs(box.x - node.x) < box.half + half && Math.abs(box.y - y) < box.halfH + 9,
-      ).length;
-      const slots = labelSlots.filter(
-        (slot) => Math.abs(slot.x - node.x) < slot.half + half && Math.abs(slot.y - y) < 14,
-      ).length;
-      const score = glyphs * 2 + sectors * 2 + slots * 3;
-      if (score < bestScore) {
-        best = offset;
-        bestScore = score;
-      }
-    }
-    labelSlots.push({ x: node.x, y: node.y + best, half });
-    return best;
-  };
-
   const nodeMarkup = skillTree.nodes
     .map((node) => {
       const radius = nodeRadius(node);
       const isAllocated = allocated.has(node.id);
       const isPreview = preview.has(node.id);
+      const isReachable = frontier.has(node.id) && !isAllocated;
       const isExcluded = (node.excludes ?? []).some((id) => allocated.has(id));
       const isStranded = articulation.has(node.id);
       const color = node.kind === 'keystone' ? '#9B51E0' : node.kind === 'socket' ? '#38D6E8' : SECTOR_COLOR[node.sector] ?? '#D4AF37';
-      const classes = ['tree-node', node.kind, isAllocated ? 'allocated' : '', isPreview ? 'preview' : '', isExcluded ? 'excluded' : '', isStranded ? 'stranded' : '', starterBranch.has(node.id) ? 'starter-branch' : ''].join(' ');
-      const showLabel = node.kind === 'keystone' || (node.kind === 'notable' && (isAllocated || preview.has(node.id)));
-      const label = showLabel ? `<text class="tree-node-label" y="${labelYFor(node, radius)}">${escapeHtml(node.name)}</text>` : '';
-      const glyphStyle = `--g:${color};--fill:${isAllocated ? '#2a2312' : '#0B0E16'}`;
+      const classes = [
+        'tree-node',
+        node.kind,
+        isAllocated ? 'allocated' : '',
+        isPreview ? 'preview' : '',
+        isReachable ? 'reachable' : '',
+        isExcluded ? 'excluded' : '',
+        isStranded ? 'stranded' : '',
+        starterBranch.has(node.id) ? 'starter-branch' : '',
+      ].filter(Boolean).join(' ');
+      const showLabel =
+        node.kind === 'keystone' ||
+        (node.kind === 'notable' && (isAllocated || isPreview || ui.treeFocus === node.sector));
+      const label = showLabel ? `<text class="tree-node-label" y="${radius + 13}">${escapeHtml(node.name)}</text>` : '';
+      const glyphStyle = `--g:${color};--fill:${isAllocated ? '#3b2e10' : isReachable ? '#182135' : '#0B0E16'}`;
       const hitRadius = Math.max(22, radius + 10);
       return `<g class="${classes}" transform="translate(${node.x} ${node.y})" data-action="node" data-node="${node.id}" role="button" tabindex="0" aria-label="${escapeHtml(node.name)}">
         <circle r="${hitRadius}" fill="transparent" />
+        ${isReachable && !isExcluded ? `<circle r="${radius + 3.5}" fill="none" stroke="${color}" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="2 2" />` : ''}
         <use href="#${symbolFor(node)}" x="${-radius}" y="${-radius}" width="${radius * 2}" height="${radius * 2}" class="node-glyph" style="${glyphStyle}" />
         ${label}
       </g>`;
     })
     .join('');
 
+  const spentCount = store.save.allocated.filter((id) => id !== 'hub_0').length;
+  const activeTab = ui.treeTab;
+
+  let dockContent = '';
+  if (activeTab === 'inspect') {
+    if (previewNode) {
+      dockContent = `<div class="frame pan tree-dock-card">
+        <h4>
+          <span>${escapeHtml(previewNode.name)} <small class="muted">(${escapeHtml(previewNode.sector)} · ${escapeHtml(previewNode.kind)})</small></span>
+          <span class="gold">${previewCost} pt${previewCost === 1 ? '' : 's'}</span>
+        </h4>
+        <p class="tiny muted" style="line-height:1.4">${escapeHtml(previewNode.description)}</p>
+        ${previewLines.length ? `<div class="tree-gain-list">${previewLines.map((l) => `<span class="gain-chip">${escapeHtml(l)}</span>`).join('')}</div>` : ''}
+        <div class="tree-dock-actions">
+          <button class="gbtn" data-action="allocate" ${store.unspent() < previewCost ? 'disabled' : ''}>
+            ${store.unspent() < previewCost ? `Need ${previewCost} pts (${store.unspent()} free)` : `Allocate (${previewCost} pt${previewCost === 1 ? '' : 's'})`}
+          </button>
+        </div>
+      </div>`;
+    } else {
+      const suggestions = closestGoals(allocated);
+      dockContent = `<div class="frame pan tree-dock-card">
+        <h4>Next Nodes<span>${store.unspent()} point${store.unspent() === 1 ? '' : 's'} ready</span></h4>
+        <p class="tiny muted" style="margin-bottom:6px">Tap a node on the map or pick a nearby notable below to preview its path.</p>
+        <div class="tree-suggest-grid">
+          ${suggestions
+            .map((node) => {
+              const color = SECTOR_COLOR[node.sector] ?? '#D4AF37';
+              return `<button class="tree-suggest-btn" data-action="node" data-node="${node.id}" style="--c:${color}">
+                <b>${escapeHtml(node.name)}</b>
+                <span>${escapeHtml(node.sector)} · ${escapeHtml(node.kind)}</span>
+              </button>`;
+            })
+            .join('')}
+        </div>
+      </div>`;
+    }
+  } else if (activeTab === 'keystones') {
+    dockContent = `<div class="frame pan tree-dock-card">
+      <h4>Keystones<span>8 · choose 1 per pair</span></h4>
+      ${keystones
+        .map((keystone) => {
+          const owned = allocated.has(keystone.id);
+          const partnerId = (keystone.excludes ?? [])[0];
+          const partnerName = partnerId ? skillTree.nodes.find((n) => n.id === partnerId)?.name ?? partnerId : '';
+          const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
+          return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
+            <span>
+              <span class="gold" style="display:block;font-size:11px;font-weight:700">${escapeHtml(keystone.name)}</span>
+              <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partnerName)}` : escapeHtml(keystone.description)}</span>
+            </span>
+            <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? 'ACTIVE' : blocked ? 'LOCKED' : 'Preview'}</span>
+          </button>`;
+        })
+        .join('')}
+    </div>`;
+  } else {
+    const allocatedIds = store.save.allocated.filter((id) => id !== 'hub_0');
+    const summaryLines = summarizeNodesMods(allocatedIds);
+    dockContent = `<div class="frame pan tree-dock-card">
+      <h4>Active Tree Totals<span>${spentCount} node${spentCount === 1 ? '' : 's'} bound</span></h4>
+      ${summaryLines.length
+        ? `<div class="tree-summary-list">${summaryLines.map((line) => `<div class="affix-line"><span class="affix-name">${escapeHtml(line)}</span></div>`).join('')}</div>`
+        : '<div class="tiny muted">No passive nodes allocated yet. Tap any dashed ring around the center Soul Core to begin.</div>'}
+    </div>`;
+  }
+
   return `<section class="screen" data-screen="tree" aria-label="Skill Tree">
     <div class="sub-h">
       <h2>WARBOUND TREE</h2>
-      <span class="tiny muted">${store.save.allocated.filter((id) => id !== 'hub_0').length} allocated · ${store.unspent()} free</span>
+      <span class="tiny"><b class="gold">${store.unspent()} free</b> · ${spentCount} spent</span>
     </div>
 
-    <div class="tree-controls">
-      <button class="gbtn ${ui.refundMode ? 'on' : ''}" data-action="tree-refund">${ui.refundMode ? 'REFUND ON' : 'REFUND'}</button>
-      <button class="gbtn" data-action="tree-zoom-out" aria-label="Zoom out">−</button>
-      <button class="gbtn" data-action="tree-reset" aria-label="Reset view">${(ui.treeView.scale * 100).toFixed(0)}%</button>
-      <button class="gbtn" data-action="tree-zoom-in" aria-label="Zoom in">+</button>
+    <div class="tree-focus-row" role="tablist" aria-label="Sector focus">
+      ${SECTORS.map(
+        (s) => `<button role="tab" aria-selected="${ui.treeFocus === s.id}" class="focus-chip ${ui.treeFocus === s.id ? 'on' : ''}" data-action="tree-focus" data-sector="${s.id}" ${s.color ? `style="--fc:${s.color}"` : ''}>${s.label}</button>`,
+      ).join('')}
     </div>
 
     <div class="frame tree" data-tree>
@@ -236,41 +318,31 @@ export function treeScreen(store: GameStore): string {
         <g transform="translate(${VIEW.w / 2 + ui.treeView.x} ${VIEW.h / 2 + ui.treeView.y}) scale(${ui.treeView.scale})">
           <circle r="210" fill="none" stroke="rgba(109,95,46,0.18)" stroke-width="1" />
           <circle r="150" fill="none" stroke="rgba(109,95,46,0.12)" stroke-width="1" />
+          ${sectorAuras(centroids, ui.treeFocus)}
           ${edgeMarkup}
           ${nodeMarkup}
-          ${sectorLabels(activeSector)}
+          ${sectorLabels(centroids, activeSector)}
         </g>
       </svg>
-      ${ui.refundMode ? '<div class="banner" style="top:auto;bottom:6px">Refund mode · red nodes would strand others</div>' : ''}
+      <div class="tree-zoom-hud">
+        <button class="icon-btn small" data-action="tree-zoom-out" aria-label="Zoom out">−</button>
+        <button class="tree-zoom-pct" data-action="tree-reset" aria-label="Reset view">${(ui.treeView.scale * 100).toFixed(0)}%</button>
+        <button class="icon-btn small" data-action="tree-zoom-in" aria-label="Zoom in">+</button>
+      </div>
+      ${ui.refundMode ? '<div class="banner" style="top:auto;bottom:6px">Refund mode · tap a node to refund</div>' : ''}
     </div>
 
-    <p class="hint">Drag to pan · pinch or +/− to zoom · tap once to preview, tap again to allocate</p>
-
-    ${previewNode
-      ? `<div class="frame pan">
-          <h4>${escapeHtml(previewNode.name)}<span class="gold">${previewCost} pt${previewCost === 1 ? '' : 's'}</span></h4>
-          <p class="tiny muted" style="line-height:1.4">${escapeHtml(previewNode.description)}</p>
-          ${previewTotals ? `<p class="tiny gold" style="margin-top:4px">${escapeHtml(previewTotals)}</p>` : ''}
-          <div style="margin-top:6px"><button class="gbtn" data-action="allocate" ${store.unspent() < previewCost ? 'disabled' : ''}>Confirm (${previewCost} pt${previewCost === 1 ? '' : 's'})</button></div>
-        </div>`
-      : '<div class="frame pan"><p class="tiny muted">Tap any unallocated node to preview the shortest path and cumulative gains. Tap again to confirm.</p></div>'}
-
-    <div class="frame pan">
-      <h4>Keystones<span>8 · mutually exclusive pairs</span></h4>
-      ${keystones
-        .map((keystone) => {
-          const owned = allocated.has(keystone.id);
-          const partner = (keystone.excludes ?? [])[0];
-          const blocked = (keystone.excludes ?? []).some((id) => allocated.has(id));
-          return `<button class="ksrow" data-action="node" data-node="${keystone.id}">
-            <span>
-              <span class="gold" style="display:block;font-size:10px">${escapeHtml(keystone.name)}</span>
-              <span class="tiny muted">${owned ? 'Allocated' : blocked ? `Locked by ${escapeHtml(partner ?? '')}` : escapeHtml(keystone.description)}</span>
-            </span>
-            <span class="tiny" style="color:${owned ? 'var(--gold-hi)' : 'var(--mute)'}">${owned ? '◆' : `${fmt(store.unspent())} free`}</span>
-          </button>`;
-        })
-        .join('')}
+    <div class="tree-controls">
+      <button class="gbtn ${ui.refundMode ? 'on' : ''}" data-action="tree-refund">${ui.refundMode ? 'REFUND: ON' : 'REFUND NODE'}</button>
+      <button class="gbtn" data-action="open-respec" ${spentCount === 0 ? 'disabled' : ''}>RESPEC ALL · ${store.respecFee() === 0 ? 'FREE' : `${fmt(store.respecFee())}g`}</button>
     </div>
+
+    <div class="subtabs" role="tablist" aria-label="Tree details">
+      <button role="tab" aria-selected="${activeTab === 'inspect'}" class="subtab ${activeTab === 'inspect' ? 'on' : ''}" data-action="tree-tab" data-tab="inspect">Inspector</button>
+      <button role="tab" aria-selected="${activeTab === 'keystones'}" class="subtab ${activeTab === 'keystones' ? 'on' : ''}" data-action="tree-tab" data-tab="keystones">Keystones (8)</button>
+      <button role="tab" aria-selected="${activeTab === 'summary'}" class="subtab ${activeTab === 'summary' ? 'on' : ''}" data-action="tree-tab" data-tab="summary">Bonuses (${spentCount})</button>
+    </div>
+
+    ${dockContent}
   </section>`;
 }

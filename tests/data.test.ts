@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ALL_ASSET_IDS, ASSETS } from '../src/assets/assetIds';
-import { affixes, doctrines, gemById, gems, itemBases as items, monsters, progression, registries, skillTree, statRegistry, zones } from '../src/data';
+import {
+  affixes,
+  doctrines,
+  gemById,
+  gems,
+  itemBaseById,
+  itemBases as items,
+  monsters,
+  progression,
+  registries,
+  sfxDefs,
+  sfxFileFor,
+  skillTree,
+  statRegistry,
+  uniques,
+  zones,
+} from '../src/data';
 import type { School } from '../src/data/types';
 
 const manifest = JSON.parse(readFileSync('assets/manifest.json', 'utf8')) as {
@@ -47,6 +63,7 @@ describe('registries', () => {
     gems.forEach((gem) => check(gem.mods, gem.id));
     affixes.forEach((affix) => expect(stats.has(affix.stat)).toBe(true));
     skillTree.nodes.forEach((node) => check(node.mods, node.id));
+    uniques.forEach((unique) => check(unique.mods, unique.id));
   });
 
   it('keeps conversions forward-only inside their pass ordering', () => {
@@ -90,6 +107,24 @@ describe('registries', () => {
     for (const school of schools) {
       expect(gems.some((gem) => gem.school === school), school).toBe(true);
     }
+    expect(uniques).toHaveLength(12);
+    for (const unique of uniques) {
+      expect(itemBaseById.has(unique.baseId), unique.baseId).toBe(true);
+    }
+  });
+
+  it('registers combat & ui sfx bindings with valid .ogg paths', () => {
+    expect(sfxDefs.length).toBeGreaterThanOrEqual(25);
+    const seen = new Set<string>();
+    for (const entry of sfxDefs) {
+      expect(seen.has(entry.id), entry.id).toBe(false);
+      seen.add(entry.id);
+      expect(['combat', 'ui']).toContain(entry.category);
+      expect(entry.file).toMatch(/^sfx\/(combat|ui)\/[a-z0-9_]+\.ogg$/);
+      expect(entry.cooldownMs).toBeGreaterThan(0);
+      expect(sfxFileFor(entry.id)).toBe(entry.file);
+    }
+    expect(sfxFileFor('nonexistent_cue')).toBe('sfx/combat/nonexistent_cue.ogg');
   });
 
   it('orders affix tiers ascending across five values', () => {

@@ -1,0 +1,177 @@
+[
+  {
+    "id": "melee_slash",
+    "file": "sfx/combat/melee_slash.ogg",
+    "category": "combat",
+    "cooldownMs": 80,
+    "description": "Weapon melee swing and physical slash arc."
+  },
+  {
+    "id": "melee_crit",
+    "file": "sfx/combat/melee_crit.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Heavy critical strike slash and armor crunch."
+  },
+  {
+    "id": "auto_shot",
+    "file": "sfx/combat/auto_shot.ogg",
+    "category": "combat",
+    "cooldownMs": 90,
+    "description": "Quick ranged bow or staff bolt release."
+  },
+  {
+    "id": "fireball_cast",
+    "file": "sfx/combat/fireball_cast.ogg",
+    "category": "combat",
+    "cooldownMs": 150,
+    "description": "Igniting whoosh as a fire projectile launches."
+  },
+  {
+    "id": "fireball_impact",
+    "file": "sfx/combat/fireball_impact.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Fiery detonation burst on target hit."
+  },
+  {
+    "id": "frost_cast",
+    "file": "sfx/combat/frost_cast.ogg",
+    "category": "combat",
+    "cooldownMs": 150,
+    "description": "Crystalline chime when channeling frost magic."
+  },
+  {
+    "id": "frost_impact",
+    "file": "sfx/combat/frost_impact.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Brittle ice shatter on impact."
+  },
+  {
+    "id": "lightning_cast",
+    "file": "sfx/combat/lightning_cast.ogg",
+    "category": "combat",
+    "cooldownMs": 150,
+    "description": "Crackling static surge before a lightning strike."
+  },
+  {
+    "id": "lightning_impact",
+    "file": "sfx/combat/lightning_impact.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Sharp thunderclap shock on target."
+  },
+  {
+    "id": "void_cast",
+    "file": "sfx/combat/void_cast.ogg",
+    "category": "combat",
+    "cooldownMs": 150,
+    "description": "Hollow resonance as void or venom magic forms."
+  },
+  {
+    "id": "void_impact",
+    "file": "sfx/combat/void_impact.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Abyssal rupture and toxic splash on target."
+  },
+  {
+    "id": "aoe_pulse",
+    "file": "sfx/combat/aoe_pulse.ogg",
+    "category": "combat",
+    "cooldownMs": 140,
+    "description": "Ground-shaking shockwave across the enemy pack."
+  },
+  {
+    "id": "poison_tick",
+    "file": "sfx/combat/poison_tick.ogg",
+    "category": "combat",
+    "cooldownMs": 350,
+    "description": "Bubbling caustic hiss when Corruption ticks on an enemy."
+  },
+  {
+    "id": "bleed_tick",
+    "file": "sfx/combat/bleed_tick.ogg",
+    "category": "combat",
+    "cooldownMs": 350,
+    "description": "Sharp tearing pulse when Bleed ticks on an enemy."
+  },
+  {
+    "id": "ignite_tick",
+    "file": "sfx/combat/ignite_tick.ogg",
+    "category": "combat",
+    "cooldownMs": 350,
+    "description": "Crackling ember sear when Ignite ticks or spreads."
+  },
+  {
+    "id": "guard_ward",
+    "file": "sfx/combat/guard_ward.ogg",
+    "category": "combat",
+    "cooldownMs": 200,
+    "description": "Arcane barrier shimmer restoring Ward or Guard."
+  },
+  {
+    "id": "dodge_mitigate",
+    "file": "sfx/combat/dodge_mitigate.ogg",
+    "category": "combat",
+    "cooldownMs": 160,
+    "description": "Deflecting clang or wind-slip evading a strike."
+  },
+  {
+    "id": "telegraph_warn",
+    "file": "sfx/combat/telegraph_warn.ogg",
+    "category": "combat",
+    "cooldownMs": 300,
+    "description": "Low ominous bell warning of a telegraphed heavy strike."
+  },
+  {
+    "id": "telegraph_punish",
+    "file": "sfx/combat/telegraph_punish.ogg",
+    "category": "combat",
+    "cooldownMs": 200,
+    "description": "Crisp counter-hit ring when punishing an enemy telegraph."
+  },
+  {
+    "id": "boss_phase",
+    "file": "sfx/combat/boss_phase.ogg",
+    "category": "combat",
+    "cooldownMs": 500,
+    "description": "Deep Horn of the Bound One announcing a boss phase."
+  },
+  {
+    "id": "enemy_death",
+    "file": "sfx/combat/enemy_death.ogg",
+    "category": "combat",
+    "cooldownMs": 120,
+    "description": "Ashen dissolve as an enemy falls."
+  },
+  {
+    "id": "orb_craft",
+    "file": "sfx/ui/orb_craft.ogg",
+    "category": "ui",
+    "cooldownMs": 80,
+    "description": "Hammer-and-runic chime when applying a Currency Orb in the Forge."
+  },
+  {
+    "id": "chroma_craft",
+    "file": "sfx/ui/chroma_craft.ogg",
+    "category": "ui",
+    "cooldownMs": 80,
+    "description": "Prismatic crystal resonance when recoloring sockets."
+  },
+  {
+    "id": "boss_cache_open",
+    "file": "sfx/ui/boss_cache_open.ogg",
+    "category": "ui",
+    "cooldownMs": 250,
+    "description": "Heavy iron latch and triumphant chord opening a Boss Cache."
+  },
+  {
+    "id": "level_up",
+    "file": "sfx/ui/level_up.ogg",
+    "category": "ui",
+    "cooldownMs": 400,
+    "description": "Soul-Spark harmonic swell upon leveling up."
+  }
+]

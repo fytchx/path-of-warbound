@@ -8,16 +8,24 @@ import {
   applyStarterChoice,
   applyXp,
   awardGemXp,
+  canSocketGem,
+  chromaticReforge,
   claimOffline,
   computeOffline,
+  craftSocketColor,
   createInitialSave,
   createItem,
   equipItem,
   evaluateProgression,
+  grantBossCache,
+  infusePrismatic,
   levelUpGemWithDust,
   makeGem,
   processKillDrops,
   refundNode,
+  respecCost,
+  respecTree,
+  rollUnique,
   sanitizeSave,
   unequipItem,
   unspentPoints,
@@ -25,14 +33,22 @@ import {
 } from '../src/game/state';
 import {
   addSocket,
+  augmentCraft,
+  chaosCraft,
   corruptItem,
   essenceLockReforge,
+  fusingCraft,
+  guaranteedLinkCraft,
+  jewellerCraft,
   linkSocket,
   promoteRarity,
   reforgeItem,
+  regalCraft,
+  socketCap,
+  transmuteCraft,
   upgradeItem,
 } from '../src/game/crafting';
-import { gemDustCostToLevel, itemBase } from '../src/game/items';
+import { gemDustCostToLevel, itemBase, itemDisplayName } from '../src/game/items';
 
 const starter = () => {
   const save = createInitialSave(0);
@@ -225,7 +241,7 @@ describe('progression, loot, and gem leveling', () => {
   });
 });
 
-describe('allocation', () => {
+describe('allocation and full respec', () => {
   it('needs unspent points and allocates the BFS path', () => {
     const save = createInitialSave(0);
     save.level = 10;
@@ -249,9 +265,33 @@ describe('allocation', () => {
     expect(leaf.ok).toBe(true);
     expect(save.allocated).not.toContain('p_wisdom_0_entry');
   });
+
+  it('offers free respec at level <= 10 and charges gold at higher levels', () => {
+    const save = createInitialSave(0);
+    save.level = 10;
+    save.allocated = ['hub_0', 'sec_wisdom', 'p_wisdom_0_entry'];
+    expect(respecCost(save)).toBe(0);
+    const freeRes = respecTree(save);
+    expect(freeRes).toEqual({ ok: true, refunded: 2, cost: 0 });
+    expect(save.allocated).toEqual(['hub_0']);
+
+    save.level = 14;
+    save.allocated = ['hub_0', 'sec_wisdom', 'p_wisdom_0_entry'];
+    expect(respecCost(save)).toBe(350);
+    save.gold = 100;
+    const denied = respecTree(save);
+    expect(denied.ok).toBe(false);
+    expect(save.allocated).toHaveLength(3);
+
+    save.gold = 400;
+    const paid = respecTree(save);
+    expect(paid).toEqual({ ok: true, refunded: 2, cost: 350 });
+    expect(save.gold).toBe(50);
+    expect(save.allocated).toEqual(['hub_0']);
+  });
 });
 
-describe('equipment rules', () => {
+describe('equipment rules & unique presentation', () => {
   it('refuses a two-hander while the off hand is occupied, then frees the off hand', () => {
     const save = starter();
     const shield = createItem('base_shield', 'magic', 1, 'test-shield');
@@ -274,9 +314,27 @@ describe('equipment rules', () => {
     expect(equipItem(save, replacement, 'main_hand').ok).toBe(true);
     expect(save.inventory.some((item) => item.uid === old.uid)).toBe(true);
   });
+
+  it('uses mythic unique names and treats all sockets as white while wearing Prismatic Aegis', () => {
+    const save = starter();
+    const aegis = {
+      ...createItem('base_chest', 'mythic', 5, 'test-aegis'),
+      uniqueId: 'uq_prismatic_aegis',
+      socketColors: ['red', 'red', 'red'] as ('red' | 'green' | 'blue' | 'white')[],
+      sockets: [null, null, null],
+    };
+    save.equipment.chest = aegis;
+    expect(itemDisplayName(aegis)).toBe('Prismatic Aegis');
+    expect(canSocketGem(save, aegis, 0, makeGem('gem_ember_bolt', 1)).ok).toBe(true);
+
+    const rolled = rollUnique(42, 5);
+    expect(rolled.rarity).toBe('mythic');
+    expect(rolled.uniqueId).toBeTruthy();
+    expect(itemDisplayName(rolled)).not.toBe(itemBase(rolled).name);
+  });
 });
 
-describe('offline progression', () => {
+describe('offline progression & boss caches', () => {
   it('ignores short absences and caps long ones at eight hours', () => {
     const save = createInitialSave(0);
     save.lastSeen = 10_000;
@@ -296,9 +354,29 @@ describe('offline progression', () => {
     expect(save.keys).toBe(1);
     expect(save.lifetime.kills).toBe(4);
   });
+
+  it('grants a first-clear Boss Cache with bonus Skill Point, currency, and fully linked gear', () => {
+    const save = starter();
+    const beforePts = unspentPoints(save);
+    const first = grantBossCache(save, 'zone_ashen_graveyard', 1);
+    expect(first.firstClear).toBe(true);
+    expect(first.skillPoint).toBe(1);
+    expect(first.chroma).toBe(3);
+    expect(first.essence).toBe(2);
+    expect(['rare', 'mythic']).toContain(first.item.rarity);
+    expect(first.item.sockets.length).toBeGreaterThanOrEqual(2);
+    expect(first.item.linkedSockets).toBe(first.item.sockets.length);
+    expect(unspentPoints(save)).toBe(beforePts + 1);
+    expect(save.inventory.some((i) => i.uid === first.item.uid)).toBe(true);
+
+    const repeat = grantBossCache(save, 'zone_ashen_graveyard', 1);
+    expect(repeat.firstClear).toBe(false);
+    expect(repeat.skillPoint).toBe(0);
+    expect(unspentPoints(save)).toBe(beforePts + 1);
+  });
 });
 
-describe('crafting', () => {
+describe('crafting & Currency Bench', () => {
   it('upgrades item level and consumes scrap', () => {
     const save = starter();
     save.materials.mat_scrap = 50;
@@ -309,6 +387,86 @@ describe('crafting', () => {
     expect(item.itemLevel).toBe(before.level + 1);
     expect(save.materials.mat_scrap).toBeLessThan(before.scrap);
     expect(item.affixes.every((a) => a.tier >= 1 && a.tier <= 5)).toBe(true);
+  });
+
+  it('walks an item through Transmute -> Augment -> Regal -> Chaos and Jeweller -> Fusing -> Full Link', () => {
+    const save = createInitialSave(0);
+    save.materials.mat_flux = 50;
+    save.materials.mat_essence = 20;
+    save.materials.mat_scrap = 50;
+    save.materials.mat_thread = 50;
+
+    const item = createItem('base_chest', 'common', 5, 'currency-bench-chest');
+    item.affixes = [];
+    item.sockets = [null];
+    item.socketColors = ['red'];
+    item.linkedSockets = 1;
+
+    expect(transmuteCraft(save, item, 1).ok).toBe(true);
+    expect(item.rarity).toBe('magic');
+    expect(item.affixes).toHaveLength(1);
+
+    expect(augmentCraft(save, item, 2).ok).toBe(true);
+    expect(item.affixes).toHaveLength(2);
+    expect(augmentCraft(save, item, 3).ok).toBe(false);
+
+    expect(regalCraft(save, item, 4).ok).toBe(true);
+    expect(item.rarity).toBe('rare');
+    expect(item.affixes.length).toBeGreaterThanOrEqual(3);
+
+    expect(chaosCraft(save, item, 5).ok).toBe(true);
+    expect(item.rarity).toBe('rare');
+
+    expect(socketCap(item)).toBeGreaterThanOrEqual(4);
+    expect(jewellerCraft(save, item, 6).ok).toBe(true);
+    expect(item.sockets).toHaveLength(2);
+    expect(jewellerCraft(save, item, 7).ok).toBe(true);
+    expect(item.sockets).toHaveLength(3);
+
+    expect(fusingCraft(save, item, 8).ok).toBe(true);
+    expect(item.linkedSockets).toBeGreaterThanOrEqual(2);
+
+    if ((item.linkedSockets ?? 1) < item.sockets.length) {
+      expect(guaranteedLinkCraft(save, item).ok).toBe(true);
+    }
+    expect(item.linkedSockets).toBe(item.sockets.length);
+  });
+
+  it('enforces exact costs and blocks corrupted items in Chromatic Bench helpers', () => {
+    const save = createInitialSave(0);
+    const chest = createItem('base_chest', 'magic', 3, 'chroma-chest');
+    chest.sockets = [null, null];
+    chest.socketColors = ['red', 'green'];
+
+    // craftSocketColor needs 2 chroma + 3 flux
+    save.materials.mat_chroma = 2;
+    save.materials.mat_flux = 2;
+    expect(craftSocketColor(save, chest, 0, 'blue').ok).toBe(false);
+    save.materials.mat_flux = 3;
+    expect(craftSocketColor(save, chest, 0, 'blue').ok).toBe(true);
+    expect(chest.socketColors[0]).toBe('blue');
+    expect(save.materials.mat_flux).toBe(0);
+
+    // infusePrismatic needs 5 chroma + 2 essence
+    save.materials.mat_chroma = 4;
+    save.materials.mat_essence = 2;
+    expect(infusePrismatic(save, chest, 1).ok).toBe(false);
+    save.materials.mat_chroma = 5;
+    expect(infusePrismatic(save, chest, 1).ok).toBe(true);
+    expect(chest.socketColors[1]).toBe('white');
+    expect(save.materials.mat_chroma).toBe(0);
+
+    // Corrupted blocks all Currency Bench & Chromatic actions
+    chest.corrupted = true;
+    save.materials.mat_chroma = 20;
+    save.materials.mat_flux = 20;
+    save.materials.mat_essence = 20;
+    save.materials.mat_scrap = 20;
+    save.materials.mat_thread = 20;
+    expect(chromaticReforge(save, chest).ok).toBe(false);
+    expect(craftSocketColor(save, chest, 0, 'red').ok).toBe(false);
+    expect(infusePrismatic(save, chest, 0).ok).toBe(false);
+    expect(jewellerCraft(save, chest, 1).ok).toBe(false);
   });
 
   it('reforges affixes without changing rarity or socket count', () => {

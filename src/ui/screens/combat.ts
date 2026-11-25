@@ -1,3 +1,4 @@
+import { assetUrl } from '../../assets/loader';
 import { gemById, zones } from '../../data';
 import type { School } from '../../data/types';
 import { recentDps } from '../../engine/combatEngine';
@@ -74,9 +75,9 @@ function skillBar(store: GameStore): string {
     </div>
     <div class="slots">${slots}</div>
     <div class="cast ${cast ? 'casting' : ''}" data-cast-bar ${cast ? '' : 'hidden'} style="--c:${castGem?.school ? schoolColor(castGem.school) : 'var(--ward)'}" aria-hidden="true">
-      ${castGem ? assetImg(castGem.assetId, castGem.name, 'cast-icon') : ''}
+      <img class="cast-icon" data-cast-icon src="${assetUrl(castGem?.assetId ?? 'fx_soulspark')}" alt="${escapeHtml(castGem?.name ?? '')}" ${castGem ? '' : 'hidden'} draggable="false" />
       <span class="cast-stack">
-        <b class="cast-name">${escapeHtml(castGem?.name ?? 'Casting')}</b>
+        <b class="cast-name" data-cast-name>${escapeHtml(castGem?.name ?? 'Casting')}</b>
         <span class="cast-label" data-cast-label>${cast ? `${castElapsed.toFixed(1)}s → ${castDuration.toFixed(1)}s` : ''}</span>
       </span>
       <b data-cast-fill class="cast-fill" style="width:${castPercent(store).toFixed(1)}%"></b>
@@ -345,7 +346,9 @@ function spoilsPanel(store: GameStore): string {
 
 export function combatDashboardMarkup(store: GameStore): string {
   const combat = store.combat;
-  return `${combat.status === 'victory'
+  const tab = store.ui.combatTab;
+
+  const statusCard = combat.status === 'victory'
     ? `<div class="frame pan" style="text-align:center">
         <h4 style="justify-content:center">Tier Cleared</h4>
         <p class="tiny muted" style="margin-bottom:6px">The Bound One is unmade.</p>
@@ -356,11 +359,33 @@ export function combatDashboardMarkup(store: GameStore): string {
           <h4 style="justify-content:center">${combat.tier <= 1 ? 'Your Vessel Shattered' : 'The Spark Guttered'}</h4>
           <p class="tiny muted">${combat.tier <= 1 ? `Reforming at Tier 1 in ${combat.deathTimer.toFixed(1)}s · Keys preserved` : `Reforming in ${combat.deathTimer.toFixed(1)}s · tier ${combat.tier}`}</p>
         </div>`
-      : ''}
-  ${damagePanel(store)}
-  <div class="two">${timersPanel(store)}${statsPanel(store)}</div>
-  ${ratePills(store)}
-  ${store.save.settings.logCombat ? `<div class="two">${logPanel(store)}${spoilsPanel(store)}</div>` : spoilsPanel(store)}
+      : '';
+
+  const tabBar = `<div class="subtabs" role="tablist" aria-label="Combat details">
+    <button role="tab" aria-selected="${tab === 'overview'}" class="subtab ${tab === 'overview' ? 'on' : ''}" data-action="combat-tab" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="${tab === 'breakdown'}" class="subtab ${tab === 'breakdown' ? 'on' : ''}" data-action="combat-tab" data-tab="breakdown">Breakdown</button>
+    <button role="tab" aria-selected="${tab === 'log'}" class="subtab ${tab === 'log' ? 'on' : ''}" data-action="combat-tab" data-tab="log">War Log (${combat.log.length})</button>
+  </div>`;
+
+  let body = '';
+  if (tab === 'overview') {
+    body = `
+      <div class="two">${spoilsPanel(store)}${timersPanel(store)}</div>
+      ${ratePills(store)}`;
+  } else if (tab === 'breakdown') {
+    body = `
+      ${damagePanel(store)}
+      ${statsPanel(store)}
+      ${ratePills(store)}`;
+  } else {
+    body = store.save.settings.logCombat
+      ? logPanel(store)
+      : `<div class="frame pan"><div class="tiny muted">Combat logging is turned off in Options.</div></div>`;
+  }
+
+  return `${statusCard}
+  ${tabBar}
+  ${body}
   <p class="hint">${escapeHtml(combat.doctrine)} doctrine · ${store.ui.paused ? 'paused' : 'auto-casting'}${store.stats.keystones.has('ks_pendulum') ? ' · pendulum swaps bars' : ''}</p>`;
 }
 

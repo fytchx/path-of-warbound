@@ -1,8 +1,10 @@
+import { assetUrl } from '../assets/loader';
 import { gemById } from '../data';
 import type { DoctrineId, ItemSlot } from '../data/types';
+import { recentDps } from '../engine/combatEngine';
 import type { GemInstance } from '../game/types';
 import { xpNeeded } from '../game/state';
-import { assetImg, clamp, escapeHtml, fmt, pct, schoolColor, sprite, titleCase } from './dom';
+import { assetImg, clamp, escapeHtml, fmt, schoolColor, sprite, titleCase } from './dom';
 import { renderModal } from './modals';
 import { altarScreen } from './screens/altar';
 import { bagScreen } from './screens/bag';
@@ -16,9 +18,23 @@ import {
 } from './screens/combat';
 import { forgeScreen } from './screens/forge';
 import { treeScreen } from './screens/tree';
-import type { BagFilter, GameStore, ScreenId } from './store';
+import { installSfxPlayer } from './sfxPlayer';
+import type { BagFilter, BagTab, CombatTab, CurrencyOrb, ForgeTab, GameStore, ScreenId, TreeFocus, TreeTab } from './store';
 
 const TICK_MS = 200;
+
+interface SfxDispatchRecord {
+  key: string;
+  file: string;
+  at: number;
+}
+
+declare global {
+  interface Window {
+    __warboundLastSfx?: SfxDispatchRecord;
+    __warboundSfxHistory?: SfxDispatchRecord[];
+  }
+}
 
 const SCREENS: Record<ScreenId, (store: GameStore) => string> = {
   combat: combatScreen,
@@ -135,7 +151,20 @@ function setFillNoFlicker(
   }
 }
 
+function recordSfxEvent(key: string, file: string, at: number): void {
+  const entry: SfxDispatchRecord = { key, file, at };
+  window.__warboundLastSfx = entry;
+  const history = window.__warboundSfxHistory ?? [];
+  history.push(entry);
+  if (history.length > 48) history.shift();
+  window.__warboundSfxHistory = history;
+  if (typeof window.CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('warbound:sfx', { detail: entry }));
+  }
+}
+
 export function mountApp(root: HTMLElement, store: GameStore): void {
+  installSfxPlayer(() => store.save.settings.sound !== false);
   let gesture: TreeGestureState | null = null;
   let renderedScreen: ScreenId | null = null;
   let renderedModal: unknown = undefined;
@@ -145,9 +174,29 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   let lastSkillBarKey = '';
   let seenHitSeq = store.combat.hitSeq;
   let seenFxSeq = store.combat.fxSeq;
+  let seenUiSfxId = 0;
   const hitFlashUntil = new Map<string, number>();
 
+  const flushUiSfx = (): void => {
+    for (const sfx of store.ui.sfxQueue) {
+      if (sfx.id <= seenUiSfxId) continue;
+      seenUiSfxId = sfx.id;
+      recordSfxEvent(sfx.key, sfx.file, sfx.at);
+    }
+  };
+
   const applyHitFeedback = (now: number): void => {
+    flushUiSfx();
+
+    // Always consume new combat FX so SFX bindings dispatch reliably even when off Combat tab or in Reduced Motion.
+    const pendingFx = store.combat.fx.filter((fx) => fx.id > seenFxSeq);
+    if (pendingFx.length > 0) {
+      seenFxSeq = pendingFx[pendingFx.length - 1]!.id;
+      for (const fx of pendingFx) {
+        recordSfxEvent(fx.sfxKey, fx.sfx, fx.at);
+      }
+    }
+
     if (store.ui.screen !== 'combat') return;
     const fxHost = root.querySelector<HTMLElement>('#combat-fx');
     const arenaEl = root.querySelector<HTMLElement>('.arena');
@@ -190,42 +239,122 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       });
     }
 
-    for (const fx of store.combat.fx) {
-      if (fx.id <= seenFxSeq) continue;
-      seenFxSeq = fx.id;
-      if (reduced || !fxHost || !arenaEl) continue;
-      const mobOval = fx.enemyUid
-        ? arenaEl.querySelector<HTMLElement>(`[data-enemy-uid="${fx.enemyUid}"] .oval`)
-        : null;
+    if (!reduced && fxHost && arenaEl) {
       const arenaRect = arenaEl.getBoundingClientRect();
-      const ovalRect = mobOval?.getBoundingClientRect();
-      const centreX = ovalRect ? ovalRect.left - arenaRect.left + ovalRect.width / 2 : arenaRect.width / 2;
-      const centreY = ovalRect ? ovalRect.top - arenaRect.top + ovalRect.height / 2 : 140;
+      const originX = arenaRect.width / 2;
+      const originY = Math.max(160, arenaRect.height - 92);
 
-      if (fx.kind === 'slash' || fx.kind === 'impact' || fx.kind === 'bolt' || fx.kind === 'aoe' || fx.kind === 'lunge') {
-        const arc = document.createElement('span');
-        arc.className = `slash-arc ${fx.kind}`;
-        arc.style.setProperty('--sc', schoolColor(fx.school));
-        arc.style.left = `${Math.round(centreX)}px`;
-        arc.style.top = `${Math.round(centreY)}px`;
-        arc.dataset.expires = String(now + 340);
-        fxHost.appendChild(arc);
-        if (mobOval) {
+      for (const fx of pendingFx) {
+        const mobOval = fx.enemyUid
+          ? arenaEl.querySelector<HTMLElement>(`[data-enemy-uid="${fx.enemyUid}"] .oval`)
+          : null;
+        const ovalRect = mobOval?.getBoundingClientRect();
+        const centreX = ovalRect ? ovalRect.left - arenaRect.left + ovalRect.width / 2 : arenaRect.width / 2;
+        const centreY = ovalRect ? ovalRect.top - arenaRect.top + ovalRect.height / 2 : 128;
+
+        const triggerRecoil = () => {
+          if (!mobOval) return;
           mobOval.classList.remove('recoil');
           void mobOval.offsetWidth;
           mobOval.classList.add('recoil');
-        }
-      }
+        };
 
-      if (fx.kind === 'mitigated' || fx.kind === 'punished' || fx.kind === 'phase' || fx.kind === 'death') {
-        const call = document.createElement('span');
-        call.className = `callout ${fx.kind}`;
-        call.style.setProperty('--sc', schoolColor(fx.school));
-        call.style.left = `${Math.round(centreX)}px`;
-        call.style.top = `${Math.round(centreY - 34)}px`;
-        call.dataset.expires = String(now + 1100);
-        call.textContent = fx.text ?? (fx.kind === 'phase' ? 'PHASE II' : fx.kind.toUpperCase());
-        fxHost.appendChild(call);
+        if (fx.kind === 'slash' || fx.kind === 'lunge' || fx.kind === 'impact') {
+          const arc = document.createElement('span');
+          arc.className = `slash-arc ${fx.kind}${fx.crit ? ' crit' : ''}`;
+          arc.style.setProperty('--sc', fx.crit ? '#f0d078' : schoolColor(fx.school));
+          arc.style.setProperty('--ang', `${((fx.id % 5) - 2) * 24 - 28}deg`);
+          arc.style.left = `${Math.round(centreX)}px`;
+          arc.style.top = `${Math.round(centreY)}px`;
+          arc.dataset.expires = String(now + 360);
+          fxHost.appendChild(arc);
+          triggerRecoil();
+        } else if (fx.kind === 'bolt') {
+          const bolt = document.createElement('span');
+          bolt.className = `bolt-proj school-${fx.school}`;
+          bolt.style.setProperty('--sc', schoolColor(fx.school));
+          bolt.style.left = `${Math.round(originX)}px`;
+          bolt.style.top = `${Math.round(originY)}px`;
+          bolt.style.setProperty('--dx', `${Math.round(centreX - originX)}px`);
+          bolt.style.setProperty('--dy', `${Math.round(centreY - originY)}px`);
+          bolt.dataset.expires = String(now + 280);
+          fxHost.appendChild(bolt);
+        } else if (fx.kind === 'fireball') {
+          const burst = document.createElement('span');
+          burst.className = `fire-burst${fx.crit ? ' crit' : ''}`;
+          burst.style.left = `${Math.round(centreX)}px`;
+          burst.style.top = `${Math.round(centreY)}px`;
+          burst.style.backgroundImage = `url("${assetUrl('fx_fire_strip')}")`;
+          burst.dataset.expires = String(now + 440);
+          fxHost.appendChild(burst);
+          triggerRecoil();
+        } else if (fx.kind === 'aoe') {
+          const ring = document.createElement('span');
+          ring.className = 'aoe-ring';
+          ring.style.setProperty('--sc', schoolColor(fx.school));
+          ring.style.left = `${Math.round(centreX)}px`;
+          ring.style.top = `${Math.round(centreY)}px`;
+          ring.dataset.expires = String(now + 420);
+          fxHost.appendChild(ring);
+          triggerRecoil();
+        } else if (fx.kind === 'dot') {
+          const ailment = fx.ailment ?? 'corruption';
+          const burst = document.createElement('span');
+          burst.className = `dot-burst ${ailment}`;
+          burst.style.left = `${Math.round(centreX)}px`;
+          burst.style.top = `${Math.round(centreY)}px`;
+          burst.dataset.expires = String(now + 480);
+          fxHost.appendChild(burst);
+
+          if ((fx.amount ?? 0) > 0) {
+            const jitterX = ((fx.id % 3) - 1) * 10;
+            const num = document.createElement('span');
+            num.className = `dmg-float dot ${ailment}`;
+            num.style.left = `${Math.round(centreX + jitterX)}px`;
+            num.style.top = `${Math.round(centreY - 12)}px`;
+            num.dataset.expires = String(now + 660);
+            const prefix = ailment === 'corruption' ? '☠ ' : ailment === 'ignite' ? '🔥 ' : '🩸 ';
+            num.textContent = `${prefix}${Math.max(1, Math.round(fx.amount ?? 1))}`;
+            fxHost.appendChild(num);
+          }
+        } else if (fx.kind === 'ward') {
+          const vial = arenaEl.querySelector<HTMLElement>('[data-vial-hp]');
+          if (vial) {
+            vial.classList.remove('ward-pulse');
+            void vial.offsetWidth;
+            vial.classList.add('ward-pulse');
+          }
+          if (fx.text) {
+            const call = document.createElement('span');
+            call.className = 'callout ward';
+            call.style.setProperty('--sc', '#38d6e8');
+            call.style.left = '48px';
+            call.style.top = `${Math.round(arenaRect.height - 130)}px`;
+            call.dataset.expires = String(now + 850);
+            call.textContent = fx.text;
+            fxHost.appendChild(call);
+          }
+        } else if (
+          fx.kind === 'telegraph' ||
+          fx.kind === 'mitigated' ||
+          fx.kind === 'punished' ||
+          fx.kind === 'phase' ||
+          fx.kind === 'death' ||
+          fx.kind === 'spread' ||
+          fx.kind === 'cast'
+        ) {
+          const label = fx.text ?? (fx.kind === 'phase' ? 'PHASE II' : fx.kind === 'cast' ? '' : fx.kind.toUpperCase());
+          if (label) {
+            const call = document.createElement('span');
+            call.className = `callout ${fx.kind}`;
+            call.style.setProperty('--sc', schoolColor(fx.school));
+            call.style.left = `${Math.round(centreX)}px`;
+            call.style.top = `${Math.round(centreY - 34)}px`;
+            call.dataset.expires = String(now + 950);
+            call.textContent = label;
+            fxHost.appendChild(call);
+          }
+        }
       }
     }
 
@@ -308,6 +437,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     if (hpNum) hpNum.textContent = fmt(player.hp);
     const hpVial = root.querySelector<HTMLElement>('[data-vial-hp]');
     if (hpVial) {
+      hpVial.classList.toggle('warded', player.ward > 0);
       hpVial.title = `Health ${fmt(player.hp)} / ${fmt(stats.maxHp)} · Ward ${fmt(player.ward)} / ${fmt(stats.maxWard)}`;
     }
     setFillNoFlicker(
@@ -393,6 +523,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
 
           const atkText = card.querySelector<HTMLElement>('[data-mob-atk-text]');
           if (atkText) atkText.textContent = frozen ? '❄' : `${Math.max(0, enemy.attackTimer).toFixed(1)}`;
+
+          const atkBarWrap = card.querySelector<HTMLElement>('.atkbar');
+          if (atkBarWrap) atkBarWrap.classList.toggle('warn', !frozen && enemy.attackTimer < 0.35);
 
           const ailEl = card.querySelector<HTMLElement>('[data-mob-ail]');
           if (ailEl) {
@@ -490,17 +623,57 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     const activeCast = combat.player.cast;
     if (castBar) {
       castBar.hidden = !activeCast;
-      const label = castBar.querySelector<HTMLElement>('[data-cast-label]');
-      if (label) {
-        const name = activeCast ? stats.skills.find((skill) => skill.id === activeCast.skillId)?.name ?? 'Casting' : '';
-        if (label.textContent !== name) label.textContent = name;
+      castBar.classList.toggle('casting', Boolean(activeCast));
+      const castSkill = activeCast ? stats.skills.find((skill) => skill.id === activeCast.skillId) : undefined;
+      const castGem = castSkill ? gemById.get(castSkill.gemId) : undefined;
+      if (castGem?.school) castBar.style.setProperty('--c', schoolColor(castGem.school));
+      const iconEl = castBar.querySelector<HTMLImageElement>('[data-cast-icon]');
+      if (iconEl) {
+        iconEl.hidden = !castGem;
+        if (castGem) {
+          const nextSrc = assetUrl(castGem.assetId);
+          if (iconEl.getAttribute('src') !== nextSrc) iconEl.src = nextSrc;
+        }
+      }
+      const nameEl = castBar.querySelector<HTMLElement>('[data-cast-name]');
+      if (nameEl) {
+        const nextName = castSkill?.name ?? castGem?.name ?? 'Casting';
+        if (nameEl.textContent !== nextName) nameEl.textContent = nextName;
+      }
+      const labelEl = castBar.querySelector<HTMLElement>('[data-cast-label]');
+      if (labelEl) {
+        const nextLabel = activeCast
+          ? `${Math.max(0, activeCast.duration - activeCast.remaining).toFixed(1)}s → ${activeCast.duration.toFixed(1)}s`
+          : '';
+        if (labelEl.textContent !== nextLabel) labelEl.textContent = nextLabel;
       }
     }
     setFillNoFlicker(root.querySelector<HTMLElement>('[data-cast-fill]'), 'width', castPercent(store), true);
+
     const tierEl = root.querySelector<HTMLElement>('[data-ctl-tier]');
     if (tierEl) tierEl.innerHTML = `<small>TIER</small>${combat.tier}`;
     const packEl = root.querySelector<HTMLElement>('[data-ctl-pack]');
     if (packEl) packEl.innerHTML = `<small>PACK</small>${combat.packSize}`;
+
+    // Telemetry strip updates
+    const teleDps = root.querySelector<HTMLElement>('[data-tele-dps]');
+    if (teleDps) teleDps.textContent = fmt(recentDps(combat, 5), 1);
+    const teleIn = root.querySelector<HTMLElement>('[data-tele-in]');
+    if (teleIn) {
+      const incoming = combat.incomingDamage
+        .filter((sample) => sample.t >= combat.time - 5)
+        .reduce((sum, sample) => sum + sample.amount, 0) / 5;
+      teleIn.textContent = fmt(incoming, 1);
+    }
+    const teleBuffs = root.querySelector<HTMLElement>('[data-tele-buffs]');
+    if (teleBuffs) {
+      const buffs = combat.player.buffs.slice(0, 3);
+      const nextHtml = buffs.length
+        ? buffs.map((b) => `<span class="tele-chip">${escapeHtml(b.name)} <b>${b.remaining.toFixed(1)}s</b></span>`).join('')
+        : `<span class="tele-chip muted">${escapeHtml(combat.doctrine)} doctrine</span>`;
+      if (teleBuffs.innerHTML !== nextHtml) teleBuffs.innerHTML = nextHtml;
+    }
+
     // Dashboard panels below arena
     const dashEl = root.querySelector<HTMLElement>('#combat-dash');
     if (dashEl) dashEl.innerHTML = combatDashboardMarkup(store);
@@ -566,6 +739,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   renderedTabKey = store.ui.screen;
   lastEnemyKey = `${store.combat.enemies.map((e) => e.uid).join(',')}|${store.combat.status === 'victory' ? 1 : 0}`;
   lastSkillBarKey = `${store.stats.skills.map((s) => `${s.id}:${s.bar}`).join(',')}|${store.stats.keystones.has('ks_pendulum') ? 1 : 0}`;
+  flushUiSfx();
 
   const act = (el: HTMLElement): void => {
     const nav = el.dataset.nav as ScreenId | undefined;
@@ -590,6 +764,40 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'toggle-motion':
         store.toggleReducedMotion();
         break;
+      case 'toggle-sound':
+        store.toggleSound();
+        break;
+      case 'combat-tab':
+        if (data.tab === 'overview' || data.tab === 'breakdown' || data.tab === 'log') {
+          store.setCombatTab(data.tab as CombatTab);
+        }
+        break;
+      case 'bag-tab':
+        if (data.tab === 'gear' || data.tab === 'gems' || data.tab === 'materials') {
+          store.setBagTab(data.tab as BagTab);
+        }
+        break;
+      case 'forge-tab':
+        if (data.tab === 'orbs' || data.tab === 'sockets' || data.tab === 'colors') {
+          store.setForgeTab(data.tab as ForgeTab);
+        }
+        break;
+      case 'forge-socket-select':
+        store.setForgeSocket(Number(data.index ?? 0));
+        break;
+      case 'tree-tab':
+        if (data.tab === 'inspect' || data.tab === 'keystones' || data.tab === 'summary') {
+          store.setTreeTab(data.tab as TreeTab);
+        }
+        break;
+      case 'tree-focus':
+        if (data.sector === 'all' || data.sector === 'might' || data.sector === 'agility' || data.sector === 'wisdom' || data.sector === 'fortitude') {
+          store.focusTreeSector(data.sector as TreeFocus);
+        }
+        break;
+      case 'quick-equip':
+        if (data.uid) store.quickEquip(data.uid);
+        break;
       case 'tier-prev':
         store.setTier(-1);
         break;
@@ -604,6 +812,10 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         break;
       case 'next-tier':
         store.nextTier();
+        break;
+      case 'cache-next-tier':
+        store.closeModal();
+        if (store.combat.status === 'victory') store.nextTier();
         break;
       case 'bar':
         store.setBar(data.bar === 'bar_2' ? 'bar_2' : 'bar_1');
@@ -643,6 +855,12 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'reset-progress':
         store.resetProgress();
         break;
+      case 'open-respec':
+        store.openModal({ kind: 'respec' });
+        break;
+      case 'confirm-respec':
+        store.confirmRespec();
+        break;
       case 'open-item':
         if (data.uid) store.openModal({ kind: 'item', uid: data.uid });
         break;
@@ -657,7 +875,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         if (data.uid) store.reforgeSockets(data.uid);
         break;
       case 'force-socket':
-        if (data.uid) store.forceSocket(data.uid, Number(data.index ?? 0), (data.color === 'green' ? 'green' : data.color === 'blue' ? 'blue' : 'red'));
+        if (data.uid) store.forceSocket(data.uid, Number(data.index ?? 0), data.color === 'green' ? 'green' : data.color === 'blue' ? 'blue' : 'red');
         break;
       case 'prismatic-socket':
         if (data.uid) store.prismaticSocket(data.uid, Number(data.index ?? 0));
@@ -712,6 +930,21 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'doctrine':
         if (data.doctrine) store.setDoctrine(data.doctrine as DoctrineId);
         break;
+      case 'log-filter':
+        if (data.filter === 'all' || data.filter === 'loot' || data.filter === 'combat') {
+          store.setLogFilter(data.filter);
+        }
+        break;
+      case 'gear-filter':
+        if (data.filter === 'all' || data.filter === 'weapons' || data.filter === 'armor' || data.filter === 'jewelry') {
+          store.setGearFilter(data.filter);
+        }
+        break;
+      case 'gem-filter':
+        if (data.filter === 'all' || data.filter === 'red' || data.filter === 'green' || data.filter === 'blue' || data.filter === 'white') {
+          store.setGemFilter(data.filter);
+        }
+        break;
       case 'bag-filter':
         if (data.filter) store.setBagFilter(data.filter as BagFilter);
         break;
@@ -721,11 +954,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       case 'lock-affix':
         store.toggleAffixLock(Number(data.index ?? 0));
         break;
-      case 'craft':
-        if (data.craft) {
-          store.craft(
-            data.craft as 'upgrade' | 'reforge' | 'socket' | 'link' | 'lock-reforge' | 'corrupt' | 'promote',
-          );
+      case 'currency-craft':
+        if (data.orb) {
+          store.craftCurrency(data.orb as CurrencyOrb);
         }
         break;
       case 'gem-bar': {
@@ -861,20 +1092,26 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     if (!gesture || !gesture.pointers.has(event.pointerId)) return;
     gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
+    const vb = gesture.svg.viewBox?.baseVal;
+    const vbW = vb && vb.width > 0 ? vb.width : 390;
+    const vbH = vb && vb.height > 0 ? vb.height : 430;
+    const cx = vbW / 2;
+    const cy = vbH / 2;
+
     if (gesture.mode === 'pinch' && gesture.pointers.size >= 2) {
       const dist = pointerDistance(gesture.pointers);
       gesture.curScale = clamp(gesture.startScale * (dist / gesture.startDist), 0.55, 2.4);
       gesture.moved = true;
       gesture.group.setAttribute(
         'transform',
-        `translate(${195 + gesture.curX} ${215 + gesture.curY}) scale(${gesture.curScale})`,
+        `translate(${cx + gesture.curX} ${cy + gesture.curY}) scale(${gesture.curScale})`,
       );
       return;
     }
 
     if (gesture.mode === 'pan') {
       const rect = gesture.svg.getBoundingClientRect();
-      const scale = rect.width > 0 ? 390 / rect.width : 1;
+      const scale = rect.width > 0 ? vbW / rect.width : 1;
       const dx = (event.clientX - gesture.startX) * scale;
       const dy = (event.clientY - gesture.startY) * scale;
       if (Math.abs(dx) + Math.abs(dy) > 2) gesture.moved = true;
@@ -882,7 +1119,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       gesture.curY = gesture.viewY + dy;
       gesture.group.setAttribute(
         'transform',
-        `translate(${195 + gesture.curX} ${215 + gesture.curY}) scale(${gesture.curScale})`,
+        `translate(${cx + gesture.curX} ${cy + gesture.curY}) scale(${gesture.curScale})`,
       );
     }
   });
@@ -928,6 +1165,15 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         setFillNoFlicker(root.querySelector<HTMLElement>('[data-swing]'), 'width', swingPercent(store, dt), true);
         setFillNoFlicker(root.querySelector<HTMLElement>('[data-cast-fill]'), 'width', castPercent(store, dt), true);
 
+        const activeCast = store.combat.player.cast;
+        if (activeCast) {
+          const castLabel = root.querySelector<HTMLElement>('[data-cast-label]');
+          if (castLabel) {
+            const elapsed = Math.min(activeCast.duration, Math.max(0, activeCast.duration - Math.max(0, activeCast.remaining - dt)));
+            castLabel.textContent = `${elapsed.toFixed(1)}s → ${activeCast.duration.toFixed(1)}s`;
+          }
+        }
+
         root.querySelectorAll<HTMLElement>('.skill[data-skill][data-cd]').forEach((btn) => {
           const skillId = btn.dataset.skill ?? '';
           const cd = Math.max(0.001, Number(btn.dataset.cd ?? 0));
@@ -960,7 +1206,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         }
       });
 
-      root.querySelectorAll<HTMLElement>('#combat-fx .dmg-float').forEach((node) => {
+      root.querySelectorAll<HTMLElement>('#combat-fx > [data-expires]').forEach((node) => {
         if (Number(node.dataset.expires ?? 0) <= now) node.remove();
       });
     }

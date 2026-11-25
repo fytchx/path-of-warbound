@@ -253,6 +253,14 @@ export interface PriorityVerbDef {
   unlocksAtLevel: number;
 }
 
+export interface SfxDef {
+  id: string;
+  file: string;
+  category: 'combat' | 'ui';
+  cooldownMs: number;
+  description: string;
+}
+
 export interface Registries {
   stats: StatRegistry;
   items: ItemBase[];
@@ -264,4 +272,5 @@ export interface Registries {
   tree: SkillTree;
   progression: ProgressionEntry[];
   uniques: UniqueDef[];
+  sfx: SfxDef[];
 }

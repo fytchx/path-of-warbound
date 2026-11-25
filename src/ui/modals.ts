@@ -1,8 +1,17 @@
-import { affixById, doctrines, gems, itemBaseById, nodeById, statRegistry } from '../data';
+import { affixById, doctrines, gems, itemBaseById, nodeById, statRegistry, uniqueById, zoneById } from '../data';
 import type { StatMod } from '../data/types';
 import { STARTERS, dropStage, xpNeeded } from '../game/state';
-import type { GemInstance, ItemInstance } from '../game/types';
-import { RARITY_COLOR, RARITY_LABEL, affixValue, fitsSlot, gemDustCostToLevel, gemXpToNext, itemBase } from '../game/items';
+import { MATERIAL_ASSET, type GemInstance, type ItemInstance } from '../game/types';
+import {
+  RARITY_COLOR,
+  RARITY_LABEL,
+  affixValue,
+  fitsSlot,
+  gemDustCostToLevel,
+  gemXpToNext,
+  itemBase,
+  itemDisplayName,
+} from '../game/items';
 import { gemFitsSocket, socketColorHex } from '../game/sockets';
 import type { GameStore, ModalState } from './store';
 import { assetImg, escapeHtml, fmt, pct, schoolColor, seconds, sprite, statLabel } from './dom';
@@ -107,6 +116,7 @@ function statsModal(store: GameStore): string {
     <div class="panel" style="margin-top:8px">
       <div class="panel-title"><span>Settings</span><span class="muted tiny">Path of Warbound</span></div>
       <div class="modal-actions" style="margin-top:4px">
+        <button class="btn ${save.settings.sound ? 'primary' : ''}" data-action="toggle-sound">Sound: ${save.settings.sound ? 'On' : 'Off'}</button>
         <button class="btn ${save.settings.logCombat ? 'primary' : ''}" data-action="toggle-log">Log: ${save.settings.logCombat ? 'On' : 'Off'}</button>
         <button class="btn ${save.settings.reducedMotion ? 'primary' : ''}" data-action="toggle-motion">Motion: ${save.settings.reducedMotion ? 'Reduced' : 'Full'}</button>
       </div>
@@ -123,7 +133,7 @@ function optionsModal(store: GameStore): string {
   const checks = [
     { ok: save.level >= 3, label: `Level 3 (now ${save.level})` },
     { ok: supportsLinked, label: supportsLinked ? 'Support Gem linked' : 'Link a Support Gem to an Active Gem' },
-    { ok: save.milestones.forgeUpgrades >= 1, label: `One Forge upgrade (${save.milestones.forgeUpgrades}/1)` },
+    { ok: save.milestones.forgeUpgrades >= 1, label: `One Forge craft (${save.milestones.forgeUpgrades}/1)` },
   ];
   const checklist = checks
     .map((check) => `<div class="tiny ${check.ok ? 'stage-ok' : 'muted'}">${check.ok ? '✓' : '○'} ${escapeHtml(check.label)}</div>`)
@@ -133,8 +143,9 @@ function optionsModal(store: GameStore): string {
     <h3>Options</h3>
     <div class="modal-sub">Display, save and Rift Keys</div>
     <div class="panel">
-      <div class="panel-title"><span>Display</span><span class="muted tiny">Saved locally</span></div>
+      <div class="panel-title"><span>Audio &amp; Display</span><span class="muted tiny">Saved locally</span></div>
       <div class="modal-actions" style="margin-top:4px">
+        <button class="btn ${save.settings.sound ? 'primary' : ''}" data-action="toggle-sound">Sound: ${save.settings.sound ? 'On' : 'Off'}</button>
         <button class="btn ${save.settings.logCombat ? 'primary' : ''}" data-action="toggle-log">Combat log: ${save.settings.logCombat ? 'On' : 'Off'}</button>
         <button class="btn ${save.settings.reducedMotion ? 'primary' : ''}" data-action="toggle-motion">Motion: ${save.settings.reducedMotion ? 'Reduced' : 'Full'}</button>
       </div>
@@ -167,6 +178,28 @@ function resetModal(): string {
   </div>`;
 }
 
+function respecModal(store: GameStore): string {
+  const allocated = store.save.allocated.filter((id) => id !== 'hub_0').length;
+  const cost = store.respecFee();
+  const canAfford = store.save.gold >= cost && allocated > 0;
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Respec Warbound Tree">
+    ${closeButton()}
+    <h3>Respec Constellation</h3>
+    <div class="modal-sub">Refund every allocated passive node back to the Soul Core</div>
+    <div class="stat-modal-grid" style="margin:8px 0">
+      <div><span class="muted">Nodes to refund</span><span class="gold">${allocated}</span></div>
+      <div><span class="muted">Respec fee</span><span class="gold">${cost === 0 ? 'Free (Lv ≤ 10)' : `${fmt(cost)} Gold`}</span></div>
+      <div><span class="muted">Your Gold</span><span class="gold">${fmt(store.save.gold)}</span></div>
+      <div><span class="muted">Keystones kept</span><span class="gold">0</span></div>
+    </div>
+    <p class="tiny muted" style="text-align:center;margin:4px 0">All ${allocated} point${allocated === 1 ? '' : 's'} will return to your unspent pool for a fresh build.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" data-action="close-modal">Cancel</button>
+      <button class="btn primary" data-action="confirm-respec" ${canAfford ? '' : 'disabled'}>${allocated === 0 ? 'Nothing Allocated' : !canAfford ? `Need ${fmt(cost)} Gold` : 'Confirm Respec'}</button>
+    </div>
+  </div>`;
+}
+
 function itemModal(store: GameStore, uid: string): string {
   const location = store.findItem(uid);
   if (!location) {
@@ -174,8 +207,12 @@ function itemModal(store: GameStore, uid: string): string {
   }
   const item: ItemInstance = location.item;
   const base = itemBase(item);
+  const title = itemDisplayName(item);
+  const unique = item.uniqueId ? uniqueById.get(item.uniqueId) : undefined;
   const colour = RARITY_COLOR[item.rarity];
   const equipped = Boolean(location.slot);
+  const gs = store.itemGearscore(item);
+  const prismatic = Object.values(store.save.equipment).some((w) => w?.uniqueId === 'uq_prismatic_aegis') || item.uniqueId === 'uq_prismatic_aegis';
 
   const affixes = item.affixes
     .map((roll, index) => {
@@ -195,7 +232,7 @@ function itemModal(store: GameStore, uid: string): string {
     .map((gem, index) => {
       const def = gem ? gems.find((entry) => entry.id === gem.gemId) : null;
       const linkedToNext = index + 1 < linkedCount && index + 1 < item.sockets.length;
-      const color = item.socketColors[index] ?? 'red';
+      const color = prismatic ? 'white' : item.socketColors[index] ?? 'red';
       const ringColor = socketColorHex(color);
       return `<button class="socket-btn color-${color} ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(item.uid)}" data-index="${index}" title="${color} socket · ${gem ? `Inspect ${escapeHtml(def?.name ?? '')}` : `Socket a ${color} or white gem`}">
         ${sprite('w-socket', 'socket-ring', '0 0 40 40', `--g:${ringColor}`)}
@@ -208,32 +245,95 @@ function itemModal(store: GameStore, uid: string): string {
     ? `<div class="tiny muted" style="margin:4px 0">${base.weapon.minDamage}-${base.weapon.maxDamage} damage · ${base.weapon.attacksPerSecond}/s · ${base.weapon.twoHanded ? 'two-handed' : 'one-handed'}</div>`
     : '';
 
+  const slots = store.availableSlots(item);
+  const comparisons = !equipped && slots.length
+    ? `<div class="slot-compare">${slots
+        .map((slot) => {
+          const current = store.save.equipment[slot];
+          if (!current) {
+            return `<div><span class="muted">vs ${escapeHtml(store.itemSlotLabel(slot))}</span><span class="cmp-up">+${gs} GS (empty)</span></div>`;
+          }
+          const delta = gs - store.itemGearscore(current);
+          const sign = delta > 0 ? `+${delta}` : `${delta}`;
+          const cls = delta > 0 ? 'cmp-up' : delta < 0 ? 'cmp-down' : 'muted';
+          return `<div><span class="muted">vs ${escapeHtml(itemDisplayName(current))}</span><span class="${cls}">${sign} GS</span></div>`;
+        })
+        .join('')}</div>`
+    : '';
+
   const equipButtons = equipped
     ? `<button class="btn" data-action="unequip" data-slot="${location.slot}">Unequip</button>`
-    : store
-        .availableSlots(item)
+    : slots
         .map((slot) => `<button class="btn" data-action="equip" data-uid="${escapeHtml(item.uid)}" data-slot="${slot}">Equip ${escapeHtml(store.itemSlotLabel(slot))}</button>`)
         .join('');
 
+  const forgeButton = `<button class="btn" data-action="item-to-forge" data-uid="${escapeHtml(item.uid)}">Forge</button>`;
   const salvage = equipped ? '' : `<button class="btn danger" data-action="salvage" data-uid="${escapeHtml(item.uid)}">Salvage</button>`;
 
-  return `<div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(base.name)}">
+  return `<div class="modal ${unique ? 'mythic-modal' : ''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
     ${closeButton()}
     <div class="item-hero" style="--g:${colour}">
-      ${assetImg(base.assetId, base.name)}
+      ${assetImg(base.assetId, title)}
       <div>
-        <h3>${escapeHtml(base.name)}</h3>
-        <div class="modal-sub" style="margin-bottom:2px">${RARITY_LABEL[item.rarity]} ${escapeHtml(base.baseType)} · GS ${store.itemGearscore(item)}</div>
+        <h3 style="color:${unique ? '#d8b4fe' : ''}">${escapeHtml(title)}</h3>
+        <div class="modal-sub" style="margin-bottom:2px;text-align:left">${RARITY_LABEL[item.rarity]} ${unique ? `${escapeHtml(base.name)} · ` : ''}${escapeHtml(base.baseType)} · GS ${gs}</div>
         <div class="tiny muted">Item level ${item.itemLevel} · ${equipped ? `Equipped: ${escapeHtml(store.itemSlotLabel(location.slot!))}` : 'In bag'}${item.corrupted ? ' · corrupted' : ''}</div>
         ${weapon}
       </div>
     </div>
+    ${unique
+      ? `<div class="mythic-panel">
+          <div class="mythic-title">MYTHIC UNIQUE EFFECT</div>
+          <div class="mythic-desc">${escapeHtml(unique.description)}</div>
+          <div class="mythic-flavour">“${escapeHtml(unique.flavour)}”</div>
+        </div>`
+      : ''}
     ${base.description ? `<p class="tiny" style="line-height:1.4;color:var(--text);margin-bottom:6px">${escapeHtml(base.description)}</p>` : ''}
-    <div class="affix-list">${implicit}${affixes || '<div class="tiny muted">No affixes. Reforge or promote it at the Forge.</div>'}</div>
+    ${comparisons}
+    <div class="affix-list">${implicit}${affixes || '<div class="tiny muted">No affixes. Use Currency Orbs in the Forge.</div>'}</div>
     <div class="socket-row">${sockets || '<span class="tiny muted">No sockets.</span>'}</div>
-    <div class="tiny muted" style="margin-top:4px">Tap a filled socket to inspect/level/unsocket its gem.</div>
-    ${base.uniqueEffect ? `<div class="panel" style="padding:8px;margin-top:6px"><div class="tiny gold">${escapeHtml(base.uniqueEffect)}</div></div>` : ''}
-    <div class="modal-actions">${equipButtons}${salvage}</div>
+    <div class="tiny muted" style="margin-top:4px">${prismatic ? 'Prismatic Aegis active — every socket accepts any colour.' : 'Tap a socket to inspect, level, or socket a gem.'}</div>
+    <div class="modal-actions">${equipButtons}${forgeButton}${salvage}</div>
+  </div>`;
+}
+
+function bossCacheModal(store: GameStore, modal: Extract<ModalState, { kind: 'boss-cache' }>): string {
+  const { cache, zoneName, tierCleared, unlock } = modal;
+  const item = cache.item;
+  const base = itemBase(item);
+  const title = itemDisplayName(item);
+  const unique = item.uniqueId ? uniqueById.get(item.uniqueId) : undefined;
+  const unlockedZoneName = unlock.zoneUnlocked ? zoneById.get(unlock.zoneUnlocked)?.name ?? unlock.zoneUnlocked : null;
+  const canDescend = store.combat.status === 'victory';
+
+  return `<div class="modal boss-cache-modal" role="dialog" aria-modal="true" aria-label="Boss Cache">
+    ${closeButton()}
+    <div class="cache-ribbon">${cache.firstClear ? 'FIRST CLEAR BOSS CACHE' : 'BOSS CACHE CLAIMED'}</div>
+    <h3>${escapeHtml(zoneName)} · Tier ${tierCleared}</h3>
+    <div class="modal-sub">
+      Tier ${unlock.tierUnlocked} unlocked${unlockedZoneName ? ` · Realm opened: ${escapeHtml(unlockedZoneName)}` : ''}
+    </div>
+    <div class="cache-currencies">
+      <div class="cache-pill">${assetImg(MATERIAL_ASSET.mat_chroma, 'Chromatic Flux')}<b>+${cache.chroma}</b><span>Chromatic Flux</span></div>
+      <div class="cache-pill">${assetImg(MATERIAL_ASSET.mat_essence, 'Void-Essence')}<b>+${cache.essence}</b><span>Void-Essence</span></div>
+      ${cache.skillPoint > 0 ? `<div class="cache-pill skillpt"><b>+${cache.skillPoint}</b><span>Bonus Skill Point</span></div>` : ''}
+    </div>
+    <div class="item-hero" style="--g:${RARITY_COLOR[item.rarity]}">
+      ${assetImg(base.assetId, title)}
+      <div>
+        <h3 style="color:${unique ? '#d8b4fe' : RARITY_COLOR[item.rarity]}">${escapeHtml(title)}</h3>
+        <div class="modal-sub" style="text-align:left;margin-bottom:2px">${RARITY_LABEL[item.rarity]} ${escapeHtml(base.baseType)} · GS ${store.itemGearscore(item)}</div>
+        <div class="tiny muted">${Math.min(item.linkedSockets ?? 1, item.sockets.length)}/${item.sockets.length} Linked Sockets · Sent to Bag</div>
+      </div>
+    </div>
+    ${unique ? `<div class="mythic-panel"><div class="mythic-title">MYTHIC UNIQUE</div><div class="mythic-desc">${escapeHtml(unique.description)}</div></div>` : ''}
+    <div class="modal-actions">
+      <button class="btn" data-action="open-item" data-uid="${escapeHtml(item.uid)}">Inspect Item</button>
+      <button class="btn" data-action="item-to-forge" data-uid="${escapeHtml(item.uid)}">Send to Forge</button>
+      ${canDescend
+        ? `<button class="btn primary" data-action="cache-next-tier">Descend to Tier ${Math.min(10, store.combat.tier)}</button>`
+        : `<button class="btn primary" data-action="close-modal">Continue</button>`}
+    </div>
   </div>`;
 }
 
@@ -375,12 +475,15 @@ function nodeModal(store: GameStore, nodeId: string): string {
 function gemPickerModal(store: GameStore, itemUid: string, socketIndex: number): string {
   const item = store.findItem(itemUid)?.item;
   const socketColor = item?.socketColors[socketIndex] ?? 'white';
+  const prismatic = Object.values(store.save.equipment).some((w) => w?.uniqueId === 'uq_prismatic_aegis') || item?.uniqueId === 'uq_prismatic_aegis';
+  const effectiveColor = prismatic ? 'white' : socketColor;
+
   const rows = store.save.gemStash.length
     ? store.save.gemStash
         .map((gem: GemInstance, index) => {
           const def = gems.find((entry) => entry.id === gem.gemId);
           if (!def) return '';
-          const fits = gemFitsSocket(def.color, socketColor);
+          const fits = gemFitsSocket(def.color, effectiveColor);
           return `<button class="gem-row ${fits ? '' : 'mismatch'}" data-action="pick-gem" data-index="${index}" ${fits ? '' : 'disabled'} style="width:100%;text-align:left">
             ${assetImg(def.assetId, def.name)}
             <div>
@@ -397,7 +500,7 @@ function gemPickerModal(store: GameStore, itemUid: string, socketIndex: number):
   return `<div class="modal" role="dialog" aria-modal="true" aria-label="Choose a gem">
     ${closeButton()}
     <h3>Choose a gem</h3>
-    <div class="modal-sub">Socket ${socketIndex + 1} (<span class="badge color-${socketColor}">${socketColor}</span>) · ${escapeHtml(store.baseNameOf(itemUid))}</div>
+    <div class="modal-sub">Socket ${socketIndex + 1} (<span class="badge color-${effectiveColor}">${effectiveColor}</span>) · ${escapeHtml(store.baseNameOf(itemUid))}</div>
     <div class="gem-list">${rows}</div>
   </div>`;
 }
@@ -419,7 +522,7 @@ function offlineModal(store: GameStore): string {
   </div>`;
 }
 
-function awakeningModal(store: GameStore): string {
+function awakeningModal(): string {
   const choices = (['melee', 'spell', 'dot'] as const)
     .map((id) => {
       const starter = STARTERS[id];
@@ -491,26 +594,36 @@ function rotationModal(store: GameStore): string {
 
 function slotPickerModal(store: GameStore, slot: import('../data/types').ItemSlot): string {
   const options = store.save.inventory.filter((item) => fitsSlot(item, slot));
+  const current = store.save.equipment[slot];
+  const currentGs = current ? store.itemGearscore(current) : 0;
   const rows = options.length
     ? options
-        .map(
-          (item) => `<div class="slot-option">
-            <span>${assetImg(itemBase(item).assetId, itemBase(item).name, 'slot-option-icon')}</span>
-            <span class="grow"><b style="color:${RARITY_COLOR[item.rarity]}">${escapeHtml(itemBase(item).name)}</b>
-              <span class="muted tiny">${RARITY_LABEL[item.rarity]} · ilvl ${item.itemLevel} · ${item.sockets.length} socket(s)</span></span>
+        .map((item) => {
+          const base = itemBase(item);
+          const gs = store.itemGearscore(item);
+          const delta = current ? gs - currentGs : gs;
+          const deltaLabel = current ? `${delta >= 0 ? `+${delta}` : delta} GS` : `GS ${gs}`;
+          return `<div class="slot-option">
+            <span>${assetImg(base.assetId, itemDisplayName(item), 'slot-option-icon')}</span>
+            <span class="grow"><b style="color:${RARITY_COLOR[item.rarity]}">${escapeHtml(itemDisplayName(item))}</b>
+              <span class="muted tiny" style="display:block">${RARITY_LABEL[item.rarity]} · ilvl ${item.itemLevel} · ${item.sockets.length} socket(s) · <span class="${delta >= 0 ? 'cmp-up' : 'cmp-down'}">${deltaLabel}</span></span></span>
             <button class="gbtn sm" data-action="equip" data-uid="${escapeHtml(item.uid)}" data-slot="${slot}">Equip</button>
-          </div>`,
-        )
+          </div>`;
+        })
         .join('')
-    : `<div class="empty-note">Nothing in the bag fits this slot yet. Clear a few kills; drops are filtered to your starter archetype early on.</div>`;
-  return `<div class="modal-head"><h3>${escapeHtml(store.itemSlotLabel(slot))}</h3>${closeButton()}</div>
-    <div class="modal-body"><p class="muted">Tap an item to equip it. All bag items that fit this slot are shown.</p>${rows}</div>`;
+    : `<div class="empty-note">Nothing in the bag fits this slot yet. Clear a few kills to find gear.</div>`;
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Equip ${escapeHtml(store.itemSlotLabel(slot))}">
+    ${closeButton()}
+    <h3>${escapeHtml(store.itemSlotLabel(slot))}</h3>
+    <div class="modal-sub">Tap an item to equip it</div>
+    ${rows}
+  </div>`;
 }
 
 export function renderModal(store: GameStore, modal: ModalState): string {
   switch (modal.kind) {
     case 'awakening':
-      return awakeningModal(store);
+      return awakeningModal();
     case 'rotation':
       return rotationModal(store);
     case 'stats':
@@ -519,6 +632,10 @@ export function renderModal(store: GameStore, modal: ModalState): string {
       return optionsModal(store);
     case 'reset':
       return resetModal();
+    case 'respec':
+      return respecModal(store);
+    case 'boss-cache':
+      return bossCacheModal(store, modal);
     case 'item':
       return itemModal(store, modal.uid);
     case 'slot-picker':

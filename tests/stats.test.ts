@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateStats, baseStats, computePlayerStats, equippedWeapon } from '../src/engine/stats';
+import { aggregateStats, baseStats, collectMythicRules, computePlayerStats, equippedWeapon } from '../src/engine/stats';
 import { applyStarterChoice, createInitialSave, createItem, makeGem } from '../src/game/state';
 import { itemGearscore, itemMods, fitsSlot } from '../src/game/items';
-import { affixById, itemBaseById, statRegistry } from '../src/data';
+import { affixById, itemBaseById, statRegistry, uniques } from '../src/data';
 import type { CharacterSave } from '../src/game/types';
 
 const starter = () => {
@@ -175,6 +175,69 @@ describe('master directive stat wiring', () => {
     const melee = stats.skills.find((s) => s.gemId === 'gem_crossed_slash')!;
     expect(ember.linkedSupportIds).toContain('support_echo');
     expect(melee.linkedSupportIds).not.toContain('support_echo');
+  });
+
+  it('collects all 12 Mythic unique rules and applies Ward per gem, Armor->Thorns, and ArmorBreak->CritMulti', () => {
+    for (const unique of uniques) {
+      const save = {
+        ...createInitialSave(0),
+        equipment: {
+          chest: { ...createItem(unique.baseId, 'mythic', 5, `u-${unique.id}`), uniqueId: unique.id },
+        },
+      } as CharacterSave;
+      const rules = collectMythicRules(save);
+      const active =
+        rules.bleedIgnitePct > 0 ||
+        rules.castFreeAttack ||
+        rules.allSocketsWhite ||
+        rules.poisonUncapped ||
+        rules.armorToElementalPct > 0 ||
+        rules.damageVsChilledPct > 0 ||
+        rules.igniteSpreadOnKill ||
+        rules.damageTakenToWardPct > 0 ||
+        rules.armorBreakToCritMulti > 0 ||
+        rules.thornsFromArmorPct > 0 ||
+        rules.dodgeAttackSpeedPct > 0 ||
+        rules.lowLifeDamageMore > 0;
+      expect(active, unique.id).toBe(true);
+    }
+
+    const baseSave = starter();
+    const plain = computePlayerStats(baseSave);
+
+    const aegis = {
+      ...createItem('base_chest', 'mythic', 5, 'u-aegis'),
+      uniqueId: 'uq_prismatic_aegis',
+      sockets: [makeGem('gem_ward_barrier', 1, 'both'), makeGem('support_echo', 1, 'both')],
+      linkedSockets: 2,
+      affixes: [],
+    };
+    const gloves = {
+      ...createItem('base_gloves', 'mythic', 5, 'u-gloves'),
+      uniqueId: 'uq_thornbound_gauntlets',
+      affixes: [],
+    };
+    const ring = {
+      ...createItem('base_ring_ruby', 'mythic', 5, 'u-ring'),
+      uniqueId: 'uq_titan_ledger',
+      affixes: [],
+    };
+
+    const mythicSave: CharacterSave = {
+      ...baseSave,
+      equipment: {
+        ...baseSave.equipment,
+        chest: aegis,
+        gloves,
+        ring_1: ring,
+      },
+    };
+    const withMythics = computePlayerStats(mythicSave);
+    expect(withMythics.mythic.allSocketsWhite).toBe(true);
+    expect(withMythics.mythic.wardPerGem).toBe(18);
+    expect(withMythics.maxWard).toBeGreaterThanOrEqual(plain.maxWard + 54);
+    expect(withMythics.thorns).toBeCloseTo(plain.thorns + withMythics.armor * 0.3 + 15, 2);
+    expect(withMythics.critMultiplier).toBeGreaterThan(plain.critMultiplier);
   });
 });
 

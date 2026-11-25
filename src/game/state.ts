@@ -201,7 +201,7 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
     firstClearCaches: [],
     bonusSkillPoints: 0,
-    settings: { reducedMotion: false, logCombat: true, guideSkipped: true },
+    settings: { reducedMotion: false, logCombat: true, guideSkipped: true, sound: true },
   };
 }
 
@@ -289,6 +289,7 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   merged.autoAdvanceBoss = false;
   merged.autoSalvage = Boolean(candidate.autoSalvage);
   merged.settings.guideSkipped = true;
+  merged.settings.sound = candidate.settings?.sound !== false;
   if (!merged.equipment || typeof merged.equipment !== 'object') merged.equipment = {};
   if (!merged.inventory.every((item) => itemBaseById.has(item.baseId))) merged.inventory = [];
   merged.tier = Math.max(1, Math.min(10, Math.round(merged.tier) || 1));
@@ -756,6 +757,7 @@ export function socketGem(save: CharacterSave, item: ItemInstance, socketIndex: 
 
 /** Chromatic Reforge: 1 mat_chroma, rerolls every socket colour, never repeats the exact sequence. */
 export function chromaticReforge(save: CharacterSave, item: ItemInstance): { ok: boolean; reason?: string; colors?: SocketColor[] } {
+  if (item.corrupted) return { ok: false, reason: 'Corrupted items cannot be modified.' };
   if ((save.materials.mat_chroma ?? 0) < 1) return { ok: false, reason: 'Need 1 Chromatic Flux.' };
   const base = itemBaseById.get(item.baseId);
   if (!base) return { ok: false, reason: 'Unknown base.' };
@@ -780,15 +782,16 @@ export function chromaticReforge(save: CharacterSave, item: ItemInstance): { ok:
   return { ok: true, colors };
 }
 
-/** Targeted Colour Craft: 2 mat_chroma + 2 mat_flux, force one socket to red/green/blue. */
+/** Targeted Colour Craft: 2 mat_chroma + 3 mat_flux, force one socket to red/green/blue. */
 export function craftSocketColor(
   save: CharacterSave,
   item: ItemInstance,
   socketIndex: number,
   color: 'red' | 'green' | 'blue',
 ): { ok: boolean; reason?: string } {
+  if (item.corrupted) return { ok: false, reason: 'Corrupted items cannot be modified.' };
   if (socketIndex < 0 || socketIndex >= item.sockets.length) return { ok: false, reason: 'No such socket.' };
-  if ((save.materials.mat_chroma ?? 0) < 2 || (save.materials.mat_flux ?? 0) < 2) {
+  if ((save.materials.mat_chroma ?? 0) < 2 || (save.materials.mat_flux ?? 0) < 3) {
     return { ok: false, reason: 'Need 2 Chromatic Flux and 3 Aether-Flux.' };
   }
   const gem = item.sockets[socketIndex];
@@ -799,15 +802,16 @@ export function craftSocketColor(
     }
   }
   save.materials.mat_chroma -= 2;
-  save.materials.mat_flux -= 2;
+  save.materials.mat_flux -= 3;
   item.socketColors[socketIndex] = color;
   return { ok: true };
 }
 
-/** Prismatic Infusion: 4 mat_chroma + 2 mat_essence, one socket becomes White (universal). */
+/** Prismatic Infusion: 5 mat_chroma + 2 mat_essence, one socket becomes White (universal). */
 export function infusePrismatic(save: CharacterSave, item: ItemInstance, socketIndex: number): { ok: boolean; reason?: string } {
+  if (item.corrupted) return { ok: false, reason: 'Corrupted items cannot be modified.' };
   if (socketIndex < 0 || socketIndex >= item.sockets.length) return { ok: false, reason: 'No such socket.' };
-  if ((save.materials.mat_chroma ?? 0) < 4 || (save.materials.mat_essence ?? 0) < 2) {
+  if ((save.materials.mat_chroma ?? 0) < 5 || (save.materials.mat_essence ?? 0) < 2) {
     return { ok: false, reason: 'Need 5 Chromatic Flux and 2 Void-Essence.' };
   }
   save.materials.mat_chroma -= 5;

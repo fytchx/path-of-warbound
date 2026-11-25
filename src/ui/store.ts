@@ -1,5 +1,5 @@
 import type { DoctrineId, ItemSlot, UnlockableSystem } from '../data/types';
-import { gemById, itemBaseById, monsterById, nodeById, skillTree } from '../data';
+import { gemById, itemBaseById, monsterById, nodeById, sfxFileFor, skillTree } from '../data';
 import {
   buildTreeGraph,
   canAllocate,
@@ -26,6 +26,7 @@ import {
   craftSocketColor,
   createInitialSave,
   equipItem,
+  grantBossCache,
   infusePrismatic,
   levelUpGemWithDust,
   loadSave,
@@ -34,6 +35,8 @@ import {
   processKillDrops,
   recordBossKill,
   refundNode,
+  respecCost,
+  respecTree,
   riftKeysUnlocked,
   salvageItem,
   setTier as setSaveTier,
@@ -43,26 +46,36 @@ import {
   unspentPoints,
   unequipItem,
   unsocketGem,
+  type BossCache,
   type StarterChoice,
 } from '../game/state';
 import {
-  addSocket,
-  corruptItem,
-  essenceLockReforge,
-  linkSocket,
-  promoteRarity,
-  reforgeItem,
-  upgradeItem,
+  augmentCraft,
+  chaosCraft,
+  fusingCraft,
+  guaranteedLinkCraft,
+  jewellerCraft,
+  regalCraft,
+  transmuteCraft,
 } from '../game/crafting';
-import { fitsSlot, itemBase, itemGearscore } from '../game/items';
+import { fitsSlot, itemBase, itemDisplayName, itemGearscore } from '../game/items';
 
 export type ScreenId = 'combat' | 'altar' | 'tree' | 'bag' | 'forge';
 export type BagFilter = 'all' | 'gear' | 'gems' | 'keys';
+export type CurrencyOrb = 'transmute' | 'augment' | 'regal' | 'chaos' | 'jeweller' | 'fusing' | 'full-link';
+
+export interface UiSfxEvent {
+  id: number;
+  key: string;
+  file: string;
+  at: number;
+}
 
 export type ModalState =
   | { kind: 'stats' }
   | { kind: 'options' }
   | { kind: 'reset' }
+  | { kind: 'respec' }
   | { kind: 'awakening' }
   | { kind: 'rotation' }
   | { kind: 'item'; uid: string }
@@ -71,6 +84,14 @@ export type ModalState =
   | { kind: 'gem-picker'; itemUid: string; socketIndex: number }
   | { kind: 'gem'; source: 'stash'; stashIndex: number }
   | { kind: 'gem'; source: 'socket'; itemUid: string; socketIndex: number }
+  | {
+      kind: 'boss-cache';
+      cache: BossCache;
+      zoneId: string;
+      zoneName: string;
+      tierCleared: number;
+      unlock: { tierUnlocked: number; zoneUnlocked?: string };
+    }
   | { kind: 'offline' };
 
 export interface TreeView {
@@ -78,6 +99,12 @@ export interface TreeView {
   y: number;
   scale: number;
 }
+
+export type CombatTab = 'overview' | 'breakdown' | 'log';
+export type BagTab = 'gear' | 'gems' | 'materials';
+export type ForgeTab = 'orbs' | 'sockets' | 'colors';
+export type TreeTab = 'inspect' | 'keystones' | 'summary';
+export type TreeFocus = 'all' | 'might' | 'agility' | 'wisdom' | 'fortitude';
 
 export interface UIState {
   screen: ScreenId;
@@ -88,6 +115,11 @@ export interface UIState {
   previewNode: string | null;
   previewPath: string[];
   refundMode: boolean;
+  combatTab: CombatTab;
+  bagTab: BagTab;
+  forgeTab: ForgeTab;
+  treeTab: TreeTab;
+  treeFocus: TreeFocus;
   bagFilter: BagFilter;
   logFilter: 'all' | 'loot' | 'combat';
   gearFilter: 'all' | 'weapons' | 'armor' | 'jewelry';
@@ -99,6 +131,7 @@ export interface UIState {
   craftMessage: string | null;
   keyPulseAt: number;
   lastTickAt: number;
+  sfxQueue: UiSfxEvent[];
 }
 
 export interface ItemLocation {
@@ -108,6 +141,7 @@ export interface ItemLocation {
 
 const treeGraph = buildTreeGraph(skillTree);
 let toastId = 0;
+let uiSfxSeq = 0;
 
 export class GameStore {
   save: CharacterSave;
@@ -136,17 +170,23 @@ export class GameStore {
       previewNode: null,
       previewPath: [],
       refundMode: false,
+      combatTab: 'overview',
+      bagTab: 'gear',
+      forgeTab: 'orbs',
+      treeTab: 'inspect',
+      treeFocus: 'all',
       bagFilter: 'all',
       logFilter: 'all',
       gearFilter: 'all',
       gemFilter: 'all',
-      forgeSocket: null,
+      forgeSocket: 0,
       forgeUid: this.save.equipment.main_hand?.uid ?? this.save.inventory[0]?.uid ?? null,
       lockedAffixIndex: null,
       treeView: { x: 0, y: 0, scale: 1 },
       craftMessage: null,
       keyPulseAt: 0,
       lastTickAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+      sfxQueue: [],
     };
     this.combat = this.buildCombat();
     this.appliedRewards = { ...this.combat.rewards };
@@ -159,6 +199,17 @@ export class GameStore {
 
   notify(dynamic = false): void {
     for (const listener of this.listeners) listener(dynamic);
+  }
+
+  pushUiSfx(key: string): void {
+    uiSfxSeq += 1;
+    this.ui.sfxQueue.push({
+      id: uiSfxSeq,
+      key,
+      file: sfxFileFor(key),
+      at: Date.now(),
+    });
+    if (this.ui.sfxQueue.length > 24) this.ui.sfxQueue.shift();
   }
 
   private buildCombat(): CombatState {
@@ -221,8 +272,9 @@ export class GameStore {
       damage: rewards.damage - this.appliedRewards.damage,
     };
 
+    let unlockedProgression: ReturnType<typeof applyCombatRewards> = [];
     if (Object.values(delta).some((value) => value !== 0)) {
-      applyCombatRewards(this.save, delta);
+      unlockedProgression = applyCombatRewards(this.save, delta);
       this.appliedRewards = { ...rewards };
     }
 
@@ -239,14 +291,31 @@ export class GameStore {
       }
     }
 
+    for (const entry of unlockedProgression) {
+      const gemName = entry.grants.gem ? gemById.get(entry.grants.gem)?.name : undefined;
+      if (gemName) {
+        this.toast(`Unlocked Gem: ${gemName} (check Bag)`);
+      }
+    }
+
     this.save.keys = this.combat.keys;
     const killedTier = this.save.tier;
     if (delta.bossKills > 0) {
       const unlock = recordBossKill(this.save, this.combat.zone.id, killedTier);
+      const cache = grantBossCache(this.save, this.combat.zone.id, killedTier);
+      this.pushUiSfx('boss_cache_open');
+      this.ui.modal = {
+        kind: 'boss-cache',
+        cache,
+        zoneId: this.combat.zone.id,
+        zoneName: this.combat.zone.name,
+        tierCleared: killedTier,
+        unlock,
+      };
       this.toast(
         unlock.zoneUnlocked
-          ? `Tier ${unlock.tierUnlocked} unlocked — ${unlock.zoneUnlocked.replace('zone_', '').replace(/_/g, ' ')} opens.`
-          : `Tier ${unlock.tierUnlocked} unlocked.`,
+          ? `Boss Cache claimed! Tier ${unlock.tierUnlocked} & ${unlock.zoneUnlocked.replace('zone_', '').replace(/_/g, ' ')} unlocked.`
+          : `Boss Cache claimed! Tier ${unlock.tierUnlocked} unlocked.`,
       );
     }
     this.save.tier = Math.min(this.combat.tier, maxTierForZone(this.save));
@@ -254,6 +323,7 @@ export class GameStore {
     if (this.save.level !== this.lastLevel) {
       this.lastLevel = this.save.level;
       this.resyncStats();
+      this.pushUiSfx('level_up');
       this.toast(`Level ${this.save.level} reached (+1 Skill Point)`);
     }
 
@@ -350,6 +420,7 @@ export class GameStore {
     this.restartCombat();
     this.ui.paused = false;
     this.ui.modal = null;
+    this.ui.forgeUid = weapon.uid;
     persistSave(this.save);
     this.toast(`Awakened: ${itemBase(weapon)?.name ?? weapon.baseId} in hand.`);
     this.notify();
@@ -389,16 +460,22 @@ export class GameStore {
       previewNode: null,
       previewPath: [],
       refundMode: false,
+      combatTab: 'overview',
+      bagTab: 'gear',
+      forgeTab: 'orbs',
+      treeTab: 'inspect',
+      treeFocus: 'all',
       bagFilter: 'all',
       logFilter: 'all',
       gearFilter: 'all',
       gemFilter: 'all',
-      forgeSocket: null,
+      forgeSocket: 0,
       forgeUid: null,
       lockedAffixIndex: null,
       treeView: { x: 0, y: 0, scale: 1 },
       craftMessage: null,
       keyPulseAt: 0,
+      sfxQueue: [],
     };
     this.notify();
   }
@@ -473,6 +550,12 @@ export class GameStore {
     this.notify();
   }
 
+  toggleSound(): void {
+    this.save.settings.sound = !this.save.settings.sound;
+    this.schedulePersist();
+    this.notify();
+  }
+
   setBar(bar: 'bar_1' | 'bar_2'): void {
     if (this.stats.keystones.has('ks_pendulum')) {
       this.toast('Pendulum swaps bars automatically every 5s.');
@@ -504,6 +587,27 @@ export class GameStore {
 
   unspent(): number {
     return unspentPoints(this.save);
+  }
+
+  respecFee(): number {
+    return respecCost(this.save);
+  }
+
+  confirmRespec(): void {
+    const result = respecTree(this.save);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'Cannot respec yet.');
+      return;
+    }
+    this.ui.modal = null;
+    this.ui.previewNode = null;
+    this.ui.previewPath = [];
+    this.ui.refundMode = false;
+    this.resyncStats();
+    this.restartCombat();
+    this.schedulePersist();
+    this.toast(`Refunded ${result.refunded} passive point${result.refunded === 1 ? '' : 's'}.`);
+    this.notify();
   }
 
   previewNode(nodeId: string): void {
@@ -539,6 +643,7 @@ export class GameStore {
     }
     this.ui.previewNode = nodeId;
     this.ui.previewPath = check.path;
+    this.ui.treeTab = 'inspect';
     this.notify();
   }
 
@@ -601,7 +706,51 @@ export class GameStore {
   }
 
   resetTree(): void {
+    this.ui.treeFocus = 'all';
     this.ui.treeView = { x: 0, y: 0, scale: 1 };
+    this.notify();
+  }
+
+  focusTreeSector(sector: TreeFocus): void {
+    this.ui.treeFocus = sector;
+    if (sector === 'all') {
+      this.ui.treeView = { x: 0, y: 0, scale: 1 };
+      this.notify();
+      return;
+    }
+    const nodes = skillTree.nodes.filter((node) => node.sector === sector);
+    if (!nodes.length) {
+      this.resetTree();
+      return;
+    }
+    const cx = nodes.reduce((sum, node) => sum + node.x, 0) / nodes.length;
+    const cy = nodes.reduce((sum, node) => sum + node.y, 0) / nodes.length;
+    const scale = 1.45;
+    this.ui.treeView = {
+      x: Math.round(-cx * scale),
+      y: Math.round(-cy * scale),
+      scale,
+    };
+    this.notify();
+  }
+
+  setCombatTab(tab: CombatTab): void {
+    this.ui.combatTab = tab;
+    this.notify();
+  }
+
+  setBagTab(tab: BagTab): void {
+    this.ui.bagTab = tab;
+    this.notify();
+  }
+
+  setForgeTab(tab: ForgeTab): void {
+    this.ui.forgeTab = tab;
+    this.notify();
+  }
+
+  setTreeTab(tab: TreeTab): void {
+    this.ui.treeTab = tab;
     this.notify();
   }
 
@@ -632,6 +781,8 @@ export class GameStore {
 
   selectForge(uid: string): void {
     this.ui.forgeUid = uid;
+    const item = this.findItem(uid)?.item;
+    this.ui.forgeSocket = item && item.sockets.length > 0 ? 0 : null;
     this.ui.lockedAffixIndex = null;
     this.ui.craftMessage = null;
     this.notify();
@@ -671,6 +822,17 @@ export class GameStore {
     this.ui.modal = null;
     this.toast('Equipped.');
     this.notify();
+  }
+
+  quickEquip(uid: string): void {
+    const location = this.findItem(uid);
+    if (!location || location.slot) return;
+    const slots = this.availableSlots(location.item);
+    if (!slots.length) return;
+    const emptyPreferred = slots.find((slot) => !this.save.equipment[slot]);
+    const twoHanded = itemBase(location.item).weapon?.twoHanded ?? false;
+    const targetSlot = twoHanded ? slots[0]! : emptyPreferred ?? slots[0]!;
+    this.equip(uid, targetSlot);
   }
 
   unequip(slot: ItemSlot): void {
@@ -778,10 +940,13 @@ export class GameStore {
       this.toast(result.reason ?? 'Chromatic Reforge failed.');
       return;
     }
+    this.pushUiSfx('chroma_craft');
     this.resyncStats();
     this.restartCombat();
     this.schedulePersist();
-    this.toast(`Sockets reforged: ${(result.colors ?? []).join(' / ') || 'unchanged'}.`);
+    const message = `Sockets reforged: ${(result.colors ?? []).join(' / ') || 'unchanged'}.`;
+    this.ui.craftMessage = message;
+    this.toast(message);
     this.notify();
   }
 
@@ -793,9 +958,12 @@ export class GameStore {
       this.toast(result.reason ?? 'Colour craft failed.');
       return;
     }
+    this.pushUiSfx('chroma_craft');
     this.resyncStats();
     this.schedulePersist();
-    this.toast(`Socket ${socketIndex + 1} forced ${color}.`);
+    const message = `Socket ${socketIndex + 1} forced ${color}.`;
+    this.ui.craftMessage = message;
+    this.toast(message);
     this.notify();
   }
 
@@ -807,9 +975,12 @@ export class GameStore {
       this.toast(result.reason ?? 'Prismatic Infusion failed.');
       return;
     }
+    this.pushUiSfx('chroma_craft');
     this.resyncStats();
     this.schedulePersist();
-    this.toast(`Socket ${socketIndex + 1} is now Prismatic.`);
+    const message = `Socket ${socketIndex + 1} is now Prismatic.`;
+    this.ui.craftMessage = message;
+    this.toast(message);
     this.notify();
   }
 
@@ -837,28 +1008,31 @@ export class GameStore {
     this.notify();
   }
 
-  craft(action: 'upgrade' | 'reforge' | 'socket' | 'link' | 'lock-reforge' | 'corrupt' | 'promote'): void {
+  craftCurrency(orb: CurrencyOrb): void {
     const item = this.forgeItem();
     if (!item) {
       this.toast('Select an item on the anvil first.');
       return;
     }
+    const seed = (Date.now() ^ Math.imul(this.save.milestones.forgeUpgrades + 1, 2654435761)) >>> 0;
     const result =
-      action === 'upgrade'
-        ? upgradeItem(this.save, item)
-        : action === 'reforge'
-          ? reforgeItem(this.save, item)
-          : action === 'socket'
-            ? addSocket(this.save, item)
-            : action === 'link'
-              ? linkSocket(this.save, item)
-              : action === 'lock-reforge'
-                ? essenceLockReforge(this.save, item, this.ui.lockedAffixIndex ?? 0)
-                : action === 'corrupt'
-                  ? corruptItem(this.save, item)
-                  : promoteRarity(this.save, item);
+      orb === 'transmute'
+        ? transmuteCraft(this.save, item, seed)
+        : orb === 'augment'
+          ? augmentCraft(this.save, item, seed)
+          : orb === 'regal'
+            ? regalCraft(this.save, item, seed)
+            : orb === 'chaos'
+              ? chaosCraft(this.save, item, seed)
+              : orb === 'jeweller'
+                ? jewellerCraft(this.save, item, seed)
+                : orb === 'fusing'
+                  ? fusingCraft(this.save, item, seed)
+                  : guaranteedLinkCraft(this.save, item);
+
     this.ui.craftMessage = result.message;
     if (result.ok) {
+      this.pushUiSfx('orb_craft');
       this.resyncStats();
       this.restartCombat();
       this.schedulePersist();
@@ -869,14 +1043,16 @@ export class GameStore {
 
   claimOffline(): void {
     if (!this.offline) return;
-    claimOffline(this.save, this.offline);
+    const unlocked = claimOffline(this.save, this.offline);
     this.offline = null;
     this.ui.modal = null;
     this.lastLevel = this.save.level;
     this.resyncStats();
     this.restartCombat();
     this.schedulePersist();
-    this.toast('Offline spoils claimed.');
+    const gemUnlock = unlocked.find((e) => e.grants.gem);
+    const gemName = gemUnlock?.grants.gem ? gemById.get(gemUnlock.grants.gem)?.name : undefined;
+    this.toast(gemName ? `Offline spoils claimed · Unlocked ${gemName}!` : 'Offline spoils claimed.');
     this.notify();
   }
 
@@ -903,7 +1079,9 @@ export class GameStore {
     if (this.combat.status === 'victory' && !this.victorySynced) {
       this.victorySynced = true;
       this.syncCombat();
-      this.toast(`Tier cleared. Tier ${this.combat.tier} stands open.`);
+      if (!this.ui.modal || this.ui.modal.kind !== 'boss-cache') {
+        this.toast(`Tier cleared. Tier ${this.combat.tier} stands open.`);
+      }
     }
     this.notify(true);
   }
@@ -947,12 +1125,12 @@ export class GameStore {
   }
 
   itemBaseName(item: ItemInstance): string {
-    return itemBase(item).name;
+    return itemDisplayName(item);
   }
 
   baseNameOf(uid: string): string {
     const item = this.findItem(uid)?.item;
-    return item ? itemBase(item).name : '';
+    return item ? itemDisplayName(item) : '';
   }
 
   baseAssetOf(uid: string): string {

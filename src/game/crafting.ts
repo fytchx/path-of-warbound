@@ -236,12 +236,14 @@ export function jewellerCraft(save: CharacterSave, item: ItemInstance, seed = Da
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   const cap = socketCap(item);
   if (item.sockets.length >= cap) return { ok: false, message: `Already at ${cap} sockets.` };
-  if (!canPayMaterials(save, { mat_scrap: 3 })) return { ok: false, message: 'Needs 3 Scrap.' };
+  if (!canPayMaterials(save, { mat_scrap: 3 })) return { ok: false, message: 'Needs 3 War-Scrap.' };
   payMaterials(save, { mat_scrap: 3 });
   const rng = mulberry32(seed >>> 0);
   const [color] = rollSocketColors(baseAttribute(itemBase(item)), 1, rng);
   item.sockets.push(null);
   item.socketColors.push(color ?? 'white');
+  if ((item.linkedSockets ?? 0) === 0) item.linkedSockets = 1;
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: `Jeweller's Craft added a ${color} socket.` };
 }
 
@@ -250,7 +252,7 @@ export function fusingCraft(save: CharacterSave, item: ItemInstance, seed = Date
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   const sockets = item.sockets.length;
   if (sockets < 2) return { ok: false, message: 'Needs at least 2 sockets.' };
-  if (!canPayMaterials(save, { mat_thread: 2 })) return { ok: false, message: 'Needs 2 Thread.' };
+  if (!canPayMaterials(save, { mat_thread: 2 })) return { ok: false, message: 'Needs 2 Soul-Thread.' };
   const current = Math.max(1, Math.min(item.linkedSockets ?? 1, sockets));
   if (current >= sockets) return { ok: false, message: 'All sockets are already linked.' };
   payMaterials(save, { mat_thread: 2 });
@@ -258,6 +260,7 @@ export function fusingCraft(save: CharacterSave, item: ItemInstance, seed = Date
   const span = sockets - current;
   const gain = Math.min(span, Math.max(1, Math.ceil(Math.pow(rng(), 0.65) * span)));
   item.linkedSockets = current + gain;
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: `Fusing Craft improved the links to ${item.linkedSockets}-link.` };
 }
 
@@ -267,9 +270,10 @@ export function guaranteedLinkCraft(save: CharacterSave, item: ItemInstance): Cr
   const sockets = item.sockets.length;
   if (sockets < 2) return { ok: false, message: 'Needs at least 2 sockets.' };
   if ((item.linkedSockets ?? 1) >= sockets) return { ok: false, message: 'Already fully linked.' };
-  if (!canPayMaterials(save, { mat_thread: 6, mat_flux: 2 })) return { ok: false, message: 'Needs 6 Thread and 2 Flux.' };
+  if (!canPayMaterials(save, { mat_thread: 6, mat_flux: 2 })) return { ok: false, message: 'Needs 6 Soul-Thread and 2 Aether-Flux.' };
   payMaterials(save, { mat_thread: 6, mat_flux: 2 });
   item.linkedSockets = sockets;
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: `Forged a guaranteed ${sockets}-link.` };
 }
 
@@ -288,10 +292,11 @@ function addOneAffix(item: ItemInstance, seed: number): boolean {
 export function transmuteCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   if (item.rarity !== 'common') return { ok: false, message: 'Transmute needs a Common item.' };
-  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Flux.' };
+  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Aether-Flux.' };
   payMaterials(save, { mat_flux: 2 });
   item.rarity = 'magic';
   addOneAffix(item, seed);
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: 'Transmuted to Magic.' };
 }
 
@@ -299,16 +304,17 @@ export function augmentCraft(save: CharacterSave, item: ItemInstance, seed = Dat
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   if (item.rarity !== 'magic') return { ok: false, message: 'Augment needs a Magic item.' };
   if (item.affixes.length >= 2) return { ok: false, message: 'This Magic item already has 2 affixes.' };
-  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Flux.' };
+  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Aether-Flux.' };
   payMaterials(save, { mat_flux: 2 });
   if (!addOneAffix(item, seed)) return { ok: false, message: 'No affix could be added.' };
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: 'Augmented with a second affix.' };
 }
 
 export function regalCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   if (item.rarity !== 'magic') return { ok: false, message: 'Regal needs a Magic item.' };
-  if (!canPayMaterials(save, { mat_flux: 3, mat_essence: 1 })) return { ok: false, message: 'Needs 3 Flux and 1 Essence.' };
+  if (!canPayMaterials(save, { mat_flux: 3, mat_essence: 1 })) return { ok: false, message: 'Needs 3 Aether-Flux and 1 Void-Essence.' };
   payMaterials(save, { mat_flux: 3, mat_essence: 1 });
   item.rarity = 'rare';
   let guard = 0;
@@ -316,14 +322,16 @@ export function regalCraft(save: CharacterSave, item: ItemInstance, seed = Date.
     if (!addOneAffix(item, seed + guard * 131)) break;
     guard += 1;
   }
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: 'Regal upgrade: the item is now Rare.' };
 }
 
 export function chaosCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
   if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
   if (item.rarity !== 'rare') return { ok: false, message: 'Chaos needs a Rare item.' };
-  if (!canPayMaterials(save, { mat_essence: 2 })) return { ok: false, message: 'Needs 2 Essence.' };
+  if (!canPayMaterials(save, { mat_essence: 2 })) return { ok: false, message: 'Needs 2 Void-Essence.' };
   payMaterials(save, { mat_essence: 2 });
   item.affixes = rollAffixes(itemBase(item).id, 'rare', Math.max(1, item.itemLevel), seed >>> 0);
+  save.milestones.forgeUpgrades += 1;
   return { ok: true, message: 'Chaos Reforge rolled new affixes.' };
 }
