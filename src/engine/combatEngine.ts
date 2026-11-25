@@ -37,6 +37,16 @@ export interface CombatEnemy {
   slamName?: string;
   slamMultiplier?: number;
   slamWindup?: number;
+  slamDebuff?: 'attack_slow' | 'burn' | 'chill';
+  slamDebuffDuration?: number;
+  /** Set once a player hit lands during this telegraph, so PUNISHED fires once. */
+  punishUsed?: boolean;
+  ward?: number;
+  maxWard?: number;
+  wardRegenPct?: number;
+  phaseIndex: number;
+  attackSlow: number;
+  phaseName?: string;
   boss?: boolean;
 }
 
@@ -65,6 +75,16 @@ export interface CombatHitEvent {
 }
 
 export type DamageSource = 'auto' | 'skill' | 'ailment' | 'thorns';
+
+/** Short-lived presentation event the UI turns into combat juice. */
+export interface CombatFxEvent {
+  id: number;
+  kind: 'slash' | 'impact' | 'bolt' | 'aoe' | 'lunge' | 'mitigated' | 'punished' | 'phase' | 'death' | 'spread' | 'ward';
+  school: School;
+  enemyUid?: string;
+  text?: string;
+  at: number;
+}
 
 export interface DamageSample {
   t: number;
@@ -131,6 +151,9 @@ export interface CombatState {
   damageLog: DamageSample[];
   hitSeq: number;
   recentHits: CombatHitEvent[];
+  fx: CombatFxEvent[];
+  fxSeq: number;
+  incomingDamage: DamageSample[];
   rewards: CombatRewards;
   totalDamage: number;
 }
@@ -193,6 +216,13 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
     slamName: def.telegraph.name,
     slamMultiplier: def.telegraph.multiplier,
     slamWindup: def.telegraph.windup,
+    slamDebuff: def.telegraph.debuff,
+    slamDebuffDuration: def.telegraph.debuffDuration,
+    ward: isBoss ? def.ward ?? 0 : 0,
+    maxWard: isBoss ? def.ward ?? 0 : 0,
+    wardRegenPct: isBoss ? def.wardRegenPct ?? 0 : 0,
+    phaseIndex: -1,
+    attackSlow: 0,
   };
 }
 
@@ -296,11 +326,26 @@ export function createCombat(options: CreateCombatOptions): CombatState {
     damageLog: [],
     hitSeq: 0,
     recentHits: [],
+    fx: [],
+    fxSeq: 0,
+    incomingDamage: [],
     rewards: { gold: 0, xp: 0, kills: 0, eliteKills: 0, bossKills: 0, deaths: 0, keys: 0, damage: 0 },
     totalDamage: 0,
   };
   spawnPack(state);
   return state;
+}
+
+function pushFx(
+  state: CombatState,
+  kind: CombatFxEvent['kind'],
+  school: School,
+  enemyUid?: string,
+  text?: string,
+): void {
+  state.fxSeq += 1;
+  state.fx.push({ id: state.fxSeq, kind, school, enemyUid, text, at: state.time });
+  if (state.fx.length > 48) state.fx.splice(0, state.fx.length - 48);
 }
 
 function pushLog(state: CombatState, kind: CombatEvent['kind'], text: string): void {
@@ -368,6 +413,13 @@ function damageEnemy(
   let amount = raw * shockBonus(enemy);
   const stats = state.playerStats;
 
+  if (stats.mythic.damageVsChilledPct > 0 && enemy.ailments.chill) {
+    amount *= 1 + stats.mythic.damageVsChilledPct / 100;
+  }
+  if (stats.mythic.lowLifeDamageMore > 0 && source !== 'ailment' && state.player.hp / Math.max(1, stats.maxHp) < 0.35) {
+    amount *= 1 + stats.mythic.lowLifeDamageMore / 100;
+  }
+
   if (stats.keystones.has('ks_crowd_sovereign')) {
     amount *= 1 + 0.25 * Math.min(5, state.enemies.filter((e) => e.hp > 0).length);
   }
@@ -382,28 +434,45 @@ function damageEnemy(
     amount *= 2;
   }
 
+  const punishWindow = (enemy.slamTelegraph ?? 0) > 0 && !enemy.punishUsed && (source === 'auto' || source === 'skill');
+  if (punishWindow) {
+    enemy.punishUsed = true;
+    amount *= 1.15;
+  }
+
   const dealt = Math.max(0, Math.round(amount * 10) / 10);
-  enemy.hp = Math.max(0, enemy.hp - dealt);
-  state.totalDamage += dealt;
-  state.rewards.damage += dealt;
-  state.damageLog.push({ t: state.time, amount: dealt, school, source });
+  let applied = dealt;  if ((enemy.ward ?? 0) > 0 && applied > 0) {
+    const absorbed = Math.min(enemy.ward ?? 0, applied);
+    enemy.ward = (enemy.ward ?? 0) - absorbed;
+    applied -= absorbed;
+    if (absorbed > 0) pushLog(state, 'ward', `${enemy.name}'s Ward absorbs ${absorbed.toFixed(0)}`);
+  }
+  enemy.hp = Math.max(0, enemy.hp - applied);
+  state.totalDamage += applied;
+  state.rewards.damage += applied;
+  state.damageLog.push({ t: state.time, amount: applied, school, source });
   if (state.damageLog.length > 200) state.damageLog.shift();
 
   if (source === 'auto' || source === 'skill') {
-    applyLifeLeech(state, dealt, skill);
+    applyLifeLeech(state, applied, skill);
+    pushFx(state, source === 'auto' ? 'slash' : 'impact', school, enemy.uid, crit ? 'CRIT' : undefined);
+    if (punishWindow) {
+      pushFx(state, 'punished', school, enemy.uid, 'PUNISHED!');
+      pushLog(state, 'trigger', `Telegraph punished on ${enemy.name} (+15% damage)`);
+    }
   }
 
-  if (dealt >= 1) {
+  if (applied >= 1) {
     state.hitSeq += 1;
-    state.recentHits.push({ id: state.hitSeq, enemyUid: enemy.uid, amount: dealt, school, crit });
+    state.recentHits.push({ id: state.hitSeq, enemyUid: enemy.uid, amount: applied, school, crit });
     if (state.recentHits.length > 16) state.recentHits.shift();
     pushLog(
       state,
       crit ? 'crit' : 'hit',
-      `${crit ? 'CRIT ' : ''}${dealt.toFixed(0)} ${school} → ${enemy.name} (${enemy.hp.toFixed(0)} hp)`,
+      `${crit ? 'CRIT ' : ''}${applied.toFixed(0)} ${school} → ${enemy.name} (${enemy.hp.toFixed(0)} hp)`,
     );
   }
-  return dealt;
+  return applied;
 }
 
 function applyAilment(
@@ -444,8 +513,16 @@ function applyAilment(
     return;
   }
 
-  const maxStacks = festering ? 3 : ailmentId === 'bleed' || ailmentId === 'chill' ? 3 : 1;
-  const durationScale = festering ? 0.7 : 1;
+  const mythic = stats.mythic;
+  const maxStacks = mythic.poisonUncapped && ailmentId === 'corruption'
+    ? 999
+    : festering
+      ? 3
+      : ailmentId === 'bleed' || ailmentId === 'chill'
+        ? 3
+        : 1;
+  const poisonSpeed = ailmentId === 'corruption' && mythic.poisonSpeedMore > 0 ? 1 + mythic.poisonSpeedMore / 100 : 1;
+  const durationScale = (festering ? 0.7 : 1) / poisonSpeed;
   const stackMultiplier = festering ? 0.4 : 1;
   const finalDuration = duration * durationScale;
   const severity =
@@ -457,13 +534,13 @@ function applyAilment(
     existing.stacks = Math.min(maxStacks, existing.stacks + 1);
     existing.remaining = Math.max(existing.remaining, finalDuration);
     existing.duration = finalDuration;
-    existing.dps = Math.max(existing.dps, baseDps * scaling * stackMultiplier);
+    existing.dps = Math.max(existing.dps, baseDps * scaling * stackMultiplier * poisonSpeed);
     if (severity !== undefined) {
       existing.severity = Math.max(existing.severity ?? 0.1, severity);
     }
   } else {
     enemy.ailments[ailmentId] = {
-      dps: baseDps * scaling * stackMultiplier,
+      dps: baseDps * scaling * stackMultiplier * poisonSpeed,
       remaining: finalDuration,
       duration: finalDuration,
       stacks: 1,
@@ -471,6 +548,19 @@ function applyAilment(
     };
   }
   pushLog(state, 'ailment', `${ailmentId} applied to ${enemy.name}${existing ? ' (stack)' : ''}`);
+
+  if (ailmentId === 'bleed' && stats.mythic.bleedIgnitePct > 0) {
+    applyAilment(
+      state,
+      enemy,
+      'ignite',
+      baseDps * (stats.mythic.bleedIgnitePct / 100),
+      duration,
+      1,
+      hitDamage * 0.4,
+      skill,
+    );
+  }
 
   // Ailment Proliferation: spread to 1 nearby living enemy at 50% remaining duration.
   if (skill?.hasProliferation) {
@@ -480,7 +570,7 @@ function applyAilment(
       const prevNeighbor = neighbor.ailments[ailmentId];
       if (!prevNeighbor || prevNeighbor.remaining < spreadDur) {
         neighbor.ailments[ailmentId] = {
-          dps: baseDps * scaling * stackMultiplier,
+          dps: baseDps * scaling * stackMultiplier * poisonSpeed,
           remaining: spreadDur,
           duration: spreadDur,
           stacks: 1,
@@ -976,6 +1066,8 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
   const player = state.player;
   const stats = state.playerStats;
   let incoming = enemy.damage * multiplier;
+  pushFx(state, 'lunge', enemy.school, enemy.uid);
+  if (enemy.attackSlow > 0) incoming *= 0.9;
   if (enemy.dazed > 0) incoming *= 0.8;
   if (stats.keystones.has('ks_crowd_sovereign')) {
     incoming *= 1 + 0.15 * Math.min(5, state.enemies.filter((e) => e.hp > 0).length);
@@ -986,6 +1078,17 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
   if (player.dodgeCharge >= 100) {
     player.dodgeCharge -= 100;
     pushLog(state, 'ward', `Dodged ${enemy.name}${attackLabel ? ` (${attackLabel})` : ''}`);
+    pushFx(state, 'mitigated', enemy.school, enemy.uid, 'DODGED');
+    if (stats.mythic.dodgeAttackSpeedPct > 0) {
+      const existing = player.buffs.find((b) => b.id === 'riftwalk');
+      const bonus = stats.mythic.dodgeAttackSpeedPct / 100;
+      if (existing) {
+        existing.remaining = 3;
+        existing.attackSpeed = Math.min(0.4, (existing.attackSpeed ?? 0) + bonus);
+      } else {
+        player.buffs.push({ id: 'riftwalk', name: 'Riftwalk', remaining: 3, duration: 3, attackSpeed: bonus, castSpeed: 0 });
+      }
+    }
     if (state.doctrine === 'bastion') {
       player.mana = Math.min(stats.maxMana, player.mana + stats.maxMana * 0.05 * stats.doctrineMultiplier);
     }
@@ -996,9 +1099,20 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
     return;
   }
 
+  const elementalArmor =
+    stats.mythic.armorToElementalPct > 0 && enemy.school !== 'physical'
+      ? armorReduction(stats.armor * (stats.mythic.armorToElementalPct / 100), enemy.level)
+      : 0;
   incoming *= 1 - armorReduction(stats.armor, enemy.level);
+  incoming *= 1 - elementalArmor;
   incoming = hitResists(state, enemy.school, incoming);
   incoming = Math.max(0, Math.round(incoming * 10) / 10);
+
+  if (player.guardActive > 0) {
+    incoming *= 0.4;
+    pushFx(state, 'mitigated', enemy.school, enemy.uid, 'MITIGATED!');
+    pushLog(state, 'guard', `Guard mitigates ${enemy.name}'s blow.`);
+  }
 
   const before = incoming;
   const absorbed = Math.min(player.ward, incoming);
@@ -1013,6 +1127,13 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
 
   player.hp = Math.max(0, player.hp - incoming);
   player.lastDamageAt = state.time;
+  state.incomingDamage.push({ t: state.time, amount: before, school: enemy.school, source: 'auto' });
+  if (state.incomingDamage.length > 120) state.incomingDamage.shift();
+  if (stats.mythic.damageTakenToWardPct > 0 && incoming > 0) {
+    const refund = incoming * (stats.mythic.damageTakenToWardPct / 100);
+    player.ward = Math.min(stats.maxWard, player.ward + refund);
+    pushFx(state, 'ward', enemy.school, enemy.uid, 'WARD');
+  }
 
   if (incoming > 0) {
     pushLog(
@@ -1092,6 +1213,21 @@ function resolveDeaths(state: CombatState): void {
     state.enemies = state.enemies.filter((e) => e !== enemy);
     state.rewards.kills += 1;
 
+    // Ashen Executioner: ignite spreads to one living neighbour on kill.
+    if (stats.mythic.igniteSpreadOnKill && enemy.ailments.ignite) {
+      const neighbour = state.enemies.find((e) => e.hp > 0 && !e.ailments.ignite);
+      if (neighbour) {
+        const source = enemy.ailments.ignite;
+        neighbour.ailments.ignite = {
+          ...source,
+          remaining: Math.max(2, (source.remaining ?? 3) * 0.6),
+          duration: Math.max(2, (source.duration ?? 4) * 0.6),
+        };
+        pushFx(state, 'impact', 'fire', neighbour.uid, 'SPREAD');
+        pushLog(state, 'ailment', `Ignite spreads from ${enemy.name} to ${neighbour.name}`);
+      }
+    }
+
     const baseGold = rollBetween(state.rng, 3, 8);
     const tierGoldMult = 1 + (state.tier - 1) * 0.25;
     const goldGain = Math.round(
@@ -1162,6 +1298,44 @@ function tickBuffs(state: CombatState): void {
   if (player.guardActive > 0) player.guardActive = Math.max(0, player.guardActive - TICK_SECONDS);
 }
 
+/** Boss phase transitions and Ward regeneration. */
+function tickEnemySystems(state: CombatState): void {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    const def = monsterById.get(enemy.defId);
+    if (def?.phases?.length) {
+      const pct = (enemy.hp / Math.max(1, enemy.maxHp)) * 100;
+      const next = def.phases[enemy.phaseIndex + 1];
+      if (next && pct <= next.atHpPct) {
+        enemy.phaseIndex += 1;
+        enemy.phaseName = next.name;
+        if (next.attackSpeedMore) enemy.attackInterval /= 1 + next.attackSpeedMore / 100;
+        if (next.damageMore) enemy.damage *= 1 + next.damageMore / 100;
+        if (next.ward) {
+          enemy.ward = (enemy.ward ?? 0) + next.ward;
+          enemy.maxWard = (enemy.maxWard ?? 0) + next.ward;
+        }
+        if (next.wardRegenPct) enemy.wardRegenPct = next.wardRegenPct;
+        if (next.telegraph) {
+          enemy.slamName = next.telegraph.name;
+          enemy.slamMultiplier = next.telegraph.multiplier;
+          enemy.slamWindup = next.telegraph.windup;
+          enemy.slamDebuff = next.telegraph.debuff;
+          enemy.slamDebuffDuration = next.telegraph.debuffDuration;
+        }
+        pushFx(state, 'phase', def.school, enemy.uid, next.name);
+        pushLog(state, 'boss', `${enemy.name} — ${next.name}: ${next.announce}`);
+      }
+    }
+    if ((enemy.ward ?? 0) > 0 && (enemy.wardRegenPct ?? 0) > 0 && (enemy.slamTelegraph ?? 0) <= 0) {
+      enemy.ward = Math.min(
+        enemy.maxWard ?? 0,
+        (enemy.ward ?? 0) + (enemy.maxWard ?? 0) * ((enemy.wardRegenPct ?? 0) / 100) * TICK_SECONDS,
+      );
+    }
+  }
+}
+
 export function tickCombat(state: CombatState): void {
   if (state.status === 'victory') return;
 
@@ -1219,7 +1393,12 @@ export function tickCombat(state: CombatState): void {
       const skill = stats.skills.find((entry) => entry.id === pending.skillId);
       if (skill) {
         pushLog(state, 'cast', `${skill.name} fires`);
+        pushFx(state, 'bolt', skill.school ?? 'arcane', state.enemies[0]?.uid);
         castSkill(state, skill, pending.power, true);
+        if (stats.mythic.castFreeAttack) {
+          pushLog(state, 'trigger', 'Chrono-Spindle: free Auto-Attack');
+          playerAutoAttack(state);
+        }
       }
     }
   }
@@ -1246,6 +1425,7 @@ export function tickCombat(state: CombatState): void {
   }
 
   tickBuffs(state);
+  tickEnemySystems(state);
 
   const interval = computeAttackInterval(state);
   player.attackInterval = interval;
@@ -1274,6 +1454,7 @@ export function tickCombat(state: CombatState): void {
         enemy.slamTelegraph = Math.max(0, enemy.slamTimer);
         if (!enemy.slamWarned) {
           enemy.slamWarned = true;
+          enemy.punishUsed = false;
           pushLog(
             state,
             'boss',
@@ -1285,6 +1466,21 @@ export function tickCombat(state: CombatState): void {
         enemy.slamTelegraph = 0;
         enemy.slamWarned = false;
         damagePlayer(state, enemy, enemy.slamMultiplier ?? 1.6, enemy.slamName ?? 'Heavy Strike');
+        const guarded = player.guardActive > 0;
+        if (!guarded && enemy.slamDebuff) {
+          const duration = enemy.slamDebuffDuration ?? 3;
+          if (enemy.slamDebuff === 'attack_slow') {
+            player.buffs.push({ id: 'bone_prison', name: 'Bone Prison', remaining: duration, duration, attackSpeed: -0.28, castSpeed: 0 });
+            pushLog(state, 'ailment', `Bone Prison slows your swings for ${duration}s.`);
+          } else if (enemy.slamDebuff === 'burn') {
+            player.hp = Math.max(0, player.hp - stats.maxHp * 0.05);
+            pushLog(state, 'ailment', 'Magma burns under your feet.');
+          } else if (enemy.slamDebuff === 'chill') {
+            player.buffs.push({ id: 'astral_chill', name: 'Astral Chill', remaining: duration, duration, attackSpeed: -0.15, castSpeed: -0.15 });
+            pushLog(state, 'ailment', 'Astral ice stiffens your arms.');
+          }
+        }
+        pushFx(state, guarded ? 'mitigated' : 'impact', enemy.school, enemy.uid, guarded ? 'MITIGATED!' : undefined);
         if (state.status !== 'running') break;
       } else {
         enemy.slamTelegraph = 0;

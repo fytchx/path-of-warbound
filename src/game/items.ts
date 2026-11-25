@@ -1,4 +1,4 @@
-import { affixById, itemBaseById } from '../data';
+import { affixById, itemBaseById, uniqueById } from '../data';
 import type { ItemBase, ItemSlot, Rarity, StatMod } from '../data/types';
 import type { GemInstance, ItemInstance } from './types';
 
@@ -44,7 +44,17 @@ export function itemMods(item: ItemInstance): StatMod[] {
     const affix = affixById.get(rolled.affixId);
     if (affix) mods.push({ stat: affix.stat, layer: affix.layer, value: affixValue(item, index) });
   });
+  const unique = item.uniqueId ? uniqueById.get(item.uniqueId) : undefined;
+  if (unique) {
+    for (const mod of unique.mods) mods.push({ ...mod });
+  }
   return mods;
+}
+
+/** Display name: mythic uniques keep their own name. */
+export function itemDisplayName(item: ItemInstance): string {
+  const unique = item.uniqueId ? uniqueById.get(item.uniqueId) : undefined;
+  return unique ? unique.name : itemAffixName(item);
 }
 
 export function itemAffixName(item: ItemInstance): string {

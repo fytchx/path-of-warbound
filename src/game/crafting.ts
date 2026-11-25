@@ -2,8 +2,9 @@ import { affixById, itemBaseById } from '../data';
 import type { Rarity } from '../data/types';
 import { mulberry32, pickOne } from '../engine/rng';
 import { itemBase, itemGearscore } from './items';
-import { eligibleAffixes, newUid } from './state';
+import { eligibleAffixes, newUid, rollAffixes } from './state';
 import type { CharacterSave, ItemInstance, MaterialId } from './types';
+import { baseAttribute, rollSocketColors } from './sockets';
 
 export interface CraftCost {
   material: MaterialId;
@@ -207,3 +208,122 @@ export function itemTooltip(item: ItemInstance): string[] {
 
 export const CRAFT_COSTS = COSTS;
 export { newUid };
+
+/** Directive socket caps: 2H 6, 1H/chest 4, other armour 3, jewellery 1. */
+export function socketCap(item: ItemInstance): number {
+  const base = itemBase(item);
+  const tags = base.slotTags;
+  let cap = 3;
+  if (tags.includes('jewellery')) cap = 1;
+  else if (tags.includes('two_hand')) cap = 6;
+  else if (tags.includes('one_hand') || tags.includes('chest')) cap = 4;
+  return Math.max(base.sockets, cap);
+}
+
+function canPayMaterials(save: CharacterSave, costs: Partial<Record<MaterialId, number>>): boolean {
+  return Object.entries(costs).every(([id, amount]) => (save.materials[id as MaterialId] ?? 0) >= (amount ?? 0));
+}
+
+function payMaterials(save: CharacterSave, costs: Partial<Record<MaterialId, number>>): void {
+  for (const [id, amount] of Object.entries(costs)) {
+    const key = id as MaterialId;
+    save.materials[key] = Math.max(0, (save.materials[key] ?? 0) - (amount ?? 0));
+  }
+}
+
+/** Jeweller's Craft: adds one socket up to the item cap with a weighted colour. */
+export function jewellerCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  const cap = socketCap(item);
+  if (item.sockets.length >= cap) return { ok: false, message: `Already at ${cap} sockets.` };
+  if (!canPayMaterials(save, { mat_scrap: 3 })) return { ok: false, message: 'Needs 3 Scrap.' };
+  payMaterials(save, { mat_scrap: 3 });
+  const rng = mulberry32(seed >>> 0);
+  const [color] = rollSocketColors(baseAttribute(itemBase(item)), 1, rng);
+  item.sockets.push(null);
+  item.socketColors.push(color ?? 'white');
+  return { ok: true, message: `Jeweller's Craft added a ${color} socket.` };
+}
+
+/** Fusing Craft: rerolls links without ever shrinking the linked group. */
+export function fusingCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  const sockets = item.sockets.length;
+  if (sockets < 2) return { ok: false, message: 'Needs at least 2 sockets.' };
+  if (!canPayMaterials(save, { mat_thread: 2 })) return { ok: false, message: 'Needs 2 Thread.' };
+  const current = Math.max(1, Math.min(item.linkedSockets ?? 1, sockets));
+  if (current >= sockets) return { ok: false, message: 'All sockets are already linked.' };
+  payMaterials(save, { mat_thread: 2 });
+  const rng = mulberry32(seed >>> 0);
+  const span = sockets - current;
+  const gain = Math.min(span, Math.max(1, Math.ceil(Math.pow(rng(), 0.65) * span)));
+  item.linkedSockets = current + gain;
+  return { ok: true, message: `Fusing Craft improved the links to ${item.linkedSockets}-link.` };
+}
+
+/** Deterministic full link: every socket joins one group. */
+export function guaranteedLinkCraft(save: CharacterSave, item: ItemInstance): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  const sockets = item.sockets.length;
+  if (sockets < 2) return { ok: false, message: 'Needs at least 2 sockets.' };
+  if ((item.linkedSockets ?? 1) >= sockets) return { ok: false, message: 'Already fully linked.' };
+  if (!canPayMaterials(save, { mat_thread: 6, mat_flux: 2 })) return { ok: false, message: 'Needs 6 Thread and 2 Flux.' };
+  payMaterials(save, { mat_thread: 6, mat_flux: 2 });
+  item.linkedSockets = sockets;
+  return { ok: true, message: `Forged a guaranteed ${sockets}-link.` };
+}
+
+function addOneAffix(item: ItemInstance, seed: number): boolean {
+  const base = itemBase(item);
+  const nextRarity: Rarity = item.rarity === 'common' ? 'magic' : item.rarity;
+  const rolled = rollAffixes(base.id, nextRarity, Math.max(1, item.itemLevel), seed >>> 0);
+  for (const candidate of rolled) {
+    if (item.affixes.some((existing) => existing.affixId === candidate.affixId)) continue;
+    item.affixes.push(candidate);
+    return true;
+  }
+  return false;
+}
+
+export function transmuteCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  if (item.rarity !== 'common') return { ok: false, message: 'Transmute needs a Common item.' };
+  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Flux.' };
+  payMaterials(save, { mat_flux: 2 });
+  item.rarity = 'magic';
+  addOneAffix(item, seed);
+  return { ok: true, message: 'Transmuted to Magic.' };
+}
+
+export function augmentCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  if (item.rarity !== 'magic') return { ok: false, message: 'Augment needs a Magic item.' };
+  if (item.affixes.length >= 2) return { ok: false, message: 'This Magic item already has 2 affixes.' };
+  if (!canPayMaterials(save, { mat_flux: 2 })) return { ok: false, message: 'Needs 2 Flux.' };
+  payMaterials(save, { mat_flux: 2 });
+  if (!addOneAffix(item, seed)) return { ok: false, message: 'No affix could be added.' };
+  return { ok: true, message: 'Augmented with a second affix.' };
+}
+
+export function regalCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  if (item.rarity !== 'magic') return { ok: false, message: 'Regal needs a Magic item.' };
+  if (!canPayMaterials(save, { mat_flux: 3, mat_essence: 1 })) return { ok: false, message: 'Needs 3 Flux and 1 Essence.' };
+  payMaterials(save, { mat_flux: 3, mat_essence: 1 });
+  item.rarity = 'rare';
+  let guard = 0;
+  while (item.affixes.length < 3 && guard < 6) {
+    if (!addOneAffix(item, seed + guard * 131)) break;
+    guard += 1;
+  }
+  return { ok: true, message: 'Regal upgrade: the item is now Rare.' };
+}
+
+export function chaosCraft(save: CharacterSave, item: ItemInstance, seed = Date.now()): CraftResult {
+  if (item.corrupted) return { ok: false, message: 'Corrupted items cannot be modified.' };
+  if (item.rarity !== 'rare') return { ok: false, message: 'Chaos needs a Rare item.' };
+  if (!canPayMaterials(save, { mat_essence: 2 })) return { ok: false, message: 'Needs 2 Essence.' };
+  payMaterials(save, { mat_essence: 2 });
+  item.affixes = rollAffixes(itemBase(item).id, 'rare', Math.max(1, item.itemLevel), seed >>> 0);
+  return { ok: true, message: 'Chaos Reforge rolled new affixes.' };
+}

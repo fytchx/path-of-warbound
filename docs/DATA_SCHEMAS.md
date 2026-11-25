@@ -217,7 +217,26 @@ export interface SaveState {
 
 ---
 
-## 7. Build-Time CI Validation Rules (`tests/validateData.test.ts`)
+## 7. Unique Schema (`src/data/uniques.json`)
+
+Twelve uniques, each pinned to an existing base. `ItemInstance.uniqueId` points back at the registry; `collectMythicRules` turns an equipped unique into combat-engine rules, and its `mods` enter the normal stat pipeline.
+
+```ts
+interface UniqueDef {
+  id: string;                  // "uq_prismatic_aegis"
+  name: string;
+  baseId: string;              // Must exist in items.json
+  effectId: UniqueEffectId;    // Known engine effect (e.g. "bleed_ignite")
+  effectValue: number;         // Scales that effect
+  mods: StatMod[];             // Same schema as affix mods
+  description: string;
+  flavour: string;
+}
+```
+
+---
+
+## 8. Build-Time CI Validation Rules (`tests/validateData.test.ts`)
 
 Run automatically before any commit or build:
 1. **Stat Registry Integrity:** Every `mod.stat` and `mod.convertTo` across `gems.json`, `items.json`, `affixes.json`, and `skill_tree.json` exists in `stat_registry.json`.

@@ -1,4 +1,4 @@
-import { gemById, itemBaseById, nodeById, statRegistry } from '../data';
+import { gemById, itemBaseById, nodeById, statRegistry, uniqueById } from '../data';
 import type { AilmentId, DoctrineId, GemDef, ItemBase, ItemSlot, School, StatMod, WeaponProfile } from '../data/types';
 import type { CharacterSave, GemInstance, ItemInstance } from '../game/types';
 import { characterGearscore, itemBase, itemMods } from '../game/items';
@@ -114,6 +114,96 @@ export interface AppliedConversion {
   amount: number;
 }
 
+export interface MythicRules {
+  bleedIgnitePct: number;
+  castFreeAttack: boolean;
+  allSocketsWhite: boolean;
+  wardPerGem: number;
+  poisonUncapped: boolean;
+  poisonSpeedMore: number;
+  armorToElementalPct: number;
+  damageVsChilledPct: number;
+  igniteSpreadOnKill: boolean;
+  damageTakenToWardPct: number;
+  armorBreakToCritMulti: number;
+  thornsFromArmorPct: number;
+  dodgeAttackSpeedPct: number;
+  lowLifeDamageMore: number;
+}
+
+export function emptyMythicRules(): MythicRules {
+  return {
+    bleedIgnitePct: 0,
+    castFreeAttack: false,
+    allSocketsWhite: false,
+    wardPerGem: 0,
+    poisonUncapped: false,
+    poisonSpeedMore: 0,
+    armorToElementalPct: 0,
+    damageVsChilledPct: 0,
+    igniteSpreadOnKill: false,
+    damageTakenToWardPct: 0,
+    armorBreakToCritMulti: 0,
+    thornsFromArmorPct: 0,
+    dodgeAttackSpeedPct: 0,
+    lowLifeDamageMore: 0,
+  };
+}
+
+/** Reads every equipped named unique and folds its rule into numeric knobs. */
+export function collectMythicRules(save: CharacterSave): MythicRules {
+  const rules = emptyMythicRules();
+  for (const item of Object.values(save.equipment)) {
+    if (!item?.uniqueId) continue;
+    const unique = uniqueById.get(item.uniqueId);
+    if (!unique) continue;
+    const value = unique.effectValue;
+    switch (unique.effectId) {
+      case 'bleed_ignite':
+        rules.bleedIgnitePct = Math.max(rules.bleedIgnitePct, value);
+        break;
+      case 'cast_free_attack':
+        rules.castFreeAttack = true;
+        break;
+      case 'prismatic_aegis':
+        rules.allSocketsWhite = true;
+        rules.wardPerGem = Math.max(rules.wardPerGem, value);
+        break;
+      case 'venom_uncapped':
+        rules.poisonUncapped = true;
+        rules.poisonSpeedMore = Math.max(rules.poisonSpeedMore, value);
+        break;
+      case 'armor_to_elemental':
+        rules.armorToElementalPct = Math.max(rules.armorToElementalPct, value);
+        break;
+      case 'damage_vs_chilled':
+        rules.damageVsChilledPct = Math.max(rules.damageVsChilledPct, value);
+        break;
+      case 'ignite_spread':
+        rules.igniteSpreadOnKill = true;
+        break;
+      case 'damage_to_ward':
+        rules.damageTakenToWardPct = Math.max(rules.damageTakenToWardPct, value);
+        break;
+      case 'armor_break_crit':
+        rules.armorBreakToCritMulti = Math.max(rules.armorBreakToCritMulti, value);
+        break;
+      case 'thorns_from_armor':
+        rules.thornsFromArmorPct = Math.max(rules.thornsFromArmorPct, value);
+        break;
+      case 'dodge_attack_speed':
+        rules.dodgeAttackSpeedPct = Math.max(rules.dodgeAttackSpeedPct, value);
+        break;
+      case 'low_life_damage':
+        rules.lowLifeDamageMore = Math.max(rules.lowLifeDamageMore, value);
+        break;
+      default:
+        break;
+    }
+  }
+  return rules;
+}
+
 export interface PlayerStats {
   values: Record<string, number>;
   keystones: Set<string>;
@@ -159,6 +249,7 @@ export interface PlayerStats {
   gearscore: number;
   doctrine: DoctrineId;
   doctrineMultiplier: number;
+  mythic: MythicRules;
 }
 
 const FALLBACK_WEAPON: WeaponProfile = {
@@ -583,6 +674,19 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
   const usableMaxMana = Math.max(0, totalMaxMana - reservedMana);
 
   const weapon = equippedWeapon(save);
+  const mythic = collectMythicRules(save);
+  if (mythic.thornsFromArmorPct > 0) {
+    stats.thorns = (stats.thorns ?? 0) + armor * (mythic.thornsFromArmorPct / 100);
+  }
+  if (mythic.wardPerGem > 0) {
+    const socketedGems = Object.values(save.equipment).reduce(
+      (count, item) => count + (item ? item.sockets.filter(Boolean).length : 0),
+      0,
+    );
+    stats.max_ward = (stats.max_ward ?? 0) + socketedGems * mythic.wardPerGem;
+  }
+  const mythicCritMulti =
+    ((stats.armor_break ?? 0) * (mythic.armorBreakToCritMulti / 100)) / 100;
 
   return {
     values: stats,
@@ -594,7 +698,7 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
     supports: linkedSupports,
     triggerType,
     critChance: Math.min(0.95, Math.max(0, (stats.crit_chance ?? 0) / 100)),
-    critMultiplier: 1.5 + (stats.crit_multi ?? 0) / 100 + might / 200,
+    critMultiplier: 1.5 + (stats.crit_multi ?? 0) / 100 + might / 200 + mythicCritMulti,
     doubleHitChance: Math.min(0.75, Math.max(0, agility / (agility + 250) + (stats.double_hit ?? 0) / 100)),
     dodgeCap,
     dodgePerHit: Math.min(dodgeCap, (stats.dodge_rating ?? 0) * 0.25),
@@ -641,6 +745,7 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
     gearscore: characterGearscore(save.equipment),
     doctrine: save.doctrine,
     doctrineMultiplier,
+    mythic,
   };
 }
 

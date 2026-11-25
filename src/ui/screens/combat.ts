@@ -116,7 +116,9 @@ export function enemyCardMarkup(store: GameStore): string {
       const slamming = telegraph > 0;
       const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
       const atkPct = clamp((1 - enemy.attackTimer / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
-      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
+      const wardPct = (enemy.maxWard ?? 0) > 0 ? clamp(((enemy.ward ?? 0) / (enemy.maxWard ?? 1)) * 100, 0, 100) : 0;
+      const phaseLabel = enemy.boss ? `PHASE ${(enemy.phaseIndex ?? 0) + 1}` : '';
+      return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''} ${enemy.boss ? 'boss' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
         <div class="oval ${slamming ? 'slam-telegraph' : ''}" style="--c:${schoolColor(enemy.school)}">
           ${def ? assetImg(def.assetId, enemy.name) : escapeHtml(enemy.name.slice(0, 1))}
           ${sprite('w-oval', 'oval-frame', '0 0 80 104')}
@@ -130,14 +132,16 @@ export function enemyCardMarkup(store: GameStore): string {
             <b data-mob-atk-text>${frozen ? '❄' : `${Math.max(0, enemy.attackTimer).toFixed(1)}`}</b>
           </span>
           ${slamming ? '<span class="slam-badge">SLAM!</span>' : ''}
+          ${enemy.boss ? `<span class="phase-chip">${phaseLabel}</span>` : ''}
         </div>
         ${slamming
-          ? `<div class="mob-warn" role="status">⚠ TELEGRAPH: ${escapeHtml(enemy.slamName ?? 'HEAVY STRIKE').toUpperCase()} — ${telegraph.toFixed(1)}s</div>`
+          ? `<div class="mob-warn" role="status">⚠ ${escapeHtml((enemy.slamName ?? 'HEAVY STRIKE').toUpperCase())} — ${telegraph.toFixed(1)}s</div>`
           : ''}
         <div class="ail" data-mob-ail>${renderEnemyAilments(enemy)}</div>
         <div class="hpbar"><b data-mob-hp style="width:${pct(enemy.hp, enemy.maxHp)}"></b></div>
+        ${(enemy.maxWard ?? 0) > 0 ? `<div class="wardbar" title="Ward ${fmt(enemy.ward ?? 0)} / ${fmt(enemy.maxWard ?? 0)}"><b data-mob-ward style="width:${wardPct.toFixed(1)}%"></b></div>` : ''}
         <div class="atkbar ${enemy.attackTimer < 0.35 ? 'warn' : ''}"><b data-mob-atk style="width:${atkPct.toFixed(1)}%"></b></div>
-        <div class="name">${escapeHtml(enemy.name)}</div>
+        <div class="name">${escapeHtml(enemy.name)}${enemy.boss ? `<span class="boss-tag">BOSS</span>` : ''}</div>
       </div>`;
     })
     .join('');
@@ -153,7 +157,7 @@ function arena(store: GameStore): string {
   const canSummonBoss = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
   const wardPct = stats.maxWard > 0 ? clamp((player.ward / stats.maxWard) * 100, 0, 100) : 0;
 
-  return `<div class="frame arena">
+  return `<div class="frame arena ${combat.bossActive ? 'boss-mode' : ''}">
     ${assetImg(zone.assetId, zone.name, 'arena-bg')}
     <div class="arena-shade" aria-hidden="true"></div>
     <div class="arena-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -282,14 +286,44 @@ function ratePills(store: GameStore): string {
   return `<div class="pills">${cells.map(([label, value]) => `<div>${label}<b>${value}</b></div>`).join('')}</div>`;
 }
 
+function telemetryStrip(store: GameStore): string {
+  const combat = store.combat;
+  const dps = recentDps(combat, 5);
+  const incoming = combat.incomingDamage
+    .filter((sample) => sample.t >= combat.time - 5)
+    .reduce((sum, sample) => sum + sample.amount, 0) / 5;
+  const buffs = combat.player.buffs.slice(0, 3);
+  const chips = buffs.length
+    ? buffs.map((buff) => `<span class="tele-chip">${escapeHtml(buff.name)} <b>${buff.remaining.toFixed(1)}s</b></span>`).join('')
+    : `<span class="tele-chip muted">${escapeHtml(combat.doctrine)} doctrine</span>`;
+  return `<div class="telemetry" aria-label="Live combat telemetry">
+    <span class="tele-dps"><small>DPS</small><b data-tele-dps>${fmt(dps, 1)}</b></span>
+    <span class="tele-in"><small>INCOMING</small><b data-tele-in>${fmt(incoming, 1)}</b></span>
+    <span class="tele-buffs" data-tele-buffs>${chips}</span>
+  </div>`;
+}
+
 function logPanel(store: GameStore): string {
-  const entries = store.combat.log.slice(0, 8);
-  if (!entries.length) return '';
+  const filter = store.ui.logFilter;
+  const lootKinds = new Set(['key', 'kill', 'boss']);
+  const entries = store.combat.log
+    .filter((entry) => filter === 'all' || (filter === 'loot' ? lootKinds.has(entry.kind) : !lootKinds.has(entry.kind)))
+    .slice(0, 8);
+  const tabs: { id: 'all' | 'loot' | 'combat'; label: string }[] = [
+    { id: 'all', label: 'ALL' },
+    { id: 'loot', label: 'LOOT & KEYS' },
+    { id: 'combat', label: 'COMBAT' },
+  ];
   return `<div class="frame pan">
     <h4>War Log<span>${store.combat.log.length}</span></h4>
-    <div class="log">${entries
-      .map((entry) => `<div><span class="muted">[${entry.t.toFixed(0)}]</span> ${escapeHtml(entry.text)}</div>`)
+    <div class="log-tabs" role="tablist">${tabs
+      .map((tab) => `<button role="tab" aria-selected="${filter === tab.id}" class="${filter === tab.id ? 'active' : ''}" data-action="log-filter" data-filter="${tab.id}">${tab.label}</button>`)
       .join('')}</div>
+    <div class="log">${entries.length
+      ? entries
+          .map((entry) => `<div><span class="muted">[${entry.t.toFixed(0)}]</span> ${escapeHtml(entry.text)}</div>`)
+          .join('')
+      : '<div class="muted">Nothing in this channel yet.</div>'}</div>
   </div>`;
 }
 
@@ -333,6 +367,7 @@ export function combatDashboardMarkup(store: GameStore): string {
 export function combatScreen(store: GameStore): string {
   return `<section class="screen" data-screen="combat" aria-label="Combat">
     ${arena(store)}
+    ${telemetryStrip(store)}
     ${controlStrip(store)}
     <div id="combat-dash" class="combat-dash">${combatDashboardMarkup(store)}</div>
   </section>`;

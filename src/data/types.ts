@@ -110,6 +110,21 @@ export interface TelegraphDef {
   multiplier: number;
   school?: School;
   description: string;
+  /** Landing effect the player can counteract with Guard or a punishing skill. */
+  debuff?: 'attack_slow' | 'burn' | 'chill';
+  debuffDuration?: number;
+}
+
+/** A boss transformation that fires once a life threshold is crossed. */
+export interface PhaseDef {
+  atHpPct: number;
+  name: string;
+  attackSpeedMore?: number;
+  damageMore?: number;
+  telegraph?: TelegraphDef;
+  wardRegenPct?: number;
+  ward?: number;
+  announce: string;
 }
 
 export interface MonsterDef {
@@ -124,6 +139,9 @@ export interface MonsterDef {
   elite: boolean;
   boss?: boolean;
   telegraph: TelegraphDef;
+  phases?: PhaseDef[];
+  ward?: number;
+  wardRegenPct?: number;
   flavour: string;
 }
 
@@ -137,6 +155,33 @@ export interface ZoneDef {
   eliteChance: number;
   keyDropChance: number;
   rewardMultiplier: number;
+  identity: string;
+  flavour: string;
+}
+
+export type UniqueEffectId =
+  | 'bleed_ignite'
+  | 'cast_free_attack'
+  | 'prismatic_aegis'
+  | 'venom_uncapped'
+  | 'armor_to_elemental'
+  | 'damage_vs_chilled'
+  | 'ignite_spread'
+  | 'damage_to_ward'
+  | 'armor_break_crit'
+  | 'thorns_from_armor'
+  | 'dodge_attack_speed'
+  | 'low_life_damage';
+
+/** A named Mythic unique built on a normal base. */
+export interface UniqueDef {
+  id: string;
+  name: string;
+  baseId: string;
+  effectId: UniqueEffectId;
+  effectValue: number;
+  mods: StatMod[];
+  description: string;
   flavour: string;
 }
 
@@ -218,4 +263,5 @@ export interface Registries {
   doctrines: DoctrineDef[];
   tree: SkillTree;
   progression: ProgressionEntry[];
+  uniques: UniqueDef[];
 }

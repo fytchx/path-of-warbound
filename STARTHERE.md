@@ -18,8 +18,8 @@
 | Area | Path | Responsibility |
 | --- | --- | --- |
 | Headless engine | `src/engine/` | `100ms` tick combat, stats pipeline, tree graph, seeded RNG. No DOM. |
-| Content data | `src/data/*.json` | Items, gems, affixes, monsters, zones, doctrines, priority verbs, skill tree, stat registry. |
-| Game rules | `src/game/` | Save schema, starters, tiers/zones, drops, milestones, crafting, sockets. |
+| Content data | `src/data/*.json` | Items, uniques, gems, affixes, monsters, zones, doctrines, priority verbs, skill tree, stat registry. |
+| Game rules | `src/game/` | Save schema, starters, tiers/zones, drops, milestones, crafting, sockets, uniques, boss caches, respec. |
 | UI | `src/ui/` + `src/styles/app.css` | Five tabs, frosted modals, combat visuals, bag/altar/forge/tree screens. |
 | Simulator | `src/sim/runSim.ts` | Headless balance table. |
 | Validator | `scripts/validate-data.ts` | Schema, ids, assets, stat references, content rules. |

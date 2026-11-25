@@ -1,4 +1,4 @@
-import { affixById, gemById, gems, itemBaseById, itemBases, progression, skillTree } from '../data';
+import { affixById, gemById, gems, itemBaseById, itemBases, progression, skillTree, uniqueById, uniques } from '../data';
 import type { DoctrineId, GemColor, ItemSlot, ProgressionEntry, Rarity, SocketColor, UnlockableSystem } from '../data/types';
 import { buildTreeGraph, canAllocate, getArticulationPoints, strandedAfterRemoval } from '../engine/treeGraph';
 import type { CombatRewards } from '../engine/combatEngine';
@@ -114,6 +114,33 @@ export function makeGem(gemId: string, level = 1, bar: GemInstance['bar'] = 'bot
   return { gemId, level, xp: 0, bar };
 }
 
+/** Builds a named Mythic unique on its base, with max sockets rolled from that base. */
+export function createUnique(uniqueId: string, itemLevel: number, seedText = `${uniqueId}-${Date.now()}`): ItemInstance {
+  const unique = uniqueById.get(uniqueId);
+  if (!unique) throw new Error(`Unknown unique ${uniqueId}`);
+  const base = itemBaseById.get(unique.baseId);
+  if (!base) throw new Error(`Unknown unique base ${unique.baseId}`);
+  const item = createItem(base.id, 'mythic', itemLevel, seedText);
+  item.uniqueId = unique.id;
+  item.sockets = Array.from({ length: base.sockets }, () => null);
+  item.socketColors = rollSocketColors(baseAttribute(base), base.sockets, mulberry32(hashSeed(seedText + 'uniq')));
+  if (unique.effectId === 'prismatic_aegis') item.socketColors = item.sockets.map(() => 'white' as SocketColor);
+  item.linkedSockets = Math.min(3, item.sockets.length);
+  item.dropped = true;
+  return item;
+}
+
+/** A random Mythic unique that fits a given item level. */
+export function rollUnique(seed: number, itemLevel: number): ItemInstance {
+  const rng = mulberry32(seed);
+  const pool = uniques.filter((u) => itemBaseById.get(u.baseId));
+  const picked = pool.length ? pickOne(rng, pool) : uniques[0]!;
+  const item = createUnique(picked.id, Math.max(1, itemLevel), `unique-${seed}-${picked.id}`);
+  const links = Math.max(1, Math.min(item.sockets.length, 2 + Math.floor(rng() * Math.max(1, item.sockets.length - 1))));
+  item.linkedSockets = links;
+  return item;
+}
+
 /** Fills missing socket colours on an old or partially-built item, keeping gems valid where possible. */
 export function repairSocketColors(item: ItemInstance): void {
   const base = itemBaseById.get(item.baseId);
@@ -172,6 +199,8 @@ export function createInitialSave(now = Date.now()): CharacterSave {
     autoAdvanceBoss: false,
     autoSalvage: false,
     lifetime: { kills: 0, elites: 0, bosses: 0, deaths: 0, damage: 0, gold: 0 },
+    firstClearCaches: [],
+    bonusSkillPoints: 0,
     settings: { reducedMotion: false, logCombat: true, guideSkipped: true },
   };
 }
@@ -239,6 +268,8 @@ export function sanitizeSave(raw: unknown, now = Date.now()): CharacterSave {
   if (!Array.isArray(merged.allocated) || !merged.allocated.includes('hub_0')) merged.allocated = ['hub_0'];
   merged.unlockedSystems = [...ALL_UNLOCKABLE_SYSTEMS];
   if (!Array.isArray(merged.grantedProgression)) merged.grantedProgression = [];
+  if (!Array.isArray(merged.firstClearCaches)) merged.firstClearCaches = [];
+  merged.bonusSkillPoints = Math.max(0, Math.floor(Number(merged.bonusSkillPoints) || 0));
   merged.skillSlots = Math.max(6, Math.floor(Number(merged.skillSlots) || 6));
   merged.onboardingStep = 6 as OnboardingStep;
   merged.starterKillsClaimed = Math.max(0, Math.floor(Number(merged.starterKillsClaimed) || 0));
@@ -486,6 +517,15 @@ export function processKillDrops(save: CharacterSave, newKills: number, tier: nu
                 ? 'magic'
                 : 'common';
       const item = createItem(base.id, rarity, Math.max(1, tier), `drop-${save.lifetime.kills}-${i}`);
+      if (rarity === 'mythic' && chance(rng, 0.45)) {
+        const unique = rollUnique(hashSeed(`uniq:${save.lifetime.kills}:${i}:${tier}`), Math.max(1, tier));
+        if (save.autoSalvage && unique.rarity === 'common') {
+          // Mythic uniques are never auto-salvaged.
+        }
+        save.inventory.push(unique);
+        summary.itemsAdded.push(unique);
+        continue;
+      }
       if (stage === 1) {
         const pool = eligibleAffixes(base.id);
         item.affixes = pool.length ? [{ affixId: pickOne(rng, pool).id, tier: 1 }] : [];
@@ -609,7 +649,7 @@ export function applyCombatRewards(save: CharacterSave, rewards: CombatRewards):
 }
 
 export function totalPoints(save: CharacterSave): number {
-  return save.level;
+  return save.level + (save.bonusSkillPoints ?? 0);
 }
 
 export function unspentPoints(save: CharacterSave): number {
@@ -674,6 +714,7 @@ export function unequipItem(save: CharacterSave, slot: ItemSlot): void {
 }
 
 export function canSocketGem(
+  save: CharacterSave,
   item: ItemInstance,
   socketIndex: number,
   gem: GemInstance,
@@ -683,7 +724,9 @@ export function canSocketGem(
   const def = gemById.get(gem.gemId);
   if (!def) return { ok: false, reason: 'Unknown gem.' };
   const socketColor = item.socketColors[socketIndex] ?? 'white';
-  if (!gemFitsSocket(def.color, socketColor)) {
+  const prismatic = Object.values(save.equipment).some((worn) => worn?.uniqueId === 'uq_prismatic_aegis');
+  const effectiveColor = prismatic ? 'white' : socketColor;
+  if (!gemFitsSocket(def.color, effectiveColor)) {
     return {
       ok: false,
       reason: `${def.name} is ${def.color}; this socket is ${socketColor}. Recolor in Forge.`,
@@ -704,7 +747,7 @@ export function canSocketGem(
 }
 
 export function socketGem(save: CharacterSave, item: ItemInstance, socketIndex: number, gem: GemInstance): { ok: boolean; reason?: string } {
-  const check = canSocketGem(item, socketIndex, gem);
+  const check = canSocketGem(save, item, socketIndex, gem);
   if (!check.ok) return check;
   item.sockets[socketIndex] = gem;
   save.gemStash = save.gemStash.filter((entry) => entry !== gem);
@@ -737,7 +780,7 @@ export function chromaticReforge(save: CharacterSave, item: ItemInstance): { ok:
   return { ok: true, colors };
 }
 
-/** Targeted Colour Craft: 2 mat_chroma + 3 mat_flux, force one socket to red/green/blue. */
+/** Targeted Colour Craft: 2 mat_chroma + 2 mat_flux, force one socket to red/green/blue. */
 export function craftSocketColor(
   save: CharacterSave,
   item: ItemInstance,
@@ -745,7 +788,7 @@ export function craftSocketColor(
   color: 'red' | 'green' | 'blue',
 ): { ok: boolean; reason?: string } {
   if (socketIndex < 0 || socketIndex >= item.sockets.length) return { ok: false, reason: 'No such socket.' };
-  if ((save.materials.mat_chroma ?? 0) < 2 || (save.materials.mat_flux ?? 0) < 3) {
+  if ((save.materials.mat_chroma ?? 0) < 2 || (save.materials.mat_flux ?? 0) < 2) {
     return { ok: false, reason: 'Need 2 Chromatic Flux and 3 Aether-Flux.' };
   }
   const gem = item.sockets[socketIndex];
@@ -756,15 +799,15 @@ export function craftSocketColor(
     }
   }
   save.materials.mat_chroma -= 2;
-  save.materials.mat_flux -= 3;
+  save.materials.mat_flux -= 2;
   item.socketColors[socketIndex] = color;
   return { ok: true };
 }
 
-/** Prismatic Infusion: 5 mat_chroma + 2 mat_essence, one socket becomes White (universal). */
+/** Prismatic Infusion: 4 mat_chroma + 2 mat_essence, one socket becomes White (universal). */
 export function infusePrismatic(save: CharacterSave, item: ItemInstance, socketIndex: number): { ok: boolean; reason?: string } {
   if (socketIndex < 0 || socketIndex >= item.sockets.length) return { ok: false, reason: 'No such socket.' };
-  if ((save.materials.mat_chroma ?? 0) < 5 || (save.materials.mat_essence ?? 0) < 2) {
+  if ((save.materials.mat_chroma ?? 0) < 4 || (save.materials.mat_essence ?? 0) < 2) {
     return { ok: false, reason: 'Need 5 Chromatic Flux and 2 Void-Essence.' };
   }
   save.materials.mat_chroma -= 5;
@@ -856,8 +899,7 @@ export function setTier(save: CharacterSave, tier: number): { ok: boolean; reaso
  * Boss kill unlocks the next tier in that zone (cap 10) and the next realm:
  * Zone 1 Tier 1 -> Zone 2; Zone 2 Tier 2 -> Zone 3.
  */
-export function recordBossKill(save: CharacterSave, zoneId: string, tier: number): { tierUnlocked: number; zoneUnlocked?: string } {
-  const current = save.unlockedTierByZone[zoneId] ?? 1;
+export function recordBossKill(save: CharacterSave, zoneId: string, tier: number): { tierUnlocked: number; zoneUnlocked?: string } {  const current = save.unlockedTierByZone[zoneId] ?? 1;
   const tierUnlocked = Math.min(10, Math.max(current, tier + 1));
   save.unlockedTierByZone[zoneId] = tierUnlocked;
   let zoneUnlocked: string | undefined;
@@ -872,6 +914,62 @@ export function recordBossKill(save: CharacterSave, zoneId: string, tier: number
     zoneUnlocked = 'zone_frozen_cathedral';
   }
   return { tierUnlocked, zoneUnlocked };
+}
+
+export interface BossCache {
+  item: ItemInstance;
+  chroma: number;
+  essence: number;
+  skillPoint: number;
+  firstClear: boolean;
+}
+
+/**
+ * First-clear Boss Cache: one guaranteed Rare/Mythic item with fully linked
+ * sockets, crafting currency, and a bonus Skill Point per zone tier.
+ */
+export function grantBossCache(save: CharacterSave, zoneId: string, tier: number): BossCache {
+  const key = `${zoneId}:${tier}`;
+  const firstClear = !save.firstClearCaches.includes(key);
+  const rng = mulberry32(hashSeed(`cache:${key}:${save.lifetime.bosses}:${save.gold}`));
+  const mythic = chance(rng, 0.18);
+  let item: ItemInstance;
+  if (mythic) {
+    item = rollUnique(hashSeed(`cache-unique:${key}:${save.lifetime.bosses}`), Math.max(3, tier + 2));
+  } else {
+    const pool = itemBases.filter((entry) => entry.itemLevel <= Math.max(5, tier * 4 + 4));
+    const base = pool.length ? pickOne(rng, pool) : itemBases[0]!;
+    item = createItem(base.id, 'rare', Math.max(3, tier + 2), `cache-${key}-${save.lifetime.bosses}`);
+  }
+  const socketCount = Math.max(2, item.sockets.length);
+  item.sockets = Array.from({ length: socketCount }, (_, index) => item.sockets[index] ?? null);
+  item.linkedSockets = socketCount;
+  item.dropped = true;
+  const chroma = 3;
+  const essence = 2;
+  const skillPoint = firstClear ? 1 : 0;
+  save.materials.mat_chroma += chroma;
+  save.materials.mat_essence += essence;
+  if (firstClear) {
+    save.firstClearCaches.push(key);
+    save.bonusSkillPoints = (save.bonusSkillPoints ?? 0) + 1;
+  }
+  save.inventory.push(item);
+  return { item, chroma, essence, skillPoint, firstClear };
+}
+
+/** Free respec up to Level 10, then a Gold fee that scales with level. */
+export function respecCost(save: CharacterSave): number {
+  return save.level <= 10 ? 0 : Math.min(750, 25 * save.level);
+}
+
+export function respecTree(save: CharacterSave): { ok: boolean; reason?: string; refunded: number; cost: number } {
+  const cost = respecCost(save);
+  if (save.gold < cost) return { ok: false, reason: `Respec costs ${cost} gold.`, refunded: 0, cost };
+  const refunded = Math.max(0, save.allocated.filter((id) => id !== 'hub_0').length);
+  save.gold -= cost;
+  save.allocated = ['hub_0'];
+  return { ok: true, refunded, cost };
 }
 
 export { socketedGems, allSocketedGems };

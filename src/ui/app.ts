@@ -144,6 +144,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
   let lastEnemyKey = '';
   let lastSkillBarKey = '';
   let seenHitSeq = store.combat.hitSeq;
+  let seenFxSeq = store.combat.fxSeq;
   const hitFlashUntil = new Map<string, number>();
 
   const applyHitFeedback = (now: number): void => {
@@ -188,6 +189,46 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         oval.classList.toggle('hit-flash', active);
       });
     }
+
+    for (const fx of store.combat.fx) {
+      if (fx.id <= seenFxSeq) continue;
+      seenFxSeq = fx.id;
+      if (reduced || !fxHost || !arenaEl) continue;
+      const mobOval = fx.enemyUid
+        ? arenaEl.querySelector<HTMLElement>(`[data-enemy-uid="${fx.enemyUid}"] .oval`)
+        : null;
+      const arenaRect = arenaEl.getBoundingClientRect();
+      const ovalRect = mobOval?.getBoundingClientRect();
+      const centreX = ovalRect ? ovalRect.left - arenaRect.left + ovalRect.width / 2 : arenaRect.width / 2;
+      const centreY = ovalRect ? ovalRect.top - arenaRect.top + ovalRect.height / 2 : 140;
+
+      if (fx.kind === 'slash' || fx.kind === 'impact' || fx.kind === 'bolt' || fx.kind === 'aoe' || fx.kind === 'lunge') {
+        const arc = document.createElement('span');
+        arc.className = `slash-arc ${fx.kind}`;
+        arc.style.setProperty('--sc', schoolColor(fx.school));
+        arc.style.left = `${Math.round(centreX)}px`;
+        arc.style.top = `${Math.round(centreY)}px`;
+        arc.dataset.expires = String(now + 340);
+        fxHost.appendChild(arc);
+        if (mobOval) {
+          mobOval.classList.remove('recoil');
+          void mobOval.offsetWidth;
+          mobOval.classList.add('recoil');
+        }
+      }
+
+      if (fx.kind === 'mitigated' || fx.kind === 'punished' || fx.kind === 'phase' || fx.kind === 'death') {
+        const call = document.createElement('span');
+        call.className = `callout ${fx.kind}`;
+        call.style.setProperty('--sc', schoolColor(fx.school));
+        call.style.left = `${Math.round(centreX)}px`;
+        call.style.top = `${Math.round(centreY - 34)}px`;
+        call.dataset.expires = String(now + 1100);
+        call.textContent = fx.text ?? (fx.kind === 'phase' ? 'PHASE II' : fx.kind.toUpperCase());
+        fxHost.appendChild(call);
+      }
+    }
+
     for (const [uid, until] of hitFlashUntil) {
       if (until <= now) hitFlashUntil.delete(uid);
     }
@@ -307,9 +348,10 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
           const card = mobsEl.querySelector<HTMLElement>(`[data-enemy-uid="${enemy.uid}"]`);
           if (!card) continue;
           const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
-          const slamming = enemy.defId === 'mob_boss' && (enemy.slamTelegraph ?? 0) > 0;
+          const slamming = (enemy.slamTelegraph ?? 0) > 0;
           card.classList.toggle('dead', enemy.hp <= 0);
           card.classList.toggle('frozen', frozen);
+          card.classList.toggle('boss', Boolean(enemy.boss));
 
           const oval = card.querySelector<HTMLElement>('.oval');
           if (oval) {
@@ -323,6 +365,27 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
             } else if (!slamming && slamBadge) {
               slamBadge.remove();
             }
+          }
+
+          const phaseChip = card.querySelector<HTMLElement>('.phase-chip');
+          if (phaseChip && enemy.boss) phaseChip.textContent = `PHASE ${(enemy.phaseIndex ?? 0) + 1}`;
+
+          let warnEl = card.querySelector<HTMLElement>('.mob-warn');
+          if (slamming) {
+            if (!warnEl) {
+              warnEl = document.createElement('div');
+              warnEl.className = 'mob-warn';
+              warnEl.setAttribute('role', 'status');
+              card.insertBefore(warnEl, card.querySelector('.ail'));
+            }
+            warnEl.textContent = `⚠ ${(enemy.slamName ?? 'HEAVY STRIKE').toUpperCase()} — ${(enemy.slamTelegraph ?? 0).toFixed(1)}s`;
+          } else if (warnEl) {
+            warnEl.remove();
+          }
+
+          const wardBar = card.querySelector<HTMLElement>('[data-mob-ward]');
+          if (wardBar) {
+            setFillNoFlicker(wardBar, 'width', ((enemy.ward ?? 0) / Math.max(1, enemy.maxWard ?? 1)) * 100, false);
           }
 
           const hpText = card.querySelector<HTMLElement>('[data-mob-hp-text]');

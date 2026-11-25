@@ -7,6 +7,7 @@ import priorityJson from './priority.json';
 import progressionJson from './progression.json';
 import skillTreeJson from './skill_tree.json';
 import statRegistryJson from './stat_registry.json';
+import uniquesJson from './uniques.json';
 import zonesJson from './zones.json';
 import type {
   Affix,
@@ -19,6 +20,7 @@ import type {
   Registries,
   SkillTree,
   StatRegistry,
+  UniqueDef,
   ZoneDef,
 } from './types';
 
@@ -32,6 +34,7 @@ export const doctrines = doctrinesJson as unknown as DoctrineDef[];
 export const skillTree = skillTreeJson as unknown as SkillTree;
 export const progression = progressionJson as unknown as ProgressionEntry[];
 export const priorityVerbs = priorityJson as unknown as PriorityVerbDef[];
+export const uniques = uniquesJson as unknown as UniqueDef[];
 
 export const registries: Registries = {
   stats: statRegistry,
@@ -43,6 +46,7 @@ export const registries: Registries = {
   doctrines,
   tree: skillTree,
   progression,
+  uniques,
 };
 
 const byId = <T extends { id: string }>(list: T[]): Map<string, T> => new Map(list.map((entry) => [entry.id, entry]));
@@ -53,6 +57,7 @@ export const gemById = byId(gems);
 export const monsterById = byId(monsters);
 export const zoneById = byId(zones);
 export const doctrineById = byId(doctrines);
+export const uniqueById = byId(uniques);
 
 export function nodeById(id: string) {
   return skillTree.nodes.find((node) => node.id === id);

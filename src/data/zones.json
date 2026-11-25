@@ -9,6 +9,7 @@
     "eliteChance": 0.14,
     "keyDropChance": 0.28,
     "rewardMultiplier": 1.0,
+    "identity": "Physical and Bleed undead. The Ashen Warden telegraphs Grave Cleave and cages you in Bone Prison.",
     "flavour": "The first field. The soil is more ash than earth, and the markers have no names."
   },
   {
@@ -21,6 +22,7 @@
     "eliteChance": 0.16,
     "keyDropChance": 0.28,
     "rewardMultiplier": 1.25,
+    "identity": "Fire and armor-shredding cinder beasts. The Ember Colossus enters Molten Overdrive at 50% Life.",
     "flavour": "The canyon breathes heat. Somewhere below, something is still being forged."
   },
   {
@@ -33,6 +35,7 @@
     "eliteChance": 0.2,
     "keyDropChance": 0.28,
     "rewardMultiplier": 1.5,
+    "identity": "Frost and Void wards. The Glacial Archon regenerates Ward between Astral Shatter casts.",
     "flavour": "The hymns are still in the ice. The congregation is not."
   }
 ]

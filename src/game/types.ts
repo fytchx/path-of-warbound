@@ -33,6 +33,8 @@ export interface ItemInstance {
   linkedSockets?: number;
   corrupted: boolean;
   dropped?: boolean;
+  /** Set when the item is a named Mythic unique. */
+  uniqueId?: string;
 }
 
 export interface LifetimeStats {
@@ -80,6 +82,10 @@ export interface CharacterSave {
   autoAdvanceBoss: boolean;
   autoSalvage: boolean;
   lifetime: LifetimeStats;
+  /** zoneId:tier keys whose first-cleared Boss Cache has been claimed. */
+  firstClearCaches: string[];
+  /** Extra Skill Points earned from first-clear Boss Caches. */
+  bonusSkillPoints: number;
   settings: { reducedMotion: boolean; logCombat: boolean; guideSkipped: boolean };
 }
 

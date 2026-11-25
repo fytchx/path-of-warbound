@@ -17,13 +17,15 @@ Centuries ago, a planar cataclysm called **The Unmaking** saturated Khorvath in 
 - **Dual-Bar Auto-Combat:** Weapon auto-attacks, swappable skill bars, and selectable Combat Doctrines.
 - **Deterministic Math Pipeline:** `Base -> Flat -> Increased -> More -> Two-Pass DAG Conversions`.
 - **Radial Constellation:** Mobile-friendly petal sectors, notable nodes, minors, and mutually exclusive keystones.
-- **Zones and Economy:** Configurable pack size, 10-tier zones, Rift Keys, boss runs, offline progression, and four crafting materials.
+- **Zones and Economy:** Configurable pack size, 10-tier zones, Rift Keys with pity, boss runs, offline progression, and crafting currencies.
+- **Readable Combat:** Independent auto-attack and cast bars, telegraphed heavies with a punish window, boss ward and phase chips, and a filtrable War Log.
+- **Uniques and Mythics:** A unique registry (`src/data/uniques.json`) whose effects feed the stat pipeline and combat engine.
 
 ## Roadmap
 
-- **v0.1 — Core Playable Slice:** Headless engine, JSON registries, portrait UI, zones, gems, gear, skill tree, and local saves.
-- **v0.2 — Seasonal Online Layer:** Leaderboards, loadout inspection, and chat.
-- **v0.3+ — Endgame Expansion:** War-Orders, Endless Survival, PvP, and group content.
+- **v0.1 — Core Playable Slice (done):** Headless engine, JSON registries, portrait UI, zones, gems, gear, skill tree, and local saves.
+- **v0.3 — Deep ARPG Systems (current):** Socket colours, chromatic and currency crafting, uniques/mythics, combat juice, tier locks. Engine hooks for the currency bench, boss caches and respec exist; their UI wiring is pending.
+- **Online / seasonal layer (parked):** Leaderboards, PvP, group content and trading stay out until `docs/ACTIVE_INSTRUCTIONS.md` §7 changes.
 
 ## Repository Map
 
@@ -38,8 +40,11 @@ Centuries ago, a planar cataclysm called **The Unmaking** saturated Khorvath in 
 ├── src/
 │   ├── engine/
 │   ├── data/
+│   ├── game/
 │   ├── sim/
+│   ├── styles/
 │   └── ui/
+├── scripts/
 └── tests/
 ```
 

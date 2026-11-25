@@ -1,0 +1,158 @@
+[
+  {
+    "id": "uq_ashen_executioner",
+    "name": "Ashen Executioner",
+    "baseId": "base_axe_2h",
+    "effectId": "bleed_ignite",
+    "effectValue": 40,
+    "mods": [
+      { "stat": "dmg_physical", "layer": "increased", "value": 24 },
+      { "stat": "ailment_potency", "layer": "increased", "value": 15 }
+    ],
+    "description": "Bleeds you inflict also Ignite for 40% of their damage.",
+    "flavour": "It did not stop at the neck. The ash did the rest."
+  },
+  {
+    "id": "uq_chrono_spindle",
+    "name": "Chrono-Spindle Focus",
+    "baseId": "base_focus_orb",
+    "effectId": "cast_free_attack",
+    "effectValue": 100,
+    "mods": [
+      { "stat": "cast_speed", "layer": "increased", "value": 18 },
+      { "stat": "max_mana", "layer": "increased", "value": 12 }
+    ],
+    "description": "Completing a Cast-Bar spell triggers a free Weapon Auto-Attack.",
+    "flavour": "It remembers the swing you have not made yet."
+  },
+  {
+    "id": "uq_prismatic_aegis",
+    "name": "Prismatic Aegis",
+    "baseId": "base_chest",
+    "effectId": "prismatic_aegis",
+    "effectValue": 18,
+    "mods": [
+      { "stat": "max_ward", "layer": "increased", "value": 20 },
+      { "stat": "res_void", "layer": "flat", "value": 8 }
+    ],
+    "description": "All sockets become White. Each socketed gem grants +18 Max Ward.",
+    "flavour": "Every colour of the world, ground into one pane."
+  },
+  {
+    "id": "uq_venomfang",
+    "name": "Venomfang Stiletto",
+    "baseId": "base_off_dagger",
+    "effectId": "venom_uncapped",
+    "effectValue": 25,
+    "mods": [
+      { "stat": "ailment_potency", "layer": "increased", "value": 30 },
+      { "stat": "dot_multiplier", "layer": "increased", "value": 20 }
+    ],
+    "description": "Poison (Corruption) stacks have no cap and tick 25% faster.",
+    "flavour": "The venom does not dilute. It accumulates."
+  },
+  {
+    "id": "uq_soul_furnace",
+    "name": "Soul-Furnace Plate",
+    "baseId": "base_legs",
+    "effectId": "armor_to_elemental",
+    "effectValue": 30,
+    "mods": [
+      { "stat": "armor", "layer": "increased", "value": 35 },
+      { "stat": "max_hp", "layer": "increased", "value": 8 }
+    ],
+    "description": "30% of your Armor also mitigates Elemental and Void damage.",
+    "flavour": "The furnace does not care what it eats, only that it burns."
+  },
+  {
+    "id": "uq_wraithbone_crown",
+    "name": "Wraithbone Crown",
+    "baseId": "base_helm",
+    "effectId": "damage_vs_chilled",
+    "effectValue": 25,
+    "mods": [
+      { "stat": "dmg_frost", "layer": "increased", "value": 22 },
+      { "stat": "crit_multi", "layer": "flat", "value": 20 }
+    ],
+    "description": "Deal 25% more damage to Chilled or Frozen enemies.",
+    "flavour": "Worn by something that never needed a face."
+  },
+  {
+    "id": "uq_emberheart_censer",
+    "name": "Emberheart Censer",
+    "baseId": "base_amulet_a",
+    "effectId": "ignite_spread",
+    "effectValue": 100,
+    "mods": [
+      { "stat": "dmg_fire", "layer": "increased", "value": 26 },
+      { "stat": "dot_multiplier", "layer": "increased", "value": 14 }
+    ],
+    "description": "When a Burning enemy dies, its Ignite spreads to the next enemy at full stacks.",
+    "flavour": "Ash is only fire that has learned patience."
+  },
+  {
+    "id": "uq_hollow_mirror",
+    "name": "Mirror of the Hollow Choir",
+    "baseId": "base_trinket_waning",
+    "effectId": "damage_to_ward",
+    "effectValue": 20,
+    "mods": [
+      { "stat": "max_ward", "layer": "increased", "value": 18 },
+      { "stat": "res_physical", "layer": "flat", "value": 6 }
+    ],
+    "description": "20% of damage taken is refunded as Ward.",
+    "flavour": "It sings back your wounds in a different key."
+  },
+  {
+    "id": "uq_titan_ledger",
+    "name": "Titan's Ledger",
+    "baseId": "base_ring_ruby",
+    "effectId": "armor_break_crit",
+    "effectValue": 50,
+    "mods": [
+      { "stat": "armor_break", "layer": "flat", "value": 12 },
+      { "stat": "crit_chance", "layer": "flat", "value": 10 }
+    ],
+    "description": "Every 1% Armor Break grants +0.5% Critical Multiplier.",
+    "flavour": "Debts of iron are always paid in blood."
+  },
+  {
+    "id": "uq_thornbound_gauntlets",
+    "name": "Thornbound Gauntlets",
+    "baseId": "base_gloves",
+    "effectId": "thorns_from_armor",
+    "effectValue": 30,
+    "mods": [
+      { "stat": "thorns", "layer": "flat", "value": 15 },
+      { "stat": "armor", "layer": "increased", "value": 20 }
+    ],
+    "description": "Gain Thorns equal to 30% of your Armor.",
+    "flavour": "Every grip is a promise to hold on."
+  },
+  {
+    "id": "uq_riftwalker_treads",
+    "name": "Riftwalker Treads",
+    "baseId": "base_boots",
+    "effectId": "dodge_attack_speed",
+    "effectValue": 10,
+    "mods": [
+      { "stat": "dodge_rating", "layer": "flat", "value": 40 },
+      { "stat": "attack_speed", "layer": "increased", "value": 10 }
+    ],
+    "description": "Each dodge grants +10% Attack Speed for 3 seconds, stacking up to 4.",
+    "flavour": "Step where the world is thin."
+  },
+  {
+    "id": "uq_last_spark",
+    "name": "Cowl of the Last Spark",
+    "baseId": "base_cowl",
+    "effectId": "low_life_damage",
+    "effectValue": 30,
+    "mods": [
+      { "stat": "max_hp", "layer": "increased", "value": 10 },
+      { "stat": "crit_multi", "layer": "flat", "value": 25 }
+    ],
+    "description": "Deal 30% more damage while below 35% Life.",
+    "flavour": "The last spark burns brightest because it has nothing left to lose."
+  }
+]

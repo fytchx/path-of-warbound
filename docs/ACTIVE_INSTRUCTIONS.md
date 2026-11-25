@@ -5,7 +5,9 @@
 
 ## 1. Current state
 
-The v1.0 full-send build: blank-slate Soul-Spark Awakening (melee / spell / dot) with colour-coded starter sockets; independent weapon auto-attack and spell cast bars; per-monster and per-boss telegraphed heavy attacks; gem/socket colour system with chromatic crafting; four-attribute stat pipeline; strict Tier 1–10 and zone locks with manual, key-summoned bosses; milestone-gated loot; split bag; clickable sockets; frosted modals.
+The v1.0 full-send build: blank-slate Soul-Spark Awakening (melee / spell / dot) with colour-coded starter sockets; independent weapon auto-attack and spell cast bars; per-monster and per-boss telegraphed heavy attacks with ward, phases and punish windows; gem/socket colour system with chromatic crafting; four-attribute stat pipeline; strict Tier 1–10 and zone locks with manual, key-summoned bosses; milestone-gated loot; split bag; clickable sockets; frosted modals. The combat screen renders a telemetry strip, boss frame and a filtrable War Log.
+
+Engine/game layer implemented, UI wiring still pending: unique/mythic effects (`src/data/uniques.json`, `collectMythicRules`), the currency bench (`transmute`, `augment`, `regal`, `chaos`, `jeweller`, `fusing`, guaranteed link), boss caches, and tree respec. Do not describe them as player-facing until their screens call them.
 
 Acceptance criteria and every tuning number: `docs/MASTER_DIRECTIVE.md`.
 

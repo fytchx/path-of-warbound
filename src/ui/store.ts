@@ -89,6 +89,10 @@ export interface UIState {
   previewPath: string[];
   refundMode: boolean;
   bagFilter: BagFilter;
+  logFilter: 'all' | 'loot' | 'combat';
+  gearFilter: 'all' | 'weapons' | 'armor' | 'jewelry';
+  gemFilter: 'all' | 'red' | 'green' | 'blue' | 'white';
+  forgeSocket: number | null;
   forgeUid: string | null;
   lockedAffixIndex: number | null;
   treeView: TreeView;
@@ -133,6 +137,10 @@ export class GameStore {
       previewPath: [],
       refundMode: false,
       bagFilter: 'all',
+      logFilter: 'all',
+      gearFilter: 'all',
+      gemFilter: 'all',
+      forgeSocket: null,
       forgeUid: this.save.equipment.main_hand?.uid ?? this.save.inventory[0]?.uid ?? null,
       lockedAffixIndex: null,
       treeView: { x: 0, y: 0, scale: 1 },
@@ -382,6 +390,10 @@ export class GameStore {
       previewPath: [],
       refundMode: false,
       bagFilter: 'all',
+      logFilter: 'all',
+      gearFilter: 'all',
+      gemFilter: 'all',
+      forgeSocket: null,
       forgeUid: null,
       lockedAffixIndex: null,
       treeView: { x: 0, y: 0, scale: 1 },
@@ -595,6 +607,26 @@ export class GameStore {
 
   setBagFilter(filter: BagFilter): void {
     this.ui.bagFilter = filter;
+    this.notify();
+  }
+
+  setLogFilter(filter: 'all' | 'loot' | 'combat'): void {
+    this.ui.logFilter = filter;
+    this.notify();
+  }
+
+  setGearFilter(filter: 'all' | 'weapons' | 'armor' | 'jewelry'): void {
+    this.ui.gearFilter = filter;
+    this.notify();
+  }
+
+  setGemFilter(filter: 'all' | 'red' | 'green' | 'blue' | 'white'): void {
+    this.ui.gemFilter = filter;
+    this.notify();
+  }
+
+  setForgeSocket(index: number | null): void {
+    this.ui.forgeSocket = index;
     this.notify();
   }
 

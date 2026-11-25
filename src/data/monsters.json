@@ -229,7 +229,7 @@
   },
   {
     "id": "mob_boss",
-    "name": "The Bound One",
+    "name": "Ashen Warden",
     "assetId": "mob_boss",
     "hp": 950,
     "damage": 26,
@@ -239,17 +239,33 @@
     "elite": true,
     "boss": true,
     "telegraph": {
-      "name": "Void Rupture",
-      "windup": 1.6,
+      "name": "Grave Cleave",
+      "windup": 1.5,
       "multiplier": 2.4,
       "school": "void",
-      "description": "The chains around it snap taut as a rift opens beneath the arena."
+      "description": "The warden drags its blade through the ash and raises it overhead."
     },
+    "phases": [
+      {
+        "atHpPct": 60,
+        "name": "Bone Prison",
+        "telegraph": {
+          "name": "Bone Prison",
+          "windup": 1.8,
+          "multiplier": 2.0,
+          "school": "void",
+          "description": "Ribs of old stone close around your arm. Guard it or slow your swings.",
+          "debuff": "attack_slow",
+          "debuffDuration": 4
+        },
+        "announce": "The dead remember their cages."
+      }
+    ],
     "flavour": "A warbound that never found a wielder. It made its own."
   },
   {
     "id": "mob_boss_cinder",
-    "name": "Cinder Tyrant",
+    "name": "Ember Colossus",
     "assetId": "elite_demon_sovereign",
     "hp": 1150,
     "damage": 30,
@@ -265,11 +281,29 @@
       "school": "fire",
       "description": "The canyon floor glows white before the fist comes down."
     },
+    "phases": [
+      {
+        "atHpPct": 50,
+        "name": "Molten Overdrive",
+        "attackSpeedMore": 45,
+        "damageMore": 15,
+        "telegraph": {
+          "name": "Magma Eruption",
+          "windup": 1.4,
+          "multiplier": 2.8,
+          "school": "fire",
+          "description": "Vents split the floor. The next blow erupts beneath your feet.",
+          "debuff": "burn",
+          "debuffDuration": 3
+        },
+        "announce": "The colossus vents its heart."
+      }
+    ],
     "flavour": "It was forged to end a war. It never stopped."
   },
   {
     "id": "mob_boss_rime",
-    "name": "Rime Sovereign",
+    "name": "Glacial Archon",
     "assetId": "elite_void_lich",
     "hp": 1350,
     "damage": 32,
@@ -278,13 +312,33 @@
     "school": "frost",
     "elite": true,
     "boss": true,
+    "ward": 220,
+    "wardRegenPct": 6,
     "telegraph": {
-      "name": "Glacial Nova",
-      "windup": 1.6,
+      "name": "Astral Shatter",
+      "windup": 1.8,
       "multiplier": 2.5,
       "school": "frost",
       "description": "The ice underfoot sings one long note, then breaks."
     },
+    "phases": [
+      {
+        "atHpPct": 65,
+        "name": "Astral Ward",
+        "ward": 180,
+        "wardRegenPct": 10,
+        "telegraph": {
+          "name": "Astral Shatter",
+          "windup": 1.6,
+          "multiplier": 2.7,
+          "school": "frost",
+          "description": "A second shatter answers the first, faster and colder.",
+          "debuff": "chill",
+          "debuffDuration": 3
+        },
+        "announce": "The choir draws breath."
+      }
+    ],
     "flavour": "The last hymn of the frozen congregation."
   }
 ]
