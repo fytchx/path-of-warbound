@@ -30,9 +30,14 @@ export interface CombatEnemy {
   dazed: number;
   exposureRemaining?: number;
   ailments: Partial<Record<AilmentId, AilmentInstance>>;
+  /** Seconds until the telegraphed heavy lands; 0 when not winding up. */
   slamTimer?: number;
   slamTelegraph?: number;
   slamWarned?: boolean;
+  slamName?: string;
+  slamMultiplier?: number;
+  slamWindup?: number;
+  boss?: boolean;
 }
 
 export interface Buff {
@@ -112,6 +117,8 @@ export interface CombatState {
   wave: number;
   keys: number;
   keysUnlocked: boolean;
+  normalKills: number;
+  keyPity: number;
   rotationMode: 'auto' | 'manual';
   rotationOrder: string[];
   allowedMonsterIds?: string[];
@@ -136,6 +143,7 @@ export interface CreateCombatOptions {
   doctrine: DoctrineId;
   activeBar: 'bar_1' | 'bar_2';
   startingKeys?: number;
+  startingNormalKills?: number;
   keysUnlocked?: boolean;
   allowedMonsterIds?: string[];
   rotation?: { mode: 'auto' | 'manual'; order: string[] };
@@ -158,8 +166,9 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
   const armorScale = 1 + (state.tier - 1) * 0.25;
   const eliteScale = def.elite ? 1 + (state.tier - 1) * 0.08 : 1;
   const hp = Math.round(def.hp * hpScale * eliteScale);
-  const isBoss = def.id === 'mob_boss';
+  const isBoss = Boolean(def.boss);
   const attackInterval = 1 / Math.max(0.2, def.attackSpeed);
+  const specialCooldown = isBoss ? 4.5 : 6 + state.rng() * 4;
   return {
     uid: `e${state.tickCount}_${Math.floor(state.rng() * 1e6)}`,
     defId: def.id,
@@ -172,12 +181,18 @@ function spawnEnemy(state: CombatState, def: MonsterDef): CombatEnemy {
     attackInterval,
     school: def.school,
     elite: def.elite,
+    boss: isBoss,
     level: state.tier + 1,
     attackTimer: Math.min(attackInterval, 0.4 + state.rng() * 0.8),
     dazed: 0,
     exposureRemaining: 0,
     ailments: {},
-    ...(isBoss ? { slamTimer: 4.5, slamTelegraph: 0, slamWarned: false } : {}),
+    slamTimer: specialCooldown,
+    slamTelegraph: 0,
+    slamWarned: false,
+    slamName: def.telegraph.name,
+    slamMultiplier: def.telegraph.multiplier,
+    slamWindup: def.telegraph.windup,
   };
 }
 
@@ -207,10 +222,10 @@ function spawnPack(state: CombatState): void {
 }
 
 function spawnBoss(state: CombatState): void {
-  const def = monsterById.get('mob_boss');
+  const def = monsterById.get(state.zone.bossId) ?? monsterById.get('mob_boss');
   if (!def) return;
   const boss = spawnEnemy(state, def);
-  boss.name = `${state.zone.name} Boss`;
+  boss.name = `${state.zone.name} — ${def.name}`;
   state.enemies = [boss, ...state.enemies.filter((e) => e.hp > 0)];
   state.bossActive = true;
   pushLog(state, 'boss', `${boss.name} rises. Kill it to claim the tier.`);
@@ -265,8 +280,10 @@ export function createCombat(options: CreateCombatOptions): CombatState {
     bossActive: false,
     bossDefeated: false,
     wave: 0,
-    keys: options.startingKeys ?? 0,
-    keysUnlocked: options.keysUnlocked ?? true,
+    keys: Math.min(3, options.startingKeys ?? 0),
+    keysUnlocked: options.keysUnlocked ?? false,
+    normalKills: options.startingNormalKills ?? 0,
+    keyPity: 0,
     rotationMode: options.rotation?.mode === 'manual' ? 'manual' : 'auto',
     rotationOrder: [...(options.rotation?.order ?? [])],
     allowedMonsterIds: options.allowedMonsterIds,
@@ -556,7 +573,7 @@ function playerAutoAttack(state: CombatState): void {
   const implicitScale = hollow ? 2 : 1;
   const buffs = player.buffs.reduce((sum, b) => sum + (b.damageMore ?? 0), 0);
   let raw = rollBetween(state.rng, weapon.minDamage + (stats.values.weapon_min ?? 0), weapon.maxDamage + (stats.values.weapon_max ?? 0));
-  raw *= 1 + might / 100;
+  raw *= 1 + might * 0.015;
   raw *= 1 + (stats.schoolIncreased.physical ?? 0) + (stats.values.dmg_increased ?? 0) / 100;
   raw *= 1 + buffs;
   if (hollow) raw *= 1.4;
@@ -1108,7 +1125,7 @@ function resolveDeaths(state: CombatState): void {
       });
     }
 
-    if (enemy.defId === 'mob_boss') {
+    if (enemy.boss) {
       state.bossDefeated = true;
       state.bossActive = false;
       state.rewards.bossKills += 1;
@@ -1120,11 +1137,17 @@ function resolveDeaths(state: CombatState): void {
       continue;
     }
 
+    state.normalKills += 1;
     pushLog(state, 'kill', `${enemy.name} dies (+${goldGain} gold)`);
-    if (state.keysUnlocked && chance(state.rng, state.zone.keyDropChance)) {
-      state.keys += 1;
-      state.rewards.keys += 1;
-      pushLog(state, 'key', `Rift Key found (${state.keys}/3)`);
+    if (state.keysUnlocked && state.keys < 3) {
+      state.keyPity += 1;
+      const guaranteed = state.keyPity >= 5;
+      if (guaranteed || chance(state.rng, 0.28)) {
+        state.keyPity = 0;
+        state.keys = Math.min(3, state.keys + 1);
+        state.rewards.keys += 1;
+        pushLog(state, 'key', `🔑 Rift Key found! (${state.keys}/3)`);
+      }
     }
   }
 
@@ -1244,19 +1267,24 @@ export function tickCombat(state: CombatState): void {
     const speedFactor = TICK_SECONDS * dazeScale * chillScale;
     if (speedFactor <= 0) continue;
 
-    if (enemy.defId === 'mob_boss' && enemy.slamTimer !== undefined) {
+    if (enemy.slamTimer !== undefined) {
       enemy.slamTimer -= speedFactor;
-      if (enemy.slamTimer <= 1.0 && enemy.slamTimer > 0) {
-        enemy.slamTelegraph = enemy.slamTimer;
+      const windup = enemy.slamWindup ?? 1.4;
+      if (enemy.slamTimer <= windup && enemy.slamTimer > 0) {
+        enemy.slamTelegraph = Math.max(0, enemy.slamTimer);
         if (!enemy.slamWarned) {
           enemy.slamWarned = true;
-          pushLog(state, 'boss', `${enemy.name} raises its weapon for a Heavy Slam!`);
+          pushLog(
+            state,
+            'boss',
+            `⚠ ${enemy.name} telegraphs ${enemy.slamName ?? 'a heavy strike'} — ${windup.toFixed(1)}s`,
+          );
         }
       } else if (enemy.slamTimer <= 0) {
-        enemy.slamTimer += 4.5;
+        enemy.slamTimer += enemy.boss ? 4.5 : 8 + state.rng() * 4;
         enemy.slamTelegraph = 0;
         enemy.slamWarned = false;
-        damagePlayer(state, enemy, 1.5, 'Heavy Slam');
+        damagePlayer(state, enemy, enemy.slamMultiplier ?? 1.6, enemy.slamName ?? 'Heavy Strike');
         if (state.status !== 'running') break;
       } else {
         enemy.slamTelegraph = 0;

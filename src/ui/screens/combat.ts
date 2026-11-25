@@ -37,6 +37,11 @@ function skillBar(store: GameStore): string {
   const totalSlots = Math.max(6, skills.length);
   const bar = store.combat.activeBar;
   const pendulum = store.stats.keystones.has('ks_pendulum');
+  const cast = store.combat.player.cast;
+  const castSkill = cast ? skills.find((entry) => entry.id === cast.skillId) : undefined;
+  const castGem = castSkill ? gemById.get(castSkill.gemId) : undefined;
+  const castDuration = cast?.duration ?? 0;
+  const castElapsed = cast ? Math.max(0, castDuration - cast.remaining) : 0;
 
   const slots = Array.from({ length: totalSlots }, (_, index) => {
     const skill = skills[index];
@@ -68,7 +73,14 @@ function skillBar(store: GameStore): string {
       ${rotationPill(store)}
     </div>
     <div class="slots">${slots}</div>
-    <div class="cast" data-cast-bar hidden aria-hidden="true"><b data-cast-fill style="width:0%"></b><span class="cast-label" data-cast-label></span></div>
+    <div class="cast ${cast ? 'casting' : ''}" data-cast-bar ${cast ? '' : 'hidden'} style="--c:${castGem?.school ? schoolColor(castGem.school) : 'var(--ward)'}" aria-hidden="true">
+      ${castGem ? assetImg(castGem.assetId, castGem.name, 'cast-icon') : ''}
+      <span class="cast-stack">
+        <b class="cast-name">${escapeHtml(castGem?.name ?? 'Casting')}</b>
+        <span class="cast-label" data-cast-label>${cast ? `${castElapsed.toFixed(1)}s → ${castDuration.toFixed(1)}s` : ''}</span>
+      </span>
+      <b data-cast-fill class="cast-fill" style="width:${castPercent(store).toFixed(1)}%"></b>
+    </div>
     <div class="swing" aria-hidden="true"><b data-swing style="width:${swingPercent(store).toFixed(1)}%"></b></div>
   </div>`;
 }
@@ -100,13 +112,15 @@ export function enemyCardMarkup(store: GameStore): string {
   return enemies
     .map((enemy) => {
       const def = store.enemyDef(enemy);
-      const slamming = enemy.defId === 'mob_boss' && (enemy.slamTelegraph ?? 0) > 0;
+      const telegraph = enemy.slamTelegraph ?? 0;
+      const slamming = telegraph > 0;
       const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
       const atkPct = clamp((1 - enemy.attackTimer / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
       return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
         <div class="oval ${slamming ? 'slam-telegraph' : ''}" style="--c:${schoolColor(enemy.school)}">
           ${def ? assetImg(def.assetId, enemy.name) : escapeHtml(enemy.name.slice(0, 1))}
           ${sprite('w-oval', 'oval-frame', '0 0 80 104')}
+          <span class="diamond-badge tier-badge" title="Tier">T${store.combat.tier}</span>
           <span class="diamond-badge hp-badge" title="Enemy HP">
             ${sprite('w-diamond', 'diamond-svg', '0 0 24 24', '--f:#4a1012')}
             <b data-mob-hp-text>${fmt(Math.ceil(enemy.hp))}</b>
@@ -117,9 +131,12 @@ export function enemyCardMarkup(store: GameStore): string {
           </span>
           ${slamming ? '<span class="slam-badge">SLAM!</span>' : ''}
         </div>
+        ${slamming
+          ? `<div class="mob-warn" role="status">⚠ TELEGRAPH: ${escapeHtml(enemy.slamName ?? 'HEAVY STRIKE').toUpperCase()} — ${telegraph.toFixed(1)}s</div>`
+          : ''}
         <div class="ail" data-mob-ail>${renderEnemyAilments(enemy)}</div>
         <div class="hpbar"><b data-mob-hp style="width:${pct(enemy.hp, enemy.maxHp)}"></b></div>
-        <div class="atkbar"><b data-mob-atk style="width:${atkPct.toFixed(1)}%"></b></div>
+        <div class="atkbar ${enemy.attackTimer < 0.35 ? 'warn' : ''}"><b data-mob-atk style="width:${atkPct.toFixed(1)}%"></b></div>
         <div class="name">${escapeHtml(enemy.name)}</div>
       </div>`;
     })
@@ -139,6 +156,7 @@ function arena(store: GameStore): string {
   return `<div class="frame arena">
     ${assetImg(zone.assetId, zone.name, 'arena-bg')}
     <div class="arena-shade" aria-hidden="true"></div>
+    <div class="arena-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="banner" data-arena-banner>${escapeHtml(zone.name)} · TIER ${combat.tier}</div>
     <div class="badges" data-arena-badges>
       <span data-badge-status>${status}</span>
@@ -146,7 +164,7 @@ function arena(store: GameStore): string {
       <span data-badge-keys-wrap class="${keyPulse ? 'key-pulse' : ''}">KEYS <b data-badge-keys>${combat.keys}/3</b></span>
     </div>
     <span class="vnum l" data-vnum-hp>${fmt(player.hp)}</span>
-    <div class="vial l" data-vial-hp title="Health ${fmt(player.hp)} / ${fmt(stats.maxHp)} · Ward ${fmt(player.ward)} / ${fmt(stats.maxWard)}">
+    <div class="vial l ${player.ward > 0 ? 'warded' : ''}" data-vial-hp title="Health ${fmt(player.hp)} / ${fmt(stats.maxHp)} · Ward ${fmt(player.ward)} / ${fmt(stats.maxWard)}">
       <b data-hp-fill style="height:${pct(player.hp, stats.maxHp)}"></b>
       <s data-ward-fill style="height:${wardPct.toFixed(1)}%;opacity:${player.ward > 0 ? 0.85 : 0}"></s>
       ${sprite('w-vial', 'vial-frame', '0 0 36 200')}
@@ -158,7 +176,7 @@ function arena(store: GameStore): string {
     </div>
     <div class="mobs" data-mobs>${enemyCardMarkup(store)}</div>
     <div class="combat-fx" id="combat-fx" aria-hidden="true"></div>
-    <button class="boss-summon" data-action="summon-boss" style="${canSummonBoss ? '' : 'display:none'}">SUMMON ZONE BOSS</button>
+    <button class="boss-summon" data-action="summon-boss" style="${canSummonBoss ? '' : 'display:none'}">⚔ Summon Tier ${combat.tier} Boss</button>
     ${skillBar(store)}
   </div>`;
 }
@@ -168,15 +186,16 @@ function controlStrip(store: GameStore): string {
   return `<div class="frame pan ctl">
     <div class="zonechips">
       ${zones
-        .map(
-          (entry) => `<button class="${entry.id === store.save.zoneId ? 'on' : ''}" data-action="zone" data-zone="${entry.id}" title="${escapeHtml(entry.name)}">${escapeHtml(zoneShort(entry.name))}</button>`,
-        )
+        .map((entry) => {
+          const unlocked = store.save.unlockedZones.includes(entry.id);
+          return `<button class="${entry.id === store.save.zoneId ? 'on' : ''}" data-action="zone" data-zone="${entry.id}" ${unlocked ? '' : 'disabled'} title="${escapeHtml(unlocked ? entry.name : `Sealed. Clear the previous realm's boss to open ${entry.name}.`)}">${escapeHtml(zoneShort(entry.name))}${unlocked ? '' : ' 🔒'}</button>`;
+        })
         .join('')}
     </div>
     <div class="stepper" title="Tier: higher tiers hit harder and pay more">
       <button data-action="tier-prev" aria-label="Lower tier">−</button>
       <span data-ctl-tier><small>TIER</small>${combat.tier}</span>
-      <button data-action="tier-next" aria-label="Raise tier">+</button>
+      <button data-action="tier-next" aria-label="Raise tier" ${combat.tier >= store.maxTier() ? 'disabled' : ''}>+</button>
     </div>
     <div class="stepper" title="Pack size: enemies per wave (1–5)">
       <button data-action="pack-prev" aria-label="Fewer enemies">−</button>

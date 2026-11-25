@@ -1,151 +1,149 @@
-# MASTER DIRECTIVE — Path of Warbound
+# MASTER DIRECTIVE — Path of Warbound (v1.0 full-send build)
 
-End-to-end game and engineering blueprint. Normative: where code and this document disagree, fix the code or amend this document in the same change. Verified baseline numbers come from `npm run validate` and `npm test` at the Phase 2 checkpoint.
+> Single source of truth for the shipped game, its numbers and its engineering rules.
+> `STARTHERE.md` holds repository safety; `docs/ACTIVE_INSTRUCTIONS.md` holds the working checklist.
+> This document supersedes every earlier phase checklist. Nothing here is "parked".
 
-## 1. Vision and identity
+## 1. Vision & identity
 
-**An intimidating monster in the background, simple for a solo developer to build without scope creep, deeply stimulating for theorycrafters, and effortless for the average player.**
+You are a disembodied **Soul-Spark** bound into **Warbound Armaments**, fighting monstrous horrors across darkened realms. The fantasy is intimidation and quiet power: an intimidating monster in the background, a game simple enough for one developer to finish, deep enough for theorycrafters, effortless for the average player.
 
-The player is a disembodied Soul-Spark bound into Warbound Armaments. There are **zero human faces or character portraits anywhere**. The header emblem is always `fx_soulspark` inside `#w-medal`. The body is implied by the 3×3 equipment grid; the "character" is the gear.
+**Zero human faces or character portraits anywhere.** The header emblem is always `fx_soulspark` inside `#w-medal`. Enemy art is monster-only.
 
-Presentation:
+Layout is **portrait-only mobile-first**: `390px`–`420px`, letterboxed on desktop. All five bottom tabs (**COMBAT**, **ALTAR**, **TREE**, **BAG**, **FORGE**) are unlocked from boot with `>= 44px × 44px` touch targets.
 
-- Portrait-only frame, `390px`–`420px`, centred and letterboxed on desktop.
-- Five bottom tabs, all unlocked from boot: `COMBAT`, `ALTAR`, `TREE`, `BAG`, `FORGE`.
-- Every interactive target ≥ `44px × 44px`.
-- Frosted obsidian surfaces: `rgba(11, 14, 22, 0.84)` + `backdrop-filter: blur(8px)`, `1px solid rgba(212, 175, 55, 0.35)`.
+### Hard technical guardrails
 
-## 2. Attributes (four vectors)
+1. Never modify or regenerate `assets/` or `warbound-sprite.svg`. Reference only `AssetId` keys from `assets/manifest.json` (154 validated assets). Socket colours, link bars, slash arcs, cast bars and telegraphs are CSS/SVG/Canvas overlays.
+2. `src/engine/` is 100% pure headless TypeScript: no DOM, `window`, `document` or CSS. Combat, timers, drops, gates and rotation AI run deterministically on a **100 ms tick** (10 ticks/sec).
+3. `scripts/validate-data.ts` stays in sync. New data fields are typed in `src/data/types.ts` and validated by `npm run validate`.
+4. Never commit or push without explicit approval.
 
-| Attribute | Vector 1 | Vector 2 | Vector 3 | Vector 4 |
-| --- | --- | --- | --- | --- |
-| **Might** | Weapon base damage | Ability power | Crit multiplier `+0.5%` per point | Armor break |
-| **Agility** | Attack speed | Double-hit chance `min(0.75, Agi/(Agi+250))`, echo at `70%` damage | DoT tick speed | Dodge rating |
-| **Wisdom** | Cast/channel speed | Max mana and regen | Max ward | Ailment potency |
-| **Fortitude** | Max HP | HP regen | Armor | Thorns |
+## 2. Combat feel
 
-## 3. Damage schools and signature ailments
+### Independent auto-attack and cast bar
 
-| School | Ailment | Behaviour |
+- **Weapon Auto-Attack Bar** hits **one** enemy (no default cleave) on its own progress bar. Base rates: `weapon_dagger 1.6/s`, `weapon_sword 1.3/s`, `weapon_staff 1.05/s`, scaled by attack speed. Reset snaps to `0%` for one frame with transitions suppressed so it never animates backwards.
+- **Dedicated Cast Bar** for any active gem with `castTime > 0`: gem icon, gem name, school glow, exact timer (`0.0s -> 1.5s`) scaled by cast speed. The weapon bar keeps ticking and swinging while the spell charges.
+- Instant skills (`castTime === 0`) fire immediately off cooldown.
+
+### Telegraphing
+
+- Every weapon swing flashes a directional slash arc over the struck enemy oval plus a `120 ms` hit-recoil micro-shake.
+- Instant melee skills flash a golden-crimson crescent; timed spells launch a school-coloured pulse from the cast bar into the target; AoE skills pulse every living enemy oval.
+- **Floating combat text** by school: Physical `#f0ece1`, Fire `#ff7b29`, Frost `#5ce1e6`, Lightning `#ffe047`, Void `#b87aff`, Poison/DoT `#4be37a` (compact). Critical hits are `1.35x`, bold, suffixed `!`, with a golden flare.
+- Every enemy oval shows sprite, name, tier badge, HP bar, ailment badges (icon + stacks + duration ring), and an **enemy attack bar** that flashes amber before a swing.
+- Every monster and zone boss owns at least one **telegraphed heavy ability** with a `1.2s–1.8s` wind-up, a pulsing crimson/gold oval border and a warning banner (`⚠ TELEGRAPH: CRUSHING SLAM — 1.4s`). Guard, Dodge, Ward and the `Telegraph punish` verb answer it.
+- Arena atmosphere: drifting CSS embers/ash/frost motes over `#w-backdrop`, dark vignette, and a cyan Ward shell around the health/ward vials while `currentWard > 0`.
+
+## 3. Gem & socket colour system
+
+### Colours and attributes
+
+| Colour | Attribute | Identity |
 | --- | --- | --- |
-| Physical | **Bleed** | Stacking physical DoT |
-| Fire | **Ignite** | High-magnitude burning DoT |
-| Frost | **Chill / Freeze** | Action-speed slow; freezes the action bar at max stacks |
-| Lightning | **Shock** | `+10%` to `+40%` increased damage taken |
-| Void | **Corruption** | Armor-bypassing DoT and `-35%` enemy healing/ward recharge |
+| Crimson `red` | Might | Melee, slams, physical, bleed, armour-break, warcries, guard/thorns, melee/life supports |
+| Emerald `green` | Agility | Fast daggers, poison, projectiles/chains, dodge/attack-speed/DoT supports |
+| Sapphire `blue` | Wisdom | Spells, cast-bar nukes, elemental/void magic, curses, ward, cast/ailment supports |
+| Prismatic `white` | Universal | Wildcard socket accepts any gem; white gem fits any socket |
 
-## 4. Stat pipeline
+### Socket rules
 
-```
-Final(X) = (Base(X) + Sum(Flat(X))) * (1 + Sum(Increased%(X))/100) * Product(1 + More%(X)/100)
-```
+- A coloured gem fits a **matching-colour socket** or a **Prismatic (`white`) socket**.
+- **White socket** accepts `red`, `green`, `blue`, `white`. **White gem** fits any socket colour.
+- Linked sockets (`linkGroup`) connect Supports to Actives **regardless of colour**, provided the support's `allowedTags` match the active gem's `tags`.
+- Starter weapons always spawn with a matching socket: Sword `Red`, Staff `Blue`, Dagger `Green`.
 
-Two-pass, forward-only DAG conversions, evaluated once per stat recompute:
+### Socket generation (attribute-weighted)
 
-- **Pass 1 (attributes and defence):** `Might → Agility → Wisdom → Fortitude`, then `Armor → Max Ward → Dodge Rating`.
-- **Pass 2 (schools):** `Physical → Fire → Frost → Lightning → Void`.
+- Might base: ~`70%` Red, `12%` Green, `12%` Blue, `6%` White.
+- Agility base: ~`70%` Green, `12%` Red, `12%` Blue, `6%` White.
+- Wisdom base: ~`70%` Blue, `12%` Red, `12%` Green, `6%` White.
+- Fortitude / hybrid: balanced split with ~`8%` White.
 
-No circular dependencies, no mutation shortcuts, no re-entrant conversion.
+### Chromatic crafting (Forge + item inspect)
 
-## 5. Defence and ailment math
+New material **Chromatic Flux** (`mat_chroma`), dropped by enemies and yielded when salvaging socketed gear.
 
-- **Dodge (entropy-assisted):** `entropyCounter` accumulates dodge chance per incoming hit; when it crosses 1 the hit is dodged and 1 is subtracted. Deterministic in expectation, never streaky.
-- **Armor mitigation:** `Armor / (Armor + 45 * Level)`, capped at `80%`.
-- **Resistances:** soft-punished at `1 - 0.80 * min(0.75, Res)`, so 75% resistance yields 60% mitigation.
-- **Ward:** absorbs damage before HP. Recharge delay `2.0s` reduced by Wisdom; recharge rate `20%` max ward per second.
-- **Ailment DPS (anti-double-dipping):** `BaseAilmentDamage * (1 + Wisdom/120) * (1 + Agility/150)`.
+- **Chromatic Reforge** — `1 mat_chroma`: reroll all socket colours weighted by the base attribute; never repeats the exact same colour sequence.
+- **Targeted Colour Craft** — `2 mat_chroma + 3 mat_flux`: force one selected socket to Red, Green or Blue.
+- **Prismatic Infusion** — `5 mat_chroma + 2 mat_essence`: convert one selected socket to White.
 
-## 6. Execution model
+## 4. Mathematics & combat engine
 
-`100ms` ticks, four tiers evaluated in order:
+### Four core attributes (four vectors each)
 
-1. **Reservations** — auras and persistent buffs reserved from mana.
-2. **Instant cooldowns** — instant skills fire the moment they are off cooldown.
-3. **Event/energy triggers** — evaluated in snake socket order across the slot hierarchy.
-4. **Active cast loop** — one cast at a time on the dedicated cast bar.
+- **Might:** `+1.5%` weapon base damage/pt, `+1.0%` melee/physical ability power/pt, `+0.5%` crit multiplier/pt, `+1.5` flat armour break/pt.
+- **Agility:** `+0.8%` attack speed/pt, double-hit `min(0.75, Agi / (Agi + 250))` echoing at `70%`, `+0.7%` DoT tick speed/pt, `+2.5` flat dodge rating/pt.
+- **Wisdom:** `+0.8%` cast speed/pt, `+3` max mana and `+0.25` regen/s/pt, `+4` max ward/pt, `+0.85%` ailment potency/pt.
+- **Fortitude:** `+6` max HP/pt, `+0.3` HP regen/s/pt, `+3` flat armour/pt, `+1.5` flat thorns/pt.
 
-Weapon auto-attacks run on their own timer, independent of the cast loop, and hit **one enemy** unless a gem or keystone adds area damage.
+### Schools and ailments
 
-Rotation:
-
-- **AUTO:** dynamic utility score `S_i = (B_i * U_i * M_econ * M_synergy * W_doctrine) - C_waste`.
-- **MANUAL:** ranked skill list edited through the `[ROT]` pill, gated by unlocked Priority Verbs. Discipline streak `+6%` per stack, cap 4, active only with `>= 2` usable active skills. `payoff` hit scaling `+15%` per active target ailment/Exposure, cap `+45%`.
-- **Doctrines:** `Tactician`, `Blitz`, `Bastion`, `Weaver`, `Entropy`.
-
-## 7. Progression and content
-
-### Equipment
-
-- Main hand `2x1`, up to 6 sockets; off hand `1x1`, up to 3 sockets, locked while a two-hander is equipped.
-- `3x3` grid: `Amulet` / `Helmet` / `Trinket`, `Gloves` / `Chest` / `Ring 1`, `Boots` / `Legs` / `Ring 2`.
-- Sockets are universal. `Bar I / II` swap actives; buffs, wards and DoTs persist across the swap.
-- Rarities: `Common`, `Magic`, `Rare`, `Mythic`. Materials: `mat_scrap`, `mat_flux`, `mat_thread`, `mat_essence`.
-
-### Skill tree
-
-Segmented four-sector radial tree, one sector per attribute:
-
-| Sector | Colour | Fantasy |
+| School | Ailment | Rule |
 | --- | --- | --- |
-| MIGHT | Crimson `#e05252` | Melee, weapon damage, crit, armor break |
-| AGILITY | Emerald `#3eb489` | Attack speed, DoT speed, double-hit, dodge |
-| WISDOM | Sapphire `#4a7be0` | Cast speed, spell power, ward, mana |
-| FORTITUDE | Gold `#D4AF37` | Max HP, regen, armor, thorns |
+| Physical | Bleed | Stacking physical DoT, bonus when the target acts |
+| Fire | Ignite | High-magnitude burning DoT |
+| Frost | Chill / Freeze | Slows attack and telegraph speed; freezes the action bar at max stacks |
+| Lightning | Shock | Target takes `+10%` to `+40%` more damage |
+| Void | Corruption | Armour-bypassing void DoT, `-35%` enemy healing/ward recharge |
 
-Eight mutually exclusive keystones in four pairs: `ks_pendulum` vs `ks_hollow_fist`, `ks_lattice_skin` vs `ks_ghostframe`, `ks_festering_wound` vs `ks_void_tithe`, `ks_crowd_sovereign` vs `ks_zealots_mandate`.
+### Stat pipeline
 
-### Zones
+`Final(X) = (Base(X) + ΣFlat) × (1 + ΣIncreased%/100) × Π(1 + More%/100)`
 
-Three zones, ten tiers each, pack size `1–5`, offline progress capped at 8 hours:
+- **Pass 1:** Might → Agility → Wisdom → Fortitude, and Armor → Max Ward → Dodge Rating.
+- **Pass 2:** Physical → Fire → Frost → Lightning → Void. Forward-only; no backward loops.
 
-| Zone id | Name | Backdrop asset |
-| --- | --- | --- |
-| `zone_ashen_graveyard` | Ashen Graveyard | `bg_ashen_graveyard` |
-| `zone_ember_canyon` | Ember Canyon | `bg_ember_canyon` |
-| `zone_frozen_cathedral` | Frozen Cathedral | `bg_frozen_cathedral` |
+### Defences
 
-### Start, bosses and drops
+- Entropy Dodge accumulator prevents streak deaths.
+- Armour mitigation `Armor / (Armor + 45 × EnemyLevel)`, cap `80%`.
+- Resistances `1 - 0.80 × min(0.75, Res)`.
+- Ward absorbs before HP, recharges `2.0s` after damage (Wisdom-reduced) at `20%` max ward/s.
+- DoT DPS `BaseAilmentDamage × (1 + Wisdom/120) × (1 + Agility/150)`; never double-dips hit multipliers.
 
-- A new save and Reset Progress both produce a true blank slate: level 1, 0 XP/gold/materials/keys, empty bag, no demo armour, Zone 1 Tier 1, `packSize: 1`, `autoAdvanceBoss: false`. The starter weapon and one level-1 active gem are granted only through the Soul-Spark Awakening choice.
-- No random or automatic boss spawns. A zone boss spawns only when the player holds 3 `key_rift` and taps **Summon Zone Boss**.
-- XP curve: `XP_Required(Level) = floor(250 * Level^1.45)`, so level 2 costs 250 XP (roughly 10–12 Tier 1 kills).
-- Tier 1 normal mobs sit near 75 HP and 2–3 DPS against roughly 110 starter HP.
-- Tier 1 zone boss: roughly 950 HP, 26 DPS, telegraphed heavy hits.
-- Drop unlocks by milestone, tracked in `SaveState`:
+### Rotation
 
-| Stage | Unlock condition | New drops |
-| --- | --- | --- |
-| 1 | Start | Gold `3–7`; basic one-stat Common gear (~15%) |
-| 2 | `>= 5` kills and `>= 1` dropped gear equipped | `mat_scrap`; single-target support gems |
-| 3 | `>= 30s` played at `packSize >= 2` | Cleave/AoE actives and supports; pack size `3–5` after trying `2` |
-| 4 | Player HP dropped below 45% at least once | Defensive/guard actives; ward and mitigation supports |
-| 5 | `level >= 3`, `>= 1` support gem linked, `>= 1` forge upgrade | `key_rift` (~22% per kill) |
+- Every socketed active gem on the active bar (Bar I / Bar II) is evaluated each tick. Baseline `100` max mana, `12/s` regen, `+4` mana per weapon auto-attack.
+- **AUTO** (default): `S_i = (B_i × U_i × M_econ × M_synergy × W_doctrine) - C_waste`.
+- **MANUAL** (`[ROT]` modal): ranked skill order + priority verbs, Discipline Streak (`+6%` per stack, cap 4, needs `>= 2` usable actives), payoff `+15%` more hit damage per target ailment/Exposure (cap `+45%`).
 
-## 8. UI contract
+## 5. Progression locks, tiers and keys
 
-- Combat: enemy ovals with school-coloured floating damage numbers, hit flash, visible ailments with stacks and timers, auto-attack bar, dedicated cast bar (icon, name, fill `0.0s → castTime` scaled by cast speed), HP/ward/mana vials animated at `150ms ease-out`.
-- Bars are clamped to `[0, 1]`; transitions are suppressed for one frame when a cycle resets to `0%`, so a bar never animates backwards.
-- Tree: quadrant labels and colours drawn on the canvas, starter branch highlighted, tap-to-preview node card with one **Allocate** button.
-- Modals, inspect cards and dropdowns: frosted obsidian, close on outside tap (with `stopPropagation()` inside the card), `Escape`, or a `>= 44px` `×`.
-- Milestone unlocks appear as top toast pills, maximum 2, auto-fade `3.5s`, dismiss on tap, upward swipe (`dy < -24`) or horizontal swipe (`|dx| > 48`).
-- Motion respects `prefers-reduced-motion` and the in-app reduced-motion setting.
+- Start with `unlockedTierByZone = { zone_ashen_graveyard: 1 }`; Zones 2 and 3 locked. The save keys by zone id (`zone_ashen_graveyard`, `zone_ember_canyon`, `zone_frozen_cathedral`); `bg_*` are their backdrop asset ids.
+- Tier `+` cannot exceed `unlockedTierByZone[zoneId]`. At cap it is disabled and toasts *"Defeat the Tier N Zone Boss to unlock Tier N+1."*
+- Defeating a zone's Tier `N` boss unlocks Tier `N+1` (cap 10). Zone 1 Tier 1 boss also unlocks Zone 2 (Tier 1); Zone 2 Tier 2 boss unlocks Zone 3 (Tier 1).
+- Bosses **never** auto-spawn. At `3/3` keys a glowing **⚔ Summon Tier N Boss** button appears.
+- **Rift Key drop:** after `>= 6` normal kills or Level `>= 2`, `28%` per kill with a pity counter guaranteeing one within 5 kills, until `3/3`. Logs `🔑 Rift Key found! (2/3)`.
+- Tier 1 normal mobs deal ~`2.5 DPS` against ~`115` starter HP.
+- **XP curve:** `XP_Required(Level) = floor(220 × Level^1.45)`.
+- **Milestone loot:**
+  - 0–3 kills: gold `4–8`, Common 1-stat gear `22%`, `1.4x` starter-archetype bias.
+  - 4+ kills: `mat_scrap 35%`, `mat_chroma 18%`, single-target Support Gems `12%`.
+  - 6+ kills or Level 2+: `key_rift 28%` + 5-kill pity.
+  - 30s+ with Pack Size `>= 2`: Cleave/AoE gems enter the pool; Pack Size `3–5` after Pack Size `2`.
+  - Dropped below `50% HP` once: Defensive/Guard/Ward gems enter the pool.
 
-## 9. Engineering rules
+## 6. Content catalog
 
-- `src/engine/` has no DOM, `window`, CSS or browser globals.
-- Content is JSON in `src/data/`, validated by `npm run validate`.
-- Art is never modified; reference it by `AssetId` from `assets/manifest.json`.
-- Every content entry (active gem, support gem, weapon archetype, trinket, keystone, doctrine) carries a plain-English `description` rendered in inspect modals.
-- Tests: Vitest. New behaviour gets a regression test in an existing test file.
+- **Items (`src/data/items.json`, 28+ bases):** main hand (1H/2H swords, daggers, staves, maces, wands), off hand (shields, focuses, quivers/off-daggers), helmet, chest, gloves, boots, legs, amulet, trinket, ring. Every base has a plain-English `description`.
+- **Gems (`src/data/gems.json`, 24+):** 5 Red actives + 3 Red supports, 5 Green actives + 3 Green supports, 5 Blue actives + 3 Blue supports, 1 White Prismatic gem. Every gem has `color` and `description`.
+- **Affixes (`src/data/affixes.json`, 36):** attributes, weapon damage, spell power, attack/cast speed, crit, school damage/conversions, HP, armour, ward, dodge, resistances, mana regen.
+- **Monsters (`src/data/monsters.json`):** 12 normal/elite across the three zones plus 3 dedicated zone bosses, each with a named `telegraph`.
+- **Tree / doctrines / verbs:** 91 radial nodes in 4 colour-coded quadrants (`MIGHT`, `AGILITY`, `WISDOM`, `FORTITUDE`), 8 mutually exclusive keystones, 5 doctrines, 12 priority verbs.
 
-## 10. Acceptance criteria for the overhaul
+## 7. UI
 
-1. Reset and first boot reach the Awakening modal; each of the three starters produces the specified weapon and gem.
-2. Auto-attack and cast bars advance independently; clamping is covered by tests.
-3. Drops before each milestone match the stage table; no key drops before stage 5; no automatic boss spawn.
-4. `npm run validate`, `npm test`, `npm run sim`, `npm run build` all pass with output quoted in the handover.
-5. Browser check at 390 px and 1280 px with no overflow, clipping or console errors.
+- **Bag:** pinned currency strip (Gold, Gem Dust, Chromatic Flux, War-Scrap, Aether-Flux, Soul-Thread, Void-Essence) and a `50/50` split: left `GEAR` list, right `GEMS` list, both scrollable, rarity borders and socket colour pips (`R/G/B/W`).
+- **Altar:** tap an empty slot → frosted picker of bag items that fit; tap an occupied slot → item inspect with full stats, description, clickable `>= 44px` socket rings and link bars. Empty socket → filtered gem picker (mismatched dimmed with *"Recolor in Forge"*). Filled socket → stats + Unsocket/Swap. Bottom row: Swap Gear, Unequip, Recolor/Upgrade.
+- **Forge:** item selector, Upgrade Item Level, Reforge Affixes, Chromatic Reforge, Targeted Socket Colour, Prismatic Infusion.
+- **Tree:** four colour-coded sector labels, glowing starter path, tap-to-preview card with one-tap Allocate.
+- **Modals:** frosted obsidian `rgba(11, 14, 22, 0.85)` + `backdrop-filter: blur(8px)`, close on backdrop tap, `Escape` or `×` (`>= 44px`). Toasts dismiss on tap or swipe.
 
-## 11. Implementation status
+## 8. Verification
 
-Updated at the end of Phase 3 (see the task handover). At the Phase 2 checkpoint the baseline was the `v0.2` slice: 154 assets, 25 bases, 30 affixes, 18 gems, 12 monsters, 3 zones, 91 nodes, 106 edges, 55 tests.
+- `npm run validate`, `npm test`, `npm run sim`, `npm run build` must pass in the session.
+- Tests cover: blank reset + awakening starters with matching socket colours; independent cast bar alongside auto attacks and telegraphs; strict tier locking and boss unlocks; rift-key pity and manual summoning; socket colour matching, cross-colour linked supports and deterministic recolouring.
+- Browser check at `390px` for all five tabs plus Awakening and slot/socket modals: zero page errors, zero horizontal overflow.
+- Finish with the 6-section handover rundown and stop before commit/push.

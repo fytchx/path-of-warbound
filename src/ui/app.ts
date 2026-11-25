@@ -584,7 +584,23 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         if (data.uid) store.openModal({ kind: 'item', uid: data.uid });
         break;
       case 'open-slot':
-        store.toast(`${store.itemSlotLabel(data.slot as ItemSlot)} is empty.`);
+        if (store.save.equipment[data.slot as ItemSlot]) {
+          store.openModal({ kind: 'item', uid: store.save.equipment[data.slot as ItemSlot]!.uid });
+        } else {
+          store.openSlotPicker(data.slot as ItemSlot);
+        }
+        break;
+      case 'chroma-reforge':
+        if (data.uid) store.reforgeSockets(data.uid);
+        break;
+      case 'force-socket':
+        if (data.uid) store.forceSocket(data.uid, Number(data.index ?? 0), (data.color === 'green' ? 'green' : data.color === 'blue' ? 'blue' : 'red'));
+        break;
+      case 'prismatic-socket':
+        if (data.uid) store.prismaticSocket(data.uid, Number(data.index ?? 0));
+        break;
+      case 'item-to-forge':
+        if (data.uid) store.openForgeFor(data.uid);
         break;
       case 'locked-offhand':
         store.toast('Offhand is spanned by a two-handed weapon.');

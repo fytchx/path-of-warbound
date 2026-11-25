@@ -1,13 +1,14 @@
 import type { AssetId } from '../assets/assetIds';
-import type { DoctrineId, ItemSlot, Rarity } from '../data/types';
+import type { DoctrineId, ItemSlot, Rarity, SocketColor } from '../data/types';
 
-export type MaterialId = 'mat_scrap' | 'mat_flux' | 'mat_thread' | 'mat_essence' | 'gem_dust';
-export const MATERIAL_IDS: MaterialId[] = ['mat_scrap', 'mat_flux', 'mat_thread', 'mat_essence', 'gem_dust'];
+export type MaterialId = 'mat_scrap' | 'mat_flux' | 'mat_thread' | 'mat_essence' | 'mat_chroma' | 'gem_dust';
+export const MATERIAL_IDS: MaterialId[] = ['mat_scrap', 'mat_flux', 'mat_thread', 'mat_essence', 'mat_chroma', 'gem_dust'];
 export const MATERIAL_ASSET: Record<MaterialId, AssetId> = {
   mat_scrap: 'mat_scrap',
   mat_flux: 'mat_flux',
   mat_thread: 'mat_thread',
   mat_essence: 'mat_essence',
+  mat_chroma: 'mat_flux',
   gem_dust: 'gem_round',
 };
 
@@ -27,6 +28,8 @@ export interface ItemInstance {
   itemLevel: number;
   affixes: { affixId: string; tier: number }[];
   sockets: (GemInstance | null)[];
+  /** One colour per socket, parallel to `sockets`. White is universal. */
+  socketColors: SocketColor[];
   linkedSockets?: number;
   corrupted: boolean;
   dropped?: boolean;
@@ -57,6 +60,10 @@ export interface CharacterSave {
   packSize: 1 | 2 | 3 | 4 | 5;
   zoneId: string;
   tier: number;
+  /** Highest tier unlocked per zone. Tier + can never exceed this. */
+  unlockedTierByZone: Record<string, number>;
+  /** Zones the player may enter. */
+  unlockedZones: string[];
   equipment: Partial<Record<ItemSlot, ItemInstance>>;
   inventory: ItemInstance[];
   gemStash: GemInstance[];

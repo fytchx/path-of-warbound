@@ -72,8 +72,11 @@ describe('save state', () => {
       mat_flux: 0,
       mat_thread: 0,
       mat_essence: 0,
+      mat_chroma: 0,
       gem_dust: 0,
     });
+    expect(save.unlockedTierByZone).toEqual({ zone_ashen_graveyard: 1 });
+    expect(save.unlockedZones).toEqual(['zone_ashen_graveyard']);
     expect(save.skillSlots).toBe(6);
     for (const sys of ALL_UNLOCKABLE_SYSTEMS) {
       expect(save.unlockedSystems).toContain(sys);
@@ -102,9 +105,9 @@ describe('save state', () => {
     expect(stats.skills[0]!.level).toBe(1);
   });
 
-  it('applies combat rewards and levels up on the 250 * level^1.45 curve', () => {
-    expect(xpNeeded(1)).toBe(250);
-    expect(xpNeeded(2)).toBe(Math.floor(250 * Math.pow(2, 1.45)));
+  it('applies combat rewards and levels up on the 220 * level^1.45 curve', () => {
+    expect(xpNeeded(1)).toBe(220);
+    expect(xpNeeded(2)).toBe(Math.floor(220 * Math.pow(2, 1.45)));
     const save = createInitialSave(0);
     const needed = xpNeeded(save.level) - save.xp;
     applyCombatRewards(save, {

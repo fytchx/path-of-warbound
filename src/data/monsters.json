@@ -3,24 +3,38 @@
     "id": "mob_ghoul",
     "name": "Ashen Ghoul",
     "assetId": "mob_ghoul",
-    "hp": 72,
-    "damage": 2.8,
+    "hp": 64,
+    "damage": 2.4,
     "armor": 8,
     "attackSpeed": 1.05,
     "school": "physical",
     "elite": false,
+    "telegraph": {
+      "name": "Bone Cleave",
+      "windup": 1.3,
+      "multiplier": 1.8,
+      "school": "physical",
+      "description": "It winds a forearm of fused bone back for a wide, slow cleave."
+    },
     "flavour": "It remembers hunger better than it remembers being alive."
   },
   {
     "id": "mob_slime",
     "name": "Grave Slime",
     "assetId": "mob_slime",
-    "hp": 76,
-    "damage": 2.5,
+    "hp": 68,
+    "damage": 2.2,
     "armor": 4,
     "attackSpeed": 0.85,
     "school": "void",
     "elite": false,
+    "telegraph": {
+      "name": "Void Rupture",
+      "windup": 1.5,
+      "multiplier": 1.6,
+      "school": "void",
+      "description": "The membrane tightens as it gathers a bubble of unmade space."
+    },
     "flavour": "Something in it is still digesting."
   },
   {
@@ -28,35 +42,56 @@
     "name": "Cinder Imp",
     "assetId": "mob_imp",
     "hp": 64,
-    "damage": 9,
+    "damage": 8.5,
     "armor": 3,
     "attackSpeed": 1.3,
     "school": "fire",
     "elite": false,
+    "telegraph": {
+      "name": "Cinder Slam",
+      "windup": 1.2,
+      "multiplier": 2.0,
+      "school": "fire",
+      "description": "It leaps, both fists wreathed in a furnace-orange glow."
+    },
     "flavour": "It laughs with a mouth full of sparks."
   },
   {
     "id": "mob_wolf",
     "name": "Rime Wolf",
     "assetId": "mob_wolf",
-    "hp": 86,
-    "damage": 7,
+    "hp": 78,
+    "damage": 6.6,
     "armor": 6,
     "attackSpeed": 1.2,
     "school": "frost",
     "elite": false,
+    "telegraph": {
+      "name": "Glacial Nova",
+      "windup": 1.4,
+      "multiplier": 1.9,
+      "school": "frost",
+      "description": "Frost gathers in its throat until the air turns white."
+    },
     "flavour": "The pack moves like one animal with too many legs."
   },
   {
     "id": "mob_golem",
     "name": "Slag Golem",
     "assetId": "mob_golem",
-    "hp": 115,
-    "damage": 11,
+    "hp": 105,
+    "damage": 10,
     "armor": 26,
     "attackSpeed": 0.7,
     "school": "fire",
     "elite": false,
+    "telegraph": {
+      "name": "Crushing Slam",
+      "windup": 1.8,
+      "multiplier": 2.2,
+      "school": "fire",
+      "description": "Both slag fists rise overhead. Step out of the shadow."
+    },
     "flavour": "Every step leaves a scar in the canyon floor."
   },
   {
@@ -64,11 +99,18 @@
     "name": "Hollow Reaper",
     "assetId": "mob_reaper",
     "hp": 88,
-    "damage": 10,
+    "damage": 9.5,
     "armor": 10,
     "attackSpeed": 1.0,
     "school": "physical",
     "elite": false,
+    "telegraph": {
+      "name": "Grave Harvest",
+      "windup": 1.5,
+      "multiplier": 2.0,
+      "school": "physical",
+      "description": "The scythe traces a slow arc that seems to bend toward your ribs."
+    },
     "flavour": "It harvests what the war left standing."
   },
   {
@@ -76,12 +118,114 @@
     "name": "Wailing Specter",
     "assetId": "mob_specter",
     "hp": 70,
-    "damage": 9.5,
+    "damage": 9.0,
     "armor": 2,
     "attackSpeed": 1.15,
     "school": "void",
     "elite": false,
+    "telegraph": {
+      "name": "Soul Wail",
+      "windup": 1.4,
+      "multiplier": 1.8,
+      "school": "void",
+      "description": "Its mouth opens too wide, and the cathedral answers."
+    },
     "flavour": "Cold, and getting colder."
+  },
+  {
+    "id": "mob_bat",
+    "name": "Ash Bat",
+    "assetId": "mob_imp",
+    "hp": 54,
+    "damage": 5.5,
+    "armor": 1,
+    "attackSpeed": 1.5,
+    "school": "physical",
+    "elite": false,
+    "telegraph": {
+      "name": "Wing Buffet",
+      "windup": 1.2,
+      "multiplier": 1.7,
+      "school": "physical",
+      "description": "It folds its wings, then snaps them wide in a burst of hot ash."
+    },
+    "flavour": "The swarm is the threat, not the animal."
+  },
+  {
+    "id": "elite_skeleton_champion",
+    "name": "Bone Champion",
+    "assetId": "elite_skeleton_champion",
+    "hp": 150,
+    "damage": 13,
+    "armor": 18,
+    "attackSpeed": 1.1,
+    "school": "physical",
+    "elite": true,
+    "telegraph": {
+      "name": "Bone Cleave",
+      "windup": 1.3,
+      "multiplier": 1.9,
+      "school": "physical",
+      "description": "It raises a notched blade and holds it there, patient."
+    },
+    "flavour": "Somebody gave it orders once. It still follows them."
+  },
+  {
+    "id": "elite_horned_brute",
+    "name": "Horned Brute",
+    "assetId": "elite_horned_brute",
+    "hp": 185,
+    "damage": 15,
+    "armor": 22,
+    "attackSpeed": 0.9,
+    "school": "fire",
+    "elite": true,
+    "telegraph": {
+      "name": "Crushing Slam",
+      "windup": 1.5,
+      "multiplier": 2.0,
+      "school": "fire",
+      "description": "It lowers its horns and stamps once, twice, then charges."
+    },
+    "flavour": "It wears the horns of things it has beaten."
+  },
+  {
+    "id": "elite_void_lich",
+    "name": "Void Lich",
+    "assetId": "elite_void_lich",
+    "hp": 140,
+    "damage": 17,
+    "armor": 12,
+    "attackSpeed": 1.0,
+    "school": "void",
+    "elite": true,
+    "telegraph": {
+      "name": "Soul Wail",
+      "windup": 1.4,
+      "multiplier": 2.1,
+      "school": "void",
+      "description": "It draws a sigil in the air and the sigil draws back."
+    },
+    "flavour": "Its robes are stitched from the space between stars."
+  },
+  {
+    "id": "elite_demon_sovereign",
+    "name": "Demon Sovereign",
+    "assetId": "elite_demon_sovereign",
+    "hp": 210,
+    "damage": 20,
+    "armor": 20,
+    "attackSpeed": 1.05,
+    "school": "fire",
+    "elite": true,
+    "telegraph": {
+      "name": "Cinder Slam",
+      "windup": 1.6,
+      "multiplier": 2.3,
+      "school": "fire",
+      "description": "It points, and a column of embers begins to fall."
+    },
+    "flavour": "It rules a canyon that is only partly here."
   },
   {
     "id": "mob_boss",
@@ -93,54 +237,54 @@
     "attackSpeed": 1.0,
     "school": "void",
     "elite": true,
+    "boss": true,
+    "telegraph": {
+      "name": "Void Rupture",
+      "windup": 1.6,
+      "multiplier": 2.4,
+      "school": "void",
+      "description": "The chains around it snap taut as a rift opens beneath the arena."
+    },
     "flavour": "A warbound that never found a wielder. It made its own."
   },
   {
-    "id": "elite_skeleton_champion",
-    "name": "Bone Champion",
-    "assetId": "elite_skeleton_champion",
-    "hp": 150,
-    "damage": 14,
-    "armor": 18,
-    "attackSpeed": 1.1,
-    "school": "physical",
+    "id": "mob_boss_cinder",
+    "name": "Cinder Tyrant",
+    "assetId": "elite_demon_sovereign",
+    "hp": 1150,
+    "damage": 30,
+    "armor": 26,
+    "attackSpeed": 0.95,
+    "school": "fire",
     "elite": true,
-    "flavour": "Somebody gave it orders once. It still follows them."
+    "boss": true,
+    "telegraph": {
+      "name": "Cinder Slam",
+      "windup": 1.7,
+      "multiplier": 2.6,
+      "school": "fire",
+      "description": "The canyon floor glows white before the fist comes down."
+    },
+    "flavour": "It was forged to end a war. It never stopped."
   },
   {
-    "id": "elite_horned_brute",
-    "name": "Horned Brute",
-    "assetId": "elite_horned_brute",
-    "hp": 185,
-    "damage": 16,
+    "id": "mob_boss_rime",
+    "name": "Rime Sovereign",
+    "assetId": "elite_void_lich",
+    "hp": 1350,
+    "damage": 32,
     "armor": 22,
     "attackSpeed": 0.9,
-    "school": "fire",
+    "school": "frost",
     "elite": true,
-    "flavour": "It wears the horns of things it has beaten."
-  },
-  {
-    "id": "elite_void_lich",
-    "name": "Void Lich",
-    "assetId": "elite_void_lich",
-    "hp": 140,
-    "damage": 18,
-    "armor": 12,
-    "attackSpeed": 1.0,
-    "school": "void",
-    "elite": true,
-    "flavour": "Its robes are stitched from the space between stars."
-  },
-  {
-    "id": "elite_demon_sovereign",
-    "name": "Demon Sovereign",
-    "assetId": "elite_demon_sovereign",
-    "hp": 210,
-    "damage": 21,
-    "armor": 20,
-    "attackSpeed": 1.05,
-    "school": "fire",
-    "elite": true,
-    "flavour": "It rules a canyon that is only partly here."
+    "boss": true,
+    "telegraph": {
+      "name": "Glacial Nova",
+      "windup": 1.6,
+      "multiplier": 2.5,
+      "school": "frost",
+      "description": "The ice underfoot sings one long note, then breaks."
+    },
+    "flavour": "The last hymn of the frozen congregation."
   }
 ]

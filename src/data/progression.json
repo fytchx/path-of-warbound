@@ -29,7 +29,7 @@
     "trigger": { "level": 5 },
     "grants": {
       "skillSlot": 1,
-      "gem": "gem_storm_bolt"
+      "gem": "gem_storm_conduit"
     }
   },
   {

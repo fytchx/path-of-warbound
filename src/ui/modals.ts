@@ -2,7 +2,8 @@ import { affixById, doctrines, gems, itemBaseById, nodeById, statRegistry } from
 import type { StatMod } from '../data/types';
 import { STARTERS, dropStage, xpNeeded } from '../game/state';
 import type { GemInstance, ItemInstance } from '../game/types';
-import { RARITY_COLOR, RARITY_LABEL, affixValue, gemDustCostToLevel, gemXpToNext, itemBase } from '../game/items';
+import { RARITY_COLOR, RARITY_LABEL, affixValue, fitsSlot, gemDustCostToLevel, gemXpToNext, itemBase } from '../game/items';
+import { gemFitsSocket, socketColorHex } from '../game/sockets';
 import type { GameStore, ModalState } from './store';
 import { assetImg, escapeHtml, fmt, pct, schoolColor, seconds, sprite, statLabel } from './dom';
 
@@ -194,10 +195,11 @@ function itemModal(store: GameStore, uid: string): string {
     .map((gem, index) => {
       const def = gem ? gems.find((entry) => entry.id === gem.gemId) : null;
       const linkedToNext = index + 1 < linkedCount && index + 1 < item.sockets.length;
-      const ringColor = index < linkedCount ? '#D4AF37' : '#6d5f2e';
-      return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(item.uid)}" data-index="${index}" title="${gem ? `Inspect ${escapeHtml(def?.name ?? '')}` : `Socket gem into slot ${index + 1}`}">
+      const color = item.socketColors[index] ?? 'red';
+      const ringColor = socketColorHex(color);
+      return `<button class="socket-btn color-${color} ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(item.uid)}" data-index="${index}" title="${color} socket · ${gem ? `Inspect ${escapeHtml(def?.name ?? '')}` : `Socket a ${color} or white gem`}">
         ${sprite('w-socket', 'socket-ring', '0 0 40 40', `--g:${ringColor}`)}
-        ${def ? assetImg(def.assetId, def.name) : ''}
+        ${def ? assetImg(def.assetId, def.name) : `<span class="socket-letter">${color === 'green' ? 'G' : color === 'blue' ? 'B' : color === 'white' ? 'W' : 'R'}</span>`}
       </button>${linkedToNext ? sprite('w-link', 'socket-link-svg', '0 0 28 10') : ''}`;
     })
     .join('');
@@ -371,18 +373,22 @@ function nodeModal(store: GameStore, nodeId: string): string {
 }
 
 function gemPickerModal(store: GameStore, itemUid: string, socketIndex: number): string {
+  const item = store.findItem(itemUid)?.item;
+  const socketColor = item?.socketColors[socketIndex] ?? 'white';
   const rows = store.save.gemStash.length
     ? store.save.gemStash
         .map((gem: GemInstance, index) => {
           const def = gems.find((entry) => entry.id === gem.gemId);
           if (!def) return '';
-          return `<button class="gem-row" data-action="pick-gem" data-index="${index}" style="width:100%;text-align:left">
+          const fits = gemFitsSocket(def.color, socketColor);
+          return `<button class="gem-row ${fits ? '' : 'mismatch'}" data-action="pick-gem" data-index="${index}" ${fits ? '' : 'disabled'} style="width:100%;text-align:left">
             ${assetImg(def.assetId, def.name)}
             <div>
-              <div class="gem-name">${escapeHtml(def.name)} <span class="muted tiny">Lv ${gem.level}</span></div>
+              <div class="gem-name">${escapeHtml(def.name)} <span class="color-badge ${def.color}">${def.color}</span> <span class="muted tiny">Lv ${gem.level}</span></div>
               <div class="gem-meta">${escapeHtml(def.description)}</div>
+              ${fits ? '' : `<div class="tiny warn">Recolor in Forge to fit a ${socketColor} socket.</div>`}
             </div>
-            <span class="tiny gold">Socket</span>
+            <span class="tiny ${fits ? 'gold' : 'muted'}">${fits ? 'Socket' : 'Locked'}</span>
           </button>`;
         })
         .join('')
@@ -391,7 +397,7 @@ function gemPickerModal(store: GameStore, itemUid: string, socketIndex: number):
   return `<div class="modal" role="dialog" aria-modal="true" aria-label="Choose a gem">
     ${closeButton()}
     <h3>Choose a gem</h3>
-    <div class="modal-sub">Socket ${socketIndex + 1} · ${escapeHtml(store.baseNameOf(itemUid))}</div>
+    <div class="modal-sub">Socket ${socketIndex + 1} (<span class="badge color-${socketColor}">${socketColor}</span>) · ${escapeHtml(store.baseNameOf(itemUid))}</div>
     <div class="gem-list">${rows}</div>
   </div>`;
 }
@@ -483,6 +489,24 @@ function rotationModal(store: GameStore): string {
   </div>`;
 }
 
+function slotPickerModal(store: GameStore, slot: import('../data/types').ItemSlot): string {
+  const options = store.save.inventory.filter((item) => fitsSlot(item, slot));
+  const rows = options.length
+    ? options
+        .map(
+          (item) => `<div class="slot-option">
+            <span>${assetImg(itemBase(item).assetId, itemBase(item).name, 'slot-option-icon')}</span>
+            <span class="grow"><b style="color:${RARITY_COLOR[item.rarity]}">${escapeHtml(itemBase(item).name)}</b>
+              <span class="muted tiny">${RARITY_LABEL[item.rarity]} · ilvl ${item.itemLevel} · ${item.sockets.length} socket(s)</span></span>
+            <button class="gbtn sm" data-action="equip" data-uid="${escapeHtml(item.uid)}" data-slot="${slot}">Equip</button>
+          </div>`,
+        )
+        .join('')
+    : `<div class="empty-note">Nothing in the bag fits this slot yet. Clear a few kills; drops are filtered to your starter archetype early on.</div>`;
+  return `<div class="modal-head"><h3>${escapeHtml(store.itemSlotLabel(slot))}</h3>${closeButton()}</div>
+    <div class="modal-body"><p class="muted">Tap an item to equip it. All bag items that fit this slot are shown.</p>${rows}</div>`;
+}
+
 export function renderModal(store: GameStore, modal: ModalState): string {
   switch (modal.kind) {
     case 'awakening':
@@ -497,6 +521,8 @@ export function renderModal(store: GameStore, modal: ModalState): string {
       return resetModal();
     case 'item':
       return itemModal(store, modal.uid);
+    case 'slot-picker':
+      return slotPickerModal(store, modal.slot);
     case 'gem':
       return gemInspectModal(store, modal);
     case 'node':

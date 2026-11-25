@@ -75,9 +75,16 @@ describe('registries', () => {
     expect(skillTree.nodes.length).toBeGreaterThanOrEqual(90);
     expect(zones).toHaveLength(3);
     expect(doctrines).toHaveLength(5);
-    expect(gems.filter((g) => g.kind === 'active').length).toBeGreaterThanOrEqual(8);
-    expect(gems.filter((g) => g.kind === 'support').length).toBeGreaterThanOrEqual(10);
-    expect(monsters.length).toBe(12);
+    expect(gems.filter((g) => g.kind === 'active').length).toBeGreaterThanOrEqual(16);
+    expect(gems.filter((g) => g.kind === 'support').length).toBeGreaterThanOrEqual(9);
+    expect(gems.length).toBeGreaterThanOrEqual(24);
+    expect(gems.some((g) => g.color === 'white')).toBe(true);
+    expect(gems.every((g) => ['red', 'green', 'blue', 'white'].includes(g.color))).toBe(true);
+    expect(items.length).toBeGreaterThanOrEqual(28);
+    expect(affixes.length).toBeGreaterThanOrEqual(36);
+    expect(monsters.filter((m) => !m.boss)).toHaveLength(12);
+    expect(monsters.filter((m) => m.boss)).toHaveLength(3);
+    expect(monsters.every((m) => Boolean(m.telegraph?.name) && m.telegraph.windup > 0)).toBe(true);
     expect(new Set(zones[0]!.monsterIds).size).toBeGreaterThan(0);
     const schools: School[] = ['physical', 'fire', 'frost', 'lightning', 'void'];
     for (const school of schools) {

@@ -513,25 +513,26 @@ export function computePlayerStats(save: CharacterSave): PlayerStats {
   const wisdom = stats.wisdom ?? 0;
   const fortitude = stats.fortitude ?? 0;
 
-  // Might vectors: Weapon Damage (+1%/pt), AP scaling (+0.25/pt), Crit Multi (+0.5%/pt), Armor Break (+0.4%/pt)
-  stats.armor_break = Math.min(85, (stats.armor_break ?? 0) + might * 0.4);
+  // Might vectors: Weapon Damage (+1.5%/pt), Melee/Physical Power (+1.0%/pt), Crit Multi (+0.5%/pt), Armor Break (+1.5/pt)
+  stats.armor_break = Math.min(85, (stats.armor_break ?? 0) + might * 1.5);
 
-  // Agility vectors: Attack Speed (+0.4%/pt), Double-Hit (agility/(agility+250)), DoT Tick Speed (+0.67%/pt), Dodge Rating (+0.5/pt)
-  stats.attack_speed = (stats.attack_speed ?? 0) + agility * 0.4;
-  stats.dot_speed = (stats.dot_speed ?? 0) + (agility / 150) * 100;
-  stats.dodge_rating = (stats.dodge_rating ?? 0) + agility * 0.5;
+  // Agility vectors: Attack Speed (+0.8%/pt), Double-Hit (agility/(agility+250)), DoT Tick Speed (+0.7%/pt), Dodge Rating (+2.5/pt)
+  stats.attack_speed = (stats.attack_speed ?? 0) + agility * 0.8;
+  stats.dot_speed = (stats.dot_speed ?? 0) + agility * 0.7;
+  stats.dodge_rating = (stats.dodge_rating ?? 0) + agility * 2.5;
 
-  // Wisdom vectors: Cast Speed (+0.4%/pt), Max Mana (+1.5/pt) & Regen (+0.25/s/pt), Max Ward (+1.2/pt) + shorter delay, Ailment Potency
-  stats.cast_speed = (stats.cast_speed ?? 0) + wisdom * 0.4;
-  stats.max_mana = (stats.max_mana ?? 0) + wisdom * 1.5;
+  // Wisdom vectors: Cast Speed (+0.8%/pt), Max Mana (+3/pt) & Regen (+0.25/s/pt), Max Ward (+4/pt) + shorter delay, Ailment Potency (+0.85%/pt)
+  stats.cast_speed = (stats.cast_speed ?? 0) + wisdom * 0.8;
+  stats.max_mana = (stats.max_mana ?? 0) + wisdom * 3;
   stats.mana_regen = (stats.mana_regen ?? 0) + wisdom * 0.25;
-  stats.max_ward = (stats.max_ward ?? 0) + wisdom * 1.2;
+  stats.max_ward = (stats.max_ward ?? 0) + wisdom * 4;
+  stats.ailment_potency = (stats.ailment_potency ?? 0) + wisdom * 0.85;
 
-  // Fortitude vectors: Max HP (+3/pt), HP Regen (+0.15/s/pt), Armor (+1.5/pt), Thorns (+0.4/pt)
-  stats.max_hp = (stats.max_hp ?? 0) + fortitude * 3;
-  stats.hp_regen = (stats.hp_regen ?? 0) + fortitude * 0.15;
-  stats.armor = (stats.armor ?? 0) + fortitude * 1.5;
-  stats.thorns = (stats.thorns ?? 0) + fortitude * 0.4;
+  // Fortitude vectors: Max HP (+6/pt), HP Regen (+0.3/s/pt), Armor (+3/pt), Thorns (+1.5/pt)
+  stats.max_hp = (stats.max_hp ?? 0) + fortitude * 6;
+  stats.hp_regen = (stats.hp_regen ?? 0) + fortitude * 0.3;
+  stats.armor = (stats.armor ?? 0) + fortitude * 3;
+  stats.thorns = (stats.thorns ?? 0) + fortitude * 1.5;
 
   // Keystone defense modifiers
   if (keystones.has('ks_ghostframe')) stats.max_hp = (stats.max_hp ?? 0) * 0.6;

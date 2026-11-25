@@ -1,19 +1,13 @@
 # ACTIVE INSTRUCTIONS — Path of Warbound
 
-> Source of truth for what to build now. `STARTHERE.md` holds safety rules; `docs/MASTER_DIRECTIVE.md` holds the full game and engineering blueprint.
-> Verified baseline: Phase 2 checkpoint, commit `chore: lock in master directive and checkpoint baseline before v0.3 overhaul` (2026-11-25).
+> `STARTHERE.md` holds safety. `docs/MASTER_DIRECTIVE.md` holds the full game and engineering blueprint.
+> There is no phased roadmap. The v1.0 build described in the directive is the current game.
 
-## 1. Current milestone
+## 1. Current state
 
-Build the complete unified playable overhaul on top of the checkpoint:
+The v1.0 full-send build: blank-slate Soul-Spark Awakening (melee / spell / dot) with colour-coded starter sockets; independent weapon auto-attack and spell cast bars; per-monster and per-boss telegraphed heavy attacks; gem/socket colour system with chromatic crafting; four-attribute stat pipeline; strict Tier 1–10 and zone locks with manual, key-summoned bosses; milestone-gated loot; split bag; clickable sockets; frosted modals.
 
-- Blank-slate reset plus a Soul-Spark Awakening starter choice (melee / spell / dot).
-- Independent weapon auto-attacks and a dedicated spell cast bar, with clamp-safe progress bars.
-- Experience-gated drop unlocks, a deliberate XP curve and manual, key-summoned zone bosses.
-- Every computed stat wired into combat, plain-English descriptions on all content, AUTO and MANUAL rotation.
-- A four-sector colour-coded skill tree and frosted-obsidian modal polish.
-
-Detailed acceptance criteria: `docs/MASTER_DIRECTIVE.md` §7.
+Acceptance criteria and every tuning number: `docs/MASTER_DIRECTIVE.md`.
 
 ## 2. Verified baseline
 
@@ -21,35 +15,34 @@ Detailed acceptance criteria: `docs/MASTER_DIRECTIVE.md` §7.
 | --- | --- | --- |
 | Stat pipeline | `src/engine/stats.ts` | Base → Flat → Increased → More → two-pass conversions |
 | Tree graph | `src/engine/treeGraph.ts` | BFS pathing, allocation, Tarjan-style refund safety |
-| Combat loop | `src/engine/combatEngine.ts` | `100ms` ticks, utility scoring, ailments, keys, boss, death |
-| Data registries | `src/data/*.json` | 154 assets, 27 bases, 30 affixes, 21 gems, 12 monsters, 3 zones, 91 nodes, 106 edges |
-| UI | `src/ui/` | 5 tabs, portrait frame, modals, toasts |
-| Saves | `src/game/state.ts` | Versioned local save, 8 h offline cap |
-| Simulator | `src/sim/runSim.ts` | 4 builds × Tier 1/3 × 10,000 ticks |
-| Tests | `tests/` | 6 files, 67 tests |
+| Combat loop | `src/engine/combatEngine.ts` | `100ms` ticks, utility scoring, ailments, telegraphs, keys, bosses |
+| Data registries | `src/data/*.json` | Run `npm run validate` for current counts |
+| UI | `src/ui/` | 5 tabs, portrait frame, frosted modals, toasts |
+| Saves | `src/game/state.ts` | Versioned local save, 8 h offline cap, tier/zone unlocks |
+| Simulator | `src/sim/runSim.ts` | Headless balance table |
+| Tests | `tests/` | Vitest suite |
 
 Frozen reference HTML lives in `docs/reference/`. `warbound-sprite.svg` stays at the repository root because `vite.config.ts` inlines it into `index.html`.
 
 ## 3. Commands
 
 ```bash
-npm run validate      # schema, ids, manifest and asset references
+npm run validate      # schema, ids, manifest, asset references, content rules
 npm test              # vitest suite
-npm run sim           # headless balance table: 4 builds x Tier 1 & 3 x 10,000 ticks
+npm run sim           # headless balance table
 npm run report-assets # asset payload by category
-npm run report-assets -- --convert   # WebP copies into dist-assets-webp/ (assets/ untouched)
 npm run build         # tsc --noEmit + vite build
 npm run dev           # local preview
 ```
 
 ## 4. Standing repository rules
 
-1. Never modify or regenerate files in `assets/` or `warbound-sprite.svg`. Reference art only through `AssetId` keys declared in `assets/manifest.json`; every code and data file resolves them via `src/data/` or `src/assets/`.
+1. Never modify or regenerate files in `assets/` or `warbound-sprite.svg`. Reference art only through `AssetId` keys from `assets/manifest.json`.
 2. `src/engine/` stays 100% pure TypeScript: no DOM, `window`, CSS or browser globals.
 3. Content is data-driven. Tune `src/data/*.json`, not engine constants, unless the value is a documented engine formula.
 4. UI remains portrait-only (`390px`–`420px`, letterboxed on desktop), five bottom tabs always unlocked, tap targets ≥ `44px`.
 5. Workflow: read `STARTHERE.md` and this file, inspect `git status`, run checks before changing code, verify after.
-6. Git: after the Phase 2 checkpoint push, never run `git commit` or `git push` without explicit user approval. The Phase 2 push was approved once for that checkpoint only.
+6. Git: after the Phase 2 checkpoint push, never run `git commit` or `git push` without explicit user approval.
 
 ## 5. Verification guard
 

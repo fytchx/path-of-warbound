@@ -21,16 +21,23 @@ import {
   applyCombatRewards,
   applyStarterChoice,
   assignGemBar,
+  chromaticReforge,
   claimOffline,
+  craftSocketColor,
   createInitialSave,
-  dropStage,
   equipItem,
+  infusePrismatic,
   levelUpGemWithDust,
   loadSave,
+  maxTierForZone,
   persistSave,
   processKillDrops,
+  recordBossKill,
   refundNode,
+  riftKeysUnlocked,
   salvageItem,
+  setTier as setSaveTier,
+  setZone as setSaveZone,
   socketGem,
   STORAGE_KEY,
   unspentPoints,
@@ -59,6 +66,7 @@ export type ModalState =
   | { kind: 'awakening' }
   | { kind: 'rotation' }
   | { kind: 'item'; uid: string }
+  | { kind: 'slot-picker'; slot: ItemSlot }
   | { kind: 'node'; nodeId: string }
   | { kind: 'gem-picker'; itemUid: string; socketIndex: number }
   | { kind: 'gem'; source: 'stash'; stashIndex: number }
@@ -154,7 +162,8 @@ export class GameStore {
       doctrine: this.save.doctrine,
       activeBar: this.save.activeBar,
       startingKeys: this.save.keys,
-      keysUnlocked: dropStage(this.save) >= 5,
+      keysUnlocked: riftKeysUnlocked(this.save),
+      startingNormalKills: this.save.lifetime.kills,
       rotation: this.save.rotation,
       playerStats: this.stats,
     });
@@ -223,7 +232,16 @@ export class GameStore {
     }
 
     this.save.keys = this.combat.keys;
-    this.save.tier = this.combat.tier;
+    const killedTier = this.save.tier;
+    if (delta.bossKills > 0) {
+      const unlock = recordBossKill(this.save, this.combat.zone.id, killedTier);
+      this.toast(
+        unlock.zoneUnlocked
+          ? `Tier ${unlock.tierUnlocked} unlocked — ${unlock.zoneUnlocked.replace('zone_', '').replace(/_/g, ' ')} opens.`
+          : `Tier ${unlock.tierUnlocked} unlocked.`,
+      );
+    }
+    this.save.tier = Math.min(this.combat.tier, maxTierForZone(this.save));
 
     if (this.save.level !== this.lastLevel) {
       this.lastLevel = this.save.level;
@@ -265,6 +283,16 @@ export class GameStore {
     this.notify();
   }
 
+  openSlotPicker(slot: ItemSlot): void {
+    this.openModal({ kind: 'slot-picker', slot });
+  }
+
+  openForgeFor(uid: string): void {
+    this.ui.forgeUid = uid;
+    this.ui.modal = null;
+    this.navigate('forge');
+  }
+
   closeModal(): void {
     this.ui.modal = null;
     this.ui.previewNode = null;
@@ -274,19 +302,29 @@ export class GameStore {
 
   setZone(zoneId: string): void {
     if (this.save.zoneId === zoneId) return;
+    const result = setSaveZone(this.save, zoneId);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'That realm is still sealed.');
+      return;
+    }
     this.syncCombat();
-    this.save.zoneId = zoneId;
     this.restartCombat();
     this.notify();
   }
 
   setTier(delta: number): void {
-    const tier = Math.max(1, Math.min(10, this.save.tier + delta));
-    if (tier === this.save.tier) return;
     this.syncCombat();
-    this.save.tier = tier;
+    const result = setSaveTier(this.save, this.save.tier + delta);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'Tier locked.');
+      return;
+    }
     this.restartCombat();
     this.notify();
+  }
+
+  maxTier(): number {
+    return maxTierForZone(this.save);
   }
 
   setPackSize(delta: number): void {
@@ -700,6 +738,49 @@ export class GameStore {
     this.notify();
   }
 
+  reforgeSockets(itemUid: string): void {
+    const location = this.findItem(itemUid);
+    if (!location) return;
+    const result = chromaticReforge(this.save, location.item);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'Chromatic Reforge failed.');
+      return;
+    }
+    this.resyncStats();
+    this.restartCombat();
+    this.schedulePersist();
+    this.toast(`Sockets reforged: ${(result.colors ?? []).join(' / ') || 'unchanged'}.`);
+    this.notify();
+  }
+
+  forceSocket(itemUid: string, socketIndex: number, color: 'red' | 'green' | 'blue'): void {
+    const location = this.findItem(itemUid);
+    if (!location) return;
+    const result = craftSocketColor(this.save, location.item, socketIndex, color);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'Colour craft failed.');
+      return;
+    }
+    this.resyncStats();
+    this.schedulePersist();
+    this.toast(`Socket ${socketIndex + 1} forced ${color}.`);
+    this.notify();
+  }
+
+  prismaticSocket(itemUid: string, socketIndex: number): void {
+    const location = this.findItem(itemUid);
+    if (!location) return;
+    const result = infusePrismatic(this.save, location.item, socketIndex);
+    if (!result.ok) {
+      this.toast(result.reason ?? 'Prismatic Infusion failed.');
+      return;
+    }
+    this.resyncStats();
+    this.schedulePersist();
+    this.toast(`Socket ${socketIndex + 1} is now Prismatic.`);
+    this.notify();
+  }
+
   cycleGemBar(gem: GemInstance): void {
     const order: GemInstance['bar'][] = ['bar_1', 'bar_2', 'both'];
     const next = order[(order.indexOf(gem.bar) + 1) % order.length]!;
@@ -776,7 +857,7 @@ export class GameStore {
 
   tick(): void {
     if (this.ui.paused || this.ui.modal?.kind === 'offline') return;
-    this.combat.keysUnlocked = dropStage(this.save) >= 5;
+    this.combat.keysUnlocked = riftKeysUnlocked(this.save);
     tickCombat(this.combat);
     tickCombat(this.combat);
     this.ui.lastTickAt = typeof performance !== 'undefined' ? performance.now() : Date.now();

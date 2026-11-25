@@ -36,6 +36,13 @@ export type ItemSlot =
 
 export type Rarity = 'common' | 'magic' | 'rare' | 'mythic';
 
+/** Colour axis shared by sockets and gems. White is the universal wildcard. */
+export type GemColor = 'red' | 'green' | 'blue' | 'white';
+export type SocketColor = GemColor;
+
+/** Base attribute alignment: drives socket-colour weighting. */
+export type Attribute = 'might' | 'agility' | 'wisdom' | 'fortitude' | 'hybrid';
+
 export interface WeaponProfile {
   minDamage: number;
   maxDamage: number;
@@ -57,6 +64,7 @@ export interface ItemBase {
   implicit: StatMod[];
   weapon?: WeaponProfile;
   uniqueEffect?: string;
+  attribute?: Attribute;
   description: string;
   flavour: string;
 }
@@ -70,6 +78,7 @@ export interface Affix {
   layer: StatLayer;
   values: [number, number, number, number, number];
   itemLevel: number;
+  description: string;
 }
 
 export type School = 'physical' | 'fire' | 'frost' | 'lightning' | 'void';
@@ -80,6 +89,7 @@ export interface GemDef {
   name: string;
   kind: 'active' | 'support';
   assetId: AssetId;
+  color: GemColor;
   school?: School;
   tags: string[];
   description: string;
@@ -93,6 +103,15 @@ export interface GemDef {
   support?: { allowedTags?: string[]; note: string };
 }
 
+/** A named heavy attack that every monster owns and telegraphs before it lands. */
+export interface TelegraphDef {
+  name: string;
+  windup: number;
+  multiplier: number;
+  school?: School;
+  description: string;
+}
+
 export interface MonsterDef {
   id: string;
   name: string;
@@ -103,6 +122,8 @@ export interface MonsterDef {
   attackSpeed: number;
   school: School;
   elite: boolean;
+  boss?: boolean;
+  telegraph: TelegraphDef;
   flavour: string;
 }
 
@@ -112,6 +133,7 @@ export interface ZoneDef {
   assetId: AssetId;
   tiers: number;
   monsterIds: string[];
+  bossId: string;
   eliteChance: number;
   keyDropChance: number;
   rewardMultiplier: number;

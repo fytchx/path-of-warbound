@@ -3,6 +3,7 @@ import type { ItemInstance } from '../../game/types';
 import { MATERIAL_ASSET } from '../../game/types';
 import { CRAFT_COSTS, canPay } from '../../game/crafting';
 import { affixValue, itemBase, RARITY_COLOR, RARITY_LABEL } from '../../game/items';
+import { socketColorHex } from '../../game/sockets';
 import type { GameStore } from '../store';
 import { assetImg, escapeHtml, fmt, sprite } from '../dom';
 
@@ -138,22 +139,36 @@ export function forgeScreen(store: GameStore): string {
       .map((gem, index) => {
         const def = gem ? gemById.get(gem.gemId) ?? null : null;
         const linkedToNext = index + 1 < linkedCount && index + 1 < selected.sockets.length;
-        const ringColor = index < linkedCount ? '#D4AF37' : '#6d5f2e';
-        return `<button class="socket-btn ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="Socket ${index + 1}">
-          ${sprite('w-socket', 'socket-ring', '0 0 40 40', `--g:${ringColor}`)}
+        const color = selected.socketColors[index] ?? 'red';
+        return `<button class="socket-btn color-${color} ${gem ? 'filled' : ''}" data-action="socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="${color} socket ${index + 1}">
+          ${sprite('w-socket', 'socket-ring', '0 0 40 40', `--g:${socketColorHex(color)}`)}
           ${def ? assetImg(def.assetId, def.name) : ''}
         </button>${linkedToNext ? sprite('w-link', 'socket-link-svg', '0 0 28 10') : ''}`;
       })
       .join('');
 
+    const chroma = `<div class="chroma-panel">
+      <button class="gbtn sm" data-action="chroma-reforge" data-uid="${escapeHtml(selected.uid)}" title="1 Chromatic Flux: reroll every socket colour">CHROMATIC REFORGE · 1</button>
+      ${selected.sockets
+        .map((_, index) => `<div class="chroma-row">
+          <span class="tiny muted">Socket ${index + 1}</span>
+          <button class="socket-mini red" data-action="force-socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" data-color="red" title="2 Chroma + 3 Flux">R</button>
+          <button class="socket-mini green" data-action="force-socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" data-color="green" title="2 Chroma + 3 Flux">G</button>
+          <button class="socket-mini blue" data-action="force-socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" data-color="blue" title="2 Chroma + 3 Flux">B</button>
+          <button class="socket-mini white" data-action="prismatic-socket" data-uid="${escapeHtml(selected.uid)}" data-index="${index}" title="5 Chroma + 2 Essence">W</button>
+        </div>`)
+        .join('')}
+    </div>`;
+
     affixPanel = `<div class="frame pan">
       <h4>Affixes & Links<span>${RARITY_LABEL[selected.rarity]} · ${Math.min(linkedCount, selected.sockets.length)}/${selected.sockets.length} linked</span></h4>
       ${lines || '<div class="tiny muted">No affixes on this item. Promote rarity with Flux.</div>'}
       <div class="socket-row">${socketButtons}</div>
+      ${chroma}
     </div>`;
   }
 
-  const materialBar = (['mat_scrap', 'mat_flux', 'mat_thread', 'mat_essence'] as const)
+  const materialBar = (['mat_scrap', 'mat_flux', 'mat_thread', 'mat_essence', 'mat_chroma'] as const)
     .map(
       (id) => `<div class="material">
         ${assetImg(MATERIAL_ASSET[id], id)}

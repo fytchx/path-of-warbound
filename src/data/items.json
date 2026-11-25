@@ -370,5 +370,48 @@
     "uniqueEffect": "Killing an elite restores 6% of maximum health and ward.",
     "description": "Unique Trinket: Grants Life Leech and restores 6% Max Health & Ward when an elite falls.",
     "flavour": "A thimble for the soul. Never quite full."
+  },
+  {
+    "id": "base_wand",
+    "name": "Grave-Willow Wand",
+    "slot": "main_hand",
+    "slotTags": ["weapon", "one_hand", "wand", "staff"],
+    "assetId": "weapon_staff_solid",
+    "baseType": "Wand",
+    "itemLevel": 1,
+    "sockets": 3,
+    "attribute": "wisdom",
+    "implicit": [{ "stat": "cast_speed", "layer": "increased", "value": 4 }],
+    "weapon": { "minDamage": 7, "maxDamage": 13, "attacksPerSecond": 1.25, "twoHanded": false, "archetype": "staff" },
+    "description": "One-handed caster weapon. Fast Wisdom scaling and three sockets biased to Sapphire.",
+    "flavour": "Cut from a willow that grew through a gravestone."
+  },
+  {
+    "id": "base_off_dagger",
+    "name": "Paired Bone Dagger",
+    "slot": "off_hand",
+    "slotTags": ["weapon", "one_hand", "dagger", "offhand"],
+    "assetId": "weapon_dagger_solid",
+    "baseType": "Off-Dagger",
+    "itemLevel": 1,
+    "sockets": 3,
+    "attribute": "agility",
+    "implicit": [{ "stat": "crit_chance", "layer": "flat", "value": 3 }],
+    "description": "Off-hand dagger: no block, but three Agility-biased sockets and a crit implicit.",
+    "flavour": "The second blade is the honest one."
+  },
+  {
+    "id": "base_quiver",
+    "name": "Ashwood Quiver",
+    "slot": "off_hand",
+    "slotTags": ["quiver", "offhand"],
+    "assetId": "skill_volley",
+    "baseType": "Quiver",
+    "itemLevel": 1,
+    "sockets": 3,
+    "attribute": "agility",
+    "implicit": [{ "stat": "projectile_count", "layer": "flat", "value": 1 }],
+    "description": "Off-hand quiver. Adds a projectile and rolls Emerald-leaning sockets.",
+    "flavour": "The arrows are gone. The quiver still counts them."
   }
 ]
