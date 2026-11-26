@@ -447,3 +447,66 @@ describe('combat VFX & SFX bindings and mythic rules', () => {
 });
 
 
+
+describe('auto rotation', () => {
+  function rotationRun(gemIds: string[], baseId: string, seconds = 120) {
+    const save = createInitialSave(0);
+    save.level = 30;
+    save.packSize = 3;
+    const item = createItem(baseId, 'rare', 30, 'rotation-test');
+    item.sockets = item.sockets.map((_, i) => (gemIds[i] ? makeGem(gemIds[i]!, 10, 'both') : null));
+    item.socketColors = item.sockets.map(() => 'white');
+    save.equipment.main_hand = item;
+    const playerStats = computePlayerStats(save);
+    const make = (seed: number) =>
+      createCombat({ seed, zoneId: save.zoneId, tier: 1, packSize: 3, doctrine: 'tactician', activeBar: 'bar_1', playerStats });
+    let state = make(1);
+    const cast = new Set<string>();
+    let segment = 1;
+    for (let tick = 0; tick < seconds * 10; tick++) {
+      tickCombat(state);
+      for (const id of Object.keys(state.player.lastCastAt)) cast.add(id);
+      if (state.status === 'victory') state = make(++segment);
+    }
+    return { cast, playerStats };
+  }
+
+  it('casts every equipped timed attack gem, not just the first one', () => {
+    const { cast } = rotationRun(['gem_ember_bolt', 'gem_arcane_bolt'], 'base_staff');
+    expect(cast.has('skill_gem_ember_bolt')).toBe(true);
+    expect(cast.has('skill_gem_arcane_bolt')).toBe(true);
+  });
+
+  it('rotates through a six-gem caster loadout (idle guard excluded)', () => {
+    const attacks = ['gem_ember_bolt', 'gem_frost_shard', 'gem_void_lance', 'gem_storm_conduit', 'gem_arcane_bolt'];
+    const { cast } = rotationRun([...attacks, 'gem_ward_barrier'], 'base_staff');
+    for (const id of attacks) expect(cast.has(`skill_${id}`)).toBe(true);
+  });
+
+  it('starts a cast-time gem cooldown after the cast finishes', () => {
+    const save = createInitialSave(0);
+    const staff = createItem('base_staff', 'rare', 30, 'cd-test');
+    staff.sockets = staff.sockets.map((_, i) => (i === 0 ? makeGem('gem_ember_bolt', 10, 'both') : null));
+    staff.socketColors = staff.sockets.map(() => 'white');
+    save.equipment.main_hand = staff;
+    const stats = computePlayerStats(save);
+    const state = createCombat({ seed: 5, zoneId: save.zoneId, tier: 1, packSize: 1, doctrine: 'tactician', activeBar: 'bar_1', playerStats: stats });
+    tickCombat(state);
+    const skill = stats.skills[0]!;
+    expect(state.player.cast).not.toBeNull();
+    expect(state.player.skillTimers[skill.id]!).toBeGreaterThan(skill.effectiveCastTime);
+  });
+
+  it('does not spend mana on a guard gem while health is full', () => {
+    const save = createInitialSave(0);
+    const staff = createItem('base_staff', 'rare', 30, 'guard-test');
+    staff.sockets = staff.sockets.map((_, i) => (i === 0 ? makeGem('gem_ward_barrier', 10, 'both') : null));
+    staff.socketColors = staff.sockets.map(() => 'white');
+    save.equipment.main_hand = staff;
+    const state = createCombat({ seed: 9, zoneId: save.zoneId, tier: 1, packSize: 1, doctrine: 'tactician', activeBar: 'bar_1', playerStats: computePlayerStats(save) });
+    const full = state.playerStats.maxMana;
+    state.player.mana = full;
+    for (let i = 0; i < 20; i++) tickCombat(state);
+    expect(Object.keys(state.player.lastCastAt)).toHaveLength(0);
+  });
+});
