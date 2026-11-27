@@ -1,7 +1,6 @@
 import { assetUrl } from '../assets/loader';
 import { gemById } from '../data';
 import type { DoctrineId, ItemSlot } from '../data/types';
-import { recentDps } from '../engine/combatEngine';
 import type { GemInstance } from '../game/types';
 import { xpNeeded } from '../game/state';
 import { assetImg, clamp, escapeHtml, fmt, schoolColor, sprite, titleCase } from './dom';
@@ -17,7 +16,19 @@ import {
   swingPercent,
 } from './screens/combat';
 import { forgeScreen } from './screens/forge';
-import { treeScreen } from './screens/tree';
+import {
+  TREE_VIEW,
+  treeBackdropMarkup,
+  treeControlsMarkup,
+  treeDockMarkup,
+  treeEdgesMarkup,
+  treeFocusRowMarkup,
+  treeHeaderMetaMarkup,
+  treeLabelsMarkup,
+  treeNodesMarkup,
+  treeScreen,
+  treeTransformCss,
+} from './screens/tree';
 import { installSfxPlayer } from './sfxPlayer';
 import type { BagFilter, BagTab, CombatTab, CurrencyOrb, ForgeTab, GameStore, ScreenId, TreeFocus, TreeTab } from './store';
 
@@ -324,36 +335,6 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
             void vial.offsetWidth;
             vial.classList.add('ward-pulse');
           }
-          if (fx.text) {
-            const call = document.createElement('span');
-            call.className = 'callout ward';
-            call.style.setProperty('--sc', '#38d6e8');
-            call.style.left = '48px';
-            call.style.top = `${Math.round(arenaRect.height - 130)}px`;
-            call.dataset.expires = String(now + 850);
-            call.textContent = fx.text;
-            fxHost.appendChild(call);
-          }
-        } else if (
-          fx.kind === 'telegraph' ||
-          fx.kind === 'mitigated' ||
-          fx.kind === 'punished' ||
-          fx.kind === 'phase' ||
-          fx.kind === 'death' ||
-          fx.kind === 'spread' ||
-          fx.kind === 'cast'
-        ) {
-          const label = fx.text ?? (fx.kind === 'phase' ? 'PHASE II' : fx.kind === 'cast' ? '' : fx.kind.toUpperCase());
-          if (label) {
-            const call = document.createElement('span');
-            call.className = `callout ${fx.kind}`;
-            call.style.setProperty('--sc', schoolColor(fx.school));
-            call.style.left = `${Math.round(centreX)}px`;
-            call.style.top = `${Math.round(centreY - 34)}px`;
-            call.dataset.expires = String(now + 950);
-            call.textContent = label;
-            fxHost.appendChild(call);
-          }
         }
       }
     }
@@ -417,8 +398,10 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
       if (packBadgeEl.textContent !== nextPack) packBadgeEl.textContent = nextPack;
     }
 
+    const canSummon = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
     const keysWrapEl = root.querySelector<HTMLElement>('[data-badge-keys-wrap]');
     if (keysWrapEl) {
+      keysWrapEl.hidden = canSummon;
       keysWrapEl.classList.toggle('key-pulse', Date.now() - store.ui.keyPulseAt < 1800);
     }
     const keysEl = root.querySelector<HTMLElement>('[data-badge-keys]');
@@ -429,8 +412,9 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
 
     const summonBtn = root.querySelector<HTMLElement>('[data-action="summon-boss"]');
     if (summonBtn) {
-      const canSummon = combat.keys >= 3 && !combat.bossActive && combat.status === 'running';
-      summonBtn.style.display = canSummon ? '' : 'none';
+      summonBtn.hidden = !canSummon;
+      summonBtn.classList.toggle('key-pulse', Date.now() - store.ui.keyPulseAt < 1800);
+      summonBtn.setAttribute('aria-label', `Summon Tier ${combat.tier} Boss`);
     }
 
     const hpNum = root.querySelector<HTMLElement>('[data-vnum-hp]');
@@ -482,47 +466,17 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
           card.classList.toggle('dead', enemy.hp <= 0);
           card.classList.toggle('frozen', frozen);
           card.classList.toggle('boss', Boolean(enemy.boss));
+          card.classList.toggle('telegraphing', slamming);
 
           const oval = card.querySelector<HTMLElement>('.oval');
           if (oval) {
             oval.classList.toggle('slam-telegraph', slamming);
-            let slamBadge = oval.querySelector<HTMLElement>('.slam-badge');
-            if (slamming && !slamBadge) {
-              slamBadge = document.createElement('span');
-              slamBadge.className = 'slam-badge';
-              slamBadge.textContent = 'SLAM!';
-              oval.appendChild(slamBadge);
-            } else if (!slamming && slamBadge) {
-              slamBadge.remove();
-            }
-          }
-
-          const phaseChip = card.querySelector<HTMLElement>('.phase-chip');
-          if (phaseChip && enemy.boss) phaseChip.textContent = `PHASE ${(enemy.phaseIndex ?? 0) + 1}`;
-
-          let warnEl = card.querySelector<HTMLElement>('.mob-warn');
-          if (slamming) {
-            if (!warnEl) {
-              warnEl = document.createElement('div');
-              warnEl.className = 'mob-warn';
-              warnEl.setAttribute('role', 'status');
-              card.insertBefore(warnEl, card.querySelector('.ail'));
-            }
-            warnEl.textContent = `⚠ ${(enemy.slamName ?? 'HEAVY STRIKE').toUpperCase()} — ${(enemy.slamTelegraph ?? 0).toFixed(1)}s`;
-          } else if (warnEl) {
-            warnEl.remove();
           }
 
           const wardBar = card.querySelector<HTMLElement>('[data-mob-ward]');
           if (wardBar) {
             setFillNoFlicker(wardBar, 'width', ((enemy.ward ?? 0) / Math.max(1, enemy.maxWard ?? 1)) * 100, false);
           }
-
-          const hpText = card.querySelector<HTMLElement>('[data-mob-hp-text]');
-          if (hpText) hpText.textContent = fmt(Math.ceil(enemy.hp));
-
-          const atkText = card.querySelector<HTMLElement>('[data-mob-atk-text]');
-          if (atkText) atkText.textContent = frozen ? '❄' : `${Math.max(0, enemy.attackTimer).toFixed(1)}`;
 
           const atkBarWrap = card.querySelector<HTMLElement>('.atkbar');
           if (atkBarWrap) atkBarWrap.classList.toggle('warn', !frozen && enemy.attackTimer < 0.35);
@@ -655,30 +609,57 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     const packEl = root.querySelector<HTMLElement>('[data-ctl-pack]');
     if (packEl) packEl.innerHTML = `<small>PACK</small>${combat.packSize}`;
 
-    // Telemetry strip updates
-    const teleDps = root.querySelector<HTMLElement>('[data-tele-dps]');
-    if (teleDps) teleDps.textContent = fmt(recentDps(combat, 5), 1);
-    const teleIn = root.querySelector<HTMLElement>('[data-tele-in]');
-    if (teleIn) {
-      const incoming = combat.incomingDamage
-        .filter((sample) => sample.t >= combat.time - 5)
-        .reduce((sum, sample) => sum + sample.amount, 0) / 5;
-      teleIn.textContent = fmt(incoming, 1);
-    }
-    const teleBuffs = root.querySelector<HTMLElement>('[data-tele-buffs]');
-    if (teleBuffs) {
-      const buffs = combat.player.buffs.slice(0, 3);
-      const nextHtml = buffs.length
-        ? buffs.map((b) => `<span class="tele-chip">${escapeHtml(b.name)} <b>${b.remaining.toFixed(1)}s</b></span>`).join('')
-        : `<span class="tele-chip muted">${escapeHtml(combat.doctrine)} doctrine</span>`;
-      if (teleBuffs.innerHTML !== nextHtml) teleBuffs.innerHTML = nextHtml;
-    }
-
     // Dashboard panels below arena
     const dashEl = root.querySelector<HTMLElement>('#combat-dash');
     if (dashEl) dashEl.innerHTML = combatDashboardMarkup(store);
 
     applyHitFeedback(now);
+  };
+
+  const patchTreeDom = (): void => {
+    const screen = root.querySelector<HTMLElement>('[data-screen="tree"]');
+    if (!screen) return;
+
+    const pointsEl = screen.querySelector<HTMLElement>('[data-tree-points]');
+    if (pointsEl) pointsEl.innerHTML = treeHeaderMetaMarkup(store);
+
+    const focusRow = screen.querySelector<HTMLElement>('.tree-focus-row');
+    if (focusRow) focusRow.innerHTML = treeFocusRowMarkup(store);
+
+    const viewport = screen.querySelector<SVGGElement>('.tree-viewport');
+    if (viewport && !gesture) {
+      viewport.style.transform = treeTransformCss(store);
+    }
+
+    const backdropLayer = screen.querySelector<SVGGElement>('.tree-backdrop-layer');
+    if (backdropLayer) {
+      const nextBackdrop = treeBackdropMarkup(store.ui.treeFocus);
+      if (backdropLayer.dataset.focus !== store.ui.treeFocus) {
+        backdropLayer.innerHTML = nextBackdrop;
+        backdropLayer.dataset.focus = store.ui.treeFocus;
+      }
+    }
+
+    const edgesLayer = screen.querySelector<SVGGElement>('.tree-edges-layer');
+    if (edgesLayer) edgesLayer.innerHTML = treeEdgesMarkup(store);
+
+    const nodesLayer = screen.querySelector<SVGGElement>('.tree-nodes-layer');
+    if (nodesLayer) nodesLayer.innerHTML = treeNodesMarkup(store);
+
+    const labelsLayer = screen.querySelector<SVGGElement>('.tree-labels-layer');
+    if (labelsLayer) labelsLayer.innerHTML = treeLabelsMarkup(store);
+
+    const zoomPct = screen.querySelector<HTMLElement>('.tree-zoom-pct');
+    if (zoomPct) zoomPct.textContent = `${Math.round(store.ui.treeView.scale * 100)}%`;
+
+    const refundBanner = screen.querySelector<HTMLElement>('.tree-refund-banner');
+    if (refundBanner) refundBanner.hidden = !store.ui.refundMode;
+
+    const controlsEl = screen.querySelector<HTMLElement>('.tree-controls');
+    if (controlsEl) controlsEl.innerHTML = treeControlsMarkup(store);
+
+    const dockEl = screen.querySelector<HTMLElement>('#tree-dock');
+    if (dockEl) dockEl.innerHTML = treeDockMarkup(store);
   };
 
   const paint = (dynamic: boolean): void => {
@@ -695,6 +676,8 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     if (screenHost) {
       if (dynamic && renderedScreen === 'combat' && store.ui.screen === 'combat') {
         patchCombatDom(now);
+      } else if (!dynamic && renderedScreen === 'tree' && store.ui.screen === 'tree') {
+        patchTreeDom();
       } else if (!dynamic || renderedScreen !== store.ui.screen) {
         const scrollTop = renderedScreen === store.ui.screen ? screenHost.scrollTop : 0;
         screenHost.innerHTML = SCREENS[store.ui.screen](store);
@@ -916,7 +899,7 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         if (data.uid) store.unsocket(data.uid, Number(data.index ?? 0));
         break;
       case 'node':
-        if (data.node) store.previewNode(data.node);
+        if (data.node) store.previewNode(data.node, data.pan === '1');
         break;
       case 'refund':
         if (data.node) store.refundNode(data.node);
@@ -1002,6 +985,8 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     }
   };
 
+  let suppressTreeClickUntil = 0;
+
   root.addEventListener('click', (event) => {
     const modalRoot = root.querySelector<HTMLElement>('#modal-root');
     if (modalRoot && event.target === modalRoot) {
@@ -1010,7 +995,16 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     }
     const el = (event.target as Element | null)?.closest<HTMLElement>('[data-action], [data-nav]');
     if (!el || el.hasAttribute('disabled')) return;
+    if (el.closest('.tree-svg') && performance.now() < suppressTreeClickUntil) return;
     act(el);
+  });
+
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const nodeEl = (event.target as Element | null)?.closest<HTMLElement>('.tree-node[data-node]');
+    if (!nodeEl?.dataset.node) return;
+    event.preventDefault();
+    store.previewNode(nodeEl.dataset.node, false);
   });
 
   let toastDrag: { el: HTMLElement; startX: number; startY: number; dx: number; dy: number } | null = null;
@@ -1053,11 +1047,35 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     return Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
   };
 
+  const pointerMidpoint = (pts: Map<number, { x: number; y: number }>): { x: number; y: number } => {
+    const list = [...pts.values()];
+    if (list.length < 2) return list[0] ?? { x: 0, y: 0 };
+    return { x: (list[0]!.x + list[1]!.x) / 2, y: (list[0]!.y + list[1]!.y) / 2 };
+  };
+
+  const clampTreeView = (x: number, y: number, scale: number) => {
+    const s = clamp(scale, 0.7, 2.5);
+    const maxPan = 175 * s;
+    return {
+      x: clamp(x, -maxPan, maxPan),
+      y: clamp(y, -maxPan, maxPan),
+      scale: s,
+    };
+  };
+
+  const applyLiveTreeTransform = (svg: SVGSVGElement, group: SVGGElement, x: number, y: number, scale: number): void => {
+    const vb = svg.viewBox?.baseVal;
+    const vbW = vb && vb.width > 0 ? vb.width : TREE_VIEW.w;
+    const vbH = vb && vb.height > 0 ? vb.height : TREE_VIEW.h;
+    group.style.transform = `translate(${(vbW / 2 + x).toFixed(1)}px, ${(vbH / 2 + y).toFixed(1)}px) scale(${scale.toFixed(4)})`;
+    const zoomPct = root.querySelector<HTMLElement>('.tree-zoom-pct');
+    if (zoomPct) zoomPct.textContent = `${Math.round(scale * 100)}%`;
+  };
+
   root.addEventListener('pointerdown', (event) => {
     const target = event.target as Element | null;
-    if (!target || target.closest('[data-action="node"]')) return;
-    const svg = target.closest<SVGSVGElement>('.tree-svg');
-    const group = svg?.querySelector<SVGGElement>('g');
+    const svg = target?.closest<SVGSVGElement>('.tree-svg');
+    const group = svg?.querySelector<SVGGElement>('.tree-viewport');
     if (!svg || !group) return;
 
     if (!gesture || gesture.svg !== svg) {
@@ -1083,9 +1101,13 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
         gesture.mode = 'pinch';
         gesture.startDist = pointerDistance(gesture.pointers);
         gesture.startScale = gesture.curScale;
+        gesture.viewX = gesture.curX;
+        gesture.viewY = gesture.curY;
+        const mid = pointerMidpoint(gesture.pointers);
+        gesture.startX = mid.x;
+        gesture.startY = mid.y;
       }
     }
-    svg.setPointerCapture?.(event.pointerId);
   });
 
   root.addEventListener('pointermove', (event) => {
@@ -1093,41 +1115,59 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     const vb = gesture.svg.viewBox?.baseVal;
-    const vbW = vb && vb.width > 0 ? vb.width : 390;
-    const vbH = vb && vb.height > 0 ? vb.height : 430;
-    const cx = vbW / 2;
-    const cy = vbH / 2;
+    const vbW = vb && vb.width > 0 ? vb.width : TREE_VIEW.w;
+    const vbH = vb && vb.height > 0 ? vb.height : TREE_VIEW.h;
+    const rect = gesture.svg.getBoundingClientRect();
+    const pxToSvg = rect.width > 0 ? vbW / rect.width : 1;
 
     if (gesture.mode === 'pinch' && gesture.pointers.size >= 2) {
       const dist = pointerDistance(gesture.pointers);
-      gesture.curScale = clamp(gesture.startScale * (dist / gesture.startDist), 0.55, 2.4);
-      gesture.moved = true;
-      gesture.group.setAttribute(
-        'transform',
-        `translate(${cx + gesture.curX} ${cy + gesture.curY}) scale(${gesture.curScale})`,
+      const mid = pointerMidpoint(gesture.pointers);
+      const nextScale = clamp(gesture.startScale * (dist / gesture.startDist), 0.7, 2.5);
+      const ratio = nextScale / gesture.startScale;
+      const midSvgX = (mid.x - rect.left) * pxToSvg - vbW / 2;
+      const midSvgY = (mid.y - rect.top) * pxToSvg - vbH / 2;
+      const panDx = (mid.x - gesture.startX) * pxToSvg;
+      const panDy = (mid.y - gesture.startY) * pxToSvg;
+      const next = clampTreeView(
+        midSvgX - (midSvgX - gesture.viewX) * ratio + panDx,
+        midSvgY - (midSvgY - gesture.viewY) * ratio + panDy,
+        nextScale,
       );
+      gesture.curX = next.x;
+      gesture.curY = next.y;
+      gesture.curScale = next.scale;
+      if (!gesture.moved) {
+        gesture.moved = true;
+        gesture.group.classList.add('dragging');
+      }
+      applyLiveTreeTransform(gesture.svg, gesture.group, next.x, next.y, next.scale);
       return;
     }
 
     if (gesture.mode === 'pan') {
-      const rect = gesture.svg.getBoundingClientRect();
-      const scale = rect.width > 0 ? vbW / rect.width : 1;
-      const dx = (event.clientX - gesture.startX) * scale;
-      const dy = (event.clientY - gesture.startY) * scale;
-      if (Math.abs(dx) + Math.abs(dy) > 2) gesture.moved = true;
-      gesture.curX = gesture.viewX + dx;
-      gesture.curY = gesture.viewY + dy;
-      gesture.group.setAttribute(
-        'transform',
-        `translate(${cx + gesture.curX} ${cy + gesture.curY}) scale(${gesture.curScale})`,
-      );
+      const rawDist = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+      if (!gesture.moved && rawDist < 6) return;
+      if (!gesture.moved) {
+        gesture.moved = true;
+        gesture.group.classList.add('dragging');
+        gesture.svg.setPointerCapture?.(event.pointerId);
+      }
+      const dx = (event.clientX - gesture.startX) * pxToSvg;
+      const dy = (event.clientY - gesture.startY) * pxToSvg;
+      const next = clampTreeView(gesture.viewX + dx, gesture.viewY + dy, gesture.curScale);
+      gesture.curX = next.x;
+      gesture.curY = next.y;
+      applyLiveTreeTransform(gesture.svg, gesture.group, next.x, next.y, next.scale);
     }
   });
 
   const endPan = (event: PointerEvent): void => {
     if (!gesture || !gesture.pointers.has(event.pointerId)) return;
     gesture.pointers.delete(event.pointerId);
-    gesture.svg.releasePointerCapture?.(event.pointerId);
+    if (gesture.svg.hasPointerCapture?.(event.pointerId)) {
+      gesture.svg.releasePointerCapture?.(event.pointerId);
+    }
 
     if (gesture.pointers.size === 1) {
       const [remaining] = [...gesture.pointers.values()];
@@ -1142,15 +1182,49 @@ export function mountApp(root: HTMLElement, store: GameStore): void {
     }
 
     if (gesture.pointers.size === 0) {
-      const { moved, curX, curY, curScale } = gesture;
+      const { moved, curX, curY, curScale, group } = gesture;
+      group.classList.remove('dragging');
       gesture = null;
       if (moved) {
-        store.setTreeView({ x: curX, y: curY, scale: curScale });
+        suppressTreeClickUntil = performance.now() + 90;
+        store.setTreeView({ x: curX, y: curY, scale: curScale }, true);
       }
     }
   };
   root.addEventListener('pointerup', endPan);
   root.addEventListener('pointercancel', endPan);
+
+  root.addEventListener(
+    'wheel',
+    (event) => {
+      const target = event.target as Element | null;
+      const svg = target?.closest<SVGSVGElement>('.tree-svg');
+      const group = svg?.querySelector<SVGGElement>('.tree-viewport');
+      if (!svg || !group) return;
+      event.preventDefault();
+
+      const vb = svg.viewBox?.baseVal;
+      const vbW = vb && vb.width > 0 ? vb.width : TREE_VIEW.w;
+      const vbH = vb && vb.height > 0 ? vb.height : TREE_VIEW.h;
+      const rect = svg.getBoundingClientRect();
+      const pxToSvg = rect.width > 0 ? vbW / rect.width : 1;
+      const cursorX = (event.clientX - rect.left) * pxToSvg - vbW / 2;
+      const cursorY = (event.clientY - rect.top) * pxToSvg - vbH / 2;
+
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const cur = store.ui.treeView;
+      const nextScale = clamp(cur.scale * factor, 0.7, 2.5);
+      const ratio = nextScale / cur.scale;
+      const next = clampTreeView(
+        cursorX - (cursorX - cur.x) * ratio,
+        cursorY - (cursorY - cur.y) * ratio,
+        nextScale,
+      );
+      applyLiveTreeTransform(svg, group, next.x, next.y, next.scale);
+      store.setTreeView(next, true);
+    },
+    { passive: false },
+  );
 
   store.subscribe(paint);
   paint(false);

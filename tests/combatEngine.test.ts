@@ -4,6 +4,7 @@ import { computePlayerStats } from '../src/engine/stats';
 import { applyStarterChoice, createInitialSave, createItem, dropStage, makeGem } from '../src/game/state';
 import type { CharacterSave } from '../src/game/types';
 import { runSimulation } from '../src/sim/runSim';
+import { GameStore } from '../src/ui/store';
 
 function starterSave(): CharacterSave {
   const save = createInitialSave(0);
@@ -508,5 +509,34 @@ describe('auto rotation', () => {
     state.player.mana = full;
     for (let i = 0; i < 20; i++) tickCombat(state);
     expect(Object.keys(state.player.lastCastAt)).toHaveLength(0);
+  });
+
+  it('continues combat seamlessly into Tier 2 without freezing or blocking modal on first boss kill', () => {
+    const save = starterSave();
+    save.keys = 3;
+    const store = new GameStore(save, null);
+    store.ui.paused = false;
+    store.ui.modal = null;
+
+    store.summonBoss();
+    expect(store.combat.bossActive).toBe(true);
+    const boss = store.combat.enemies.find((e) => e.boss)!;
+    expect(boss).toBeTruthy();
+
+    // Bring boss to lethal range and clear any non-boss enemies so next tick completes the boss kill.
+    store.combat.enemies = [boss];
+    boss.hp = 0.01;
+    store.combat.player.attackTimer = 0;
+
+    store.tick();
+
+    expect(store.save.unlockedTierByZone.zone_ashen_graveyard).toBe(2);
+    expect(store.save.unlockedZones).toContain('zone_ember_canyon');
+    expect(store.ui.modal).toBeNull();
+    expect(store.combat.status).toBe('running');
+    expect(store.combat.tier).toBe(2);
+    expect(store.combat.enemies.length).toBeGreaterThan(0);
+    expect(store.combat.enemies.every((e) => !e.boss)).toBe(true);
+    expect(store.combat.log.some((entry) => entry.text.includes('Boss Cache claimed:'))).toBe(true);
   });
 });

@@ -1,11 +1,13 @@
 import type { DoctrineId, ItemSlot, UnlockableSystem } from '../data/types';
-import { gemById, itemBaseById, monsterById, nodeById, sfxFileFor, skillTree } from '../data';
+import { gemById, itemBaseById, monsterById, nodeById, sfxFileFor, skillTree, zoneById } from '../data';
 import {
   buildTreeGraph,
   canAllocate,
   getArticulationPoints,
 } from '../engine/treeGraph';
 import {
+  appendCombatLog,
+  continueAfterBoss,
   createCombat,
   manualCast,
   summonBoss as triggerSummonBoss,
@@ -170,7 +172,7 @@ export class GameStore {
       previewNode: null,
       previewPath: [],
       refundMode: false,
-      combatTab: 'overview',
+      combatTab: 'log',
       bagTab: 'gear',
       forgeTab: 'orbs',
       treeTab: 'inspect',
@@ -240,6 +242,9 @@ export class GameStore {
     this.combat.player.hp = Math.min(this.combat.player.hp, this.stats.maxHp);
     this.combat.player.mana = Math.min(this.combat.player.mana, this.stats.maxMana);
     this.combat.player.ward = Math.min(this.combat.player.ward, this.stats.maxWard);
+    const interval = 1 / Math.max(0.1, this.stats.weapon.attacksPerSecond * this.stats.attackSpeedMultiplier);
+    this.combat.player.attackInterval = interval;
+    this.combat.player.attackTimer = Math.min(this.combat.player.attackTimer, interval);
   }
 
   private schedulePersist(): void {
@@ -304,17 +309,28 @@ export class GameStore {
       const unlock = recordBossKill(this.save, this.combat.zone.id, killedTier);
       const cache = grantBossCache(this.save, this.combat.zone.id, killedTier);
       this.pushUiSfx('boss_cache_open');
-      this.ui.modal = {
-        kind: 'boss-cache',
-        cache,
-        zoneId: this.combat.zone.id,
-        zoneName: this.combat.zone.name,
-        tierCleared: killedTier,
-        unlock,
-      };
+      const cacheItemName = this.itemBaseName(cache.item);
+      const cacheExtras = [
+        cache.chroma > 0 ? `${cache.chroma} Chroma` : '',
+        cache.essence > 0 ? `${cache.essence} Essence` : '',
+        cache.skillPoint > 0 ? `+${cache.skillPoint} Skill Point` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      appendCombatLog(
+        this.combat,
+        'key',
+        `Boss Cache claimed: ${cacheItemName} (${cache.item.rarity.toUpperCase()})${cacheExtras ? ` + ${cacheExtras}` : ''}`,
+      );
+      const unlockedZoneName = unlock.zoneUnlocked
+        ? zoneById.get(unlock.zoneUnlocked)?.name ?? unlock.zoneUnlocked.replace('zone_', '').replace(/_/g, ' ')
+        : '';
+      if (unlockedZoneName) {
+        appendCombatLog(this.combat, 'boss', `Realm unlocked: ${unlockedZoneName}`);
+      }
       this.toast(
-        unlock.zoneUnlocked
-          ? `Boss Cache claimed! Tier ${unlock.tierUnlocked} & ${unlock.zoneUnlocked.replace('zone_', '').replace(/_/g, ' ')} unlocked.`
+        unlockedZoneName
+          ? `Boss Cache claimed! Tier ${unlock.tierUnlocked} & ${unlockedZoneName} unlocked.`
           : `Boss Cache claimed! Tier ${unlock.tierUnlocked} unlocked.`,
       );
     }
@@ -375,6 +391,13 @@ export class GameStore {
     this.ui.modal = null;
     this.ui.previewNode = null;
     this.ui.previewPath = [];
+    if (this.combat.status === 'victory') {
+      this.syncCombat();
+      this.combat.tier = Math.min(this.combat.tier, maxTierForZone(this.save));
+      this.save.tier = this.combat.tier;
+      continueAfterBoss(this.combat);
+      this.victorySynced = false;
+    }
     this.notify();
   }
 
@@ -460,7 +483,7 @@ export class GameStore {
       previewNode: null,
       previewPath: [],
       refundMode: false,
-      combatTab: 'overview',
+      combatTab: 'log',
       bagTab: 'gear',
       forgeTab: 'orbs',
       treeTab: 'inspect',
@@ -599,51 +622,83 @@ export class GameStore {
       this.toast(result.reason ?? 'Cannot respec yet.');
       return;
     }
+    this.syncCombat();
     this.ui.modal = null;
     this.ui.previewNode = null;
     this.ui.previewPath = [];
     this.ui.refundMode = false;
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.toast(`Refunded ${result.refunded} passive point${result.refunded === 1 ? '' : 's'}.`);
     this.notify();
   }
 
-  previewNode(nodeId: string): void {
+  private clampTreeView(view: TreeView): TreeView {
+    const scale = Math.max(0.7, Math.min(2.5, Number.isFinite(view.scale) ? view.scale : 1));
+    const maxPan = 175 * scale;
+    return {
+      x: Math.max(-maxPan, Math.min(maxPan, Number.isFinite(view.x) ? view.x : 0)),
+      y: Math.max(-maxPan, Math.min(maxPan, Number.isFinite(view.y) ? view.y : 0)),
+      scale,
+    };
+  }
+
+  centerOnNode(nodeId: string, minScale = 1.35): void {
+    const node = nodeById(nodeId);
+    if (!node) return;
+    const scale = Math.max(this.ui.treeView.scale, minScale);
+    this.ui.treeView = this.clampTreeView({
+      x: -node.x * scale,
+      y: -node.y * scale,
+      scale,
+    });
+  }
+
+  previewNode(nodeId: string, panToNode = false): void {
     if (this.ui.refundMode) {
-      this.refundNode(nodeId);
+      if (this.save.allocated.includes(nodeId) && nodeId !== 'hub_0') {
+        this.refundNode(nodeId);
+      } else if (nodeId === 'hub_0') {
+        this.toast('Soul-Spark core cannot be refunded.');
+      } else {
+        this.toast('Tap a gold allocated node to refund it.');
+      }
       return;
     }
     if (this.save.allocated.includes(nodeId)) {
-      this.ui.previewNode = null;
+      this.ui.previewNode = nodeId;
       this.ui.previewPath = [];
-      this.openModal({ kind: 'node', nodeId });
-      return;
-    }
-    // Second tap on an already-previewed node confirms allocation (Section 5).
-    if (this.ui.previewNode === nodeId) {
-      this.confirmAllocation();
-      return;
-    }
-    const check = canAllocate(this.save.allocated, nodeId, treeGraph, this.unspent());
-    if (!check.ok) {
-      this.ui.previewNode = null;
-      this.ui.previewPath = [];
-      const name = nodeById(nodeId)?.name ?? 'That node';
-      const reasons: Record<string, string> = {
-        excluded: `Locked out by ${check.blockedBy ?? 'a rival keystone'}.`,
-        unreachable: 'No path from your allocated tree.',
-        'not-enough-points': `${name} needs ${check.cost} points; you have ${this.unspent()}.`,
-        'already-allocated': 'Already allocated.',
-      };
-      this.toast(reasons[check.reason ?? ''] ?? 'Cannot allocate that node.');
+      this.ui.treeTab = 'inspect';
+      if (panToNode) this.centerOnNode(nodeId);
       this.notify();
       return;
     }
+    // Second tap on an already-previewed node on the map confirms allocation if affordable.
+    if (!panToNode && this.ui.previewNode === nodeId) {
+      const recheck = canAllocate(this.save.allocated, nodeId, treeGraph, this.unspent());
+      if (recheck.ok) {
+        this.confirmAllocation();
+        return;
+      }
+      const name = nodeById(nodeId)?.name ?? 'That node';
+      if (recheck.reason === 'not-enough-points') {
+        this.toast(`${name} needs ${recheck.cost} pts (${this.unspent()} free).`);
+      } else if (recheck.reason === 'excluded') {
+        this.toast(`Locked out by ${nodeById(recheck.blockedBy ?? '')?.name ?? 'a rival keystone'}.`);
+      } else {
+        this.toast('Cannot allocate that node yet.');
+      }
+      return;
+    }
+    const check = canAllocate(this.save.allocated, nodeId, treeGraph, this.unspent());
     this.ui.previewNode = nodeId;
-    this.ui.previewPath = check.path;
+    this.ui.previewPath = check.ok || check.reason === 'not-enough-points' ? check.path : [];
     this.ui.treeTab = 'inspect';
+    if (panToNode) this.centerOnNode(nodeId);
+    if (!check.ok && check.reason === 'excluded') {
+      const blocker = nodeById(check.blockedBy ?? '')?.name ?? 'a rival keystone';
+      this.toast(`Locked out by ${blocker}.`);
+    }
     this.notify();
   }
 
@@ -655,11 +710,11 @@ export class GameStore {
       this.toast(result.reason === 'not-enough-points' ? 'Not enough points.' : 'Allocation failed.');
       return;
     }
-    this.ui.previewNode = null;
+    this.syncCombat();
+    this.ui.previewNode = nodeId;
     this.ui.previewPath = [];
     this.ui.modal = null;
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.toast(`Allocated ${result.path?.length ?? 1} node(s).`);
     this.notify();
@@ -667,8 +722,6 @@ export class GameStore {
 
   toggleRefundMode(): void {
     this.ui.refundMode = !this.ui.refundMode;
-    this.ui.previewNode = null;
-    this.ui.previewPath = [];
     this.notify();
   }
 
@@ -678,9 +731,13 @@ export class GameStore {
       this.toast(result.reason === 'articulation' ? 'Refunding this node would strand others.' : 'Cannot refund that node.');
       return;
     }
+    this.syncCombat();
     this.ui.modal = null;
+    if (this.ui.previewNode === nodeId) {
+      this.ui.previewNode = null;
+      this.ui.previewPath = [];
+    }
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.toast('Point refunded.');
     this.notify();
@@ -690,18 +747,20 @@ export class GameStore {
     return new Set(getArticulationPoints(this.save.allocated, treeGraph));
   }
 
-  setTreeView(view: TreeView): void {
-    this.ui.treeView = {
-      x: view.x,
-      y: view.y,
-      scale: Math.max(0.55, Math.min(2.4, view.scale)),
-    };
-    this.notify();
+  setTreeView(view: TreeView, silent = false): void {
+    this.ui.treeView = this.clampTreeView(view);
+    if (!silent) this.notify();
   }
 
   zoomTree(factor: number): void {
     const view = this.ui.treeView;
-    this.ui.treeView = { ...view, scale: Math.max(0.55, Math.min(2.4, view.scale * factor)) };
+    const nextScale = Math.max(0.7, Math.min(2.5, view.scale * factor));
+    const ratio = nextScale / view.scale;
+    this.ui.treeView = this.clampTreeView({
+      x: view.x * ratio,
+      y: view.y * ratio,
+      scale: nextScale,
+    });
     this.notify();
   }
 
@@ -725,12 +784,12 @@ export class GameStore {
     }
     const cx = nodes.reduce((sum, node) => sum + node.x, 0) / nodes.length;
     const cy = nodes.reduce((sum, node) => sum + node.y, 0) / nodes.length;
-    const scale = 1.45;
-    this.ui.treeView = {
+    const scale = 1.48;
+    this.ui.treeView = this.clampTreeView({
       x: Math.round(-cx * scale),
       y: Math.round(-cy * scale),
       scale,
-    };
+    });
     this.notify();
   }
 
@@ -815,9 +874,9 @@ export class GameStore {
       this.toast(result.reason ?? 'Cannot equip that.');
       return;
     }
+    this.syncCombat();
     this.ui.forgeUid = location.item.uid;
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.ui.modal = null;
     this.toast('Equipped.');
@@ -836,9 +895,9 @@ export class GameStore {
   }
 
   unequip(slot: ItemSlot): void {
+    this.syncCombat();
     unequipItem(this.save, slot);
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.ui.modal = null;
     this.toast('Unequipped.');
@@ -880,8 +939,8 @@ export class GameStore {
     if (!resolved) return;
     const res = levelUpGemWithDust(this.save, resolved.gem);
     if (res.ok) {
+      this.syncCombat();
       this.resyncStats();
-      this.restartCombat();
       this.schedulePersist();
     }
     this.toast(res.message);
@@ -910,8 +969,8 @@ export class GameStore {
       this.toast(result.reason ?? 'Socket failed.');
       return;
     }
+    this.syncCombat();
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     this.ui.modal = { kind: 'item', uid: modal.itemUid };
     this.toast('Gem socketed.');
@@ -921,9 +980,9 @@ export class GameStore {
   unsocket(itemUid: string, socketIndex: number): void {
     const location = this.findItem(itemUid);
     if (!location) return;
+    this.syncCombat();
     unsocketGem(this.save, location.item, socketIndex);
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     if (this.ui.modal?.kind === 'gem') {
       this.ui.modal = { kind: 'item', uid: itemUid };
@@ -940,9 +999,9 @@ export class GameStore {
       this.toast(result.reason ?? 'Chromatic Reforge failed.');
       return;
     }
+    this.syncCombat();
     this.pushUiSfx('chroma_craft');
     this.resyncStats();
-    this.restartCombat();
     this.schedulePersist();
     const message = `Sockets reforged: ${(result.colors ?? []).join(' / ') || 'unchanged'}.`;
     this.ui.craftMessage = message;
@@ -1032,9 +1091,9 @@ export class GameStore {
 
     this.ui.craftMessage = result.message;
     if (result.ok) {
+      this.syncCombat();
       this.pushUiSfx('orb_craft');
       this.resyncStats();
-      this.restartCombat();
       this.schedulePersist();
     }
     this.toast(result.message);
@@ -1067,21 +1126,23 @@ export class GameStore {
     if (this.ui.paused || this.ui.modal?.kind === 'offline') return;
     this.combat.keysUnlocked = riftKeysUnlocked(this.save);
     tickCombat(this.combat);
-    tickCombat(this.combat);
+    if (this.combat.status === 'running') {
+      tickCombat(this.combat);
+    }
     this.ui.lastTickAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (
       this.combat.tickCount % 5 === 0 ||
       this.combat.rewards.kills !== this.appliedRewards.kills ||
-      this.combat.rewards.deaths !== this.appliedRewards.deaths
+      this.combat.rewards.deaths !== this.appliedRewards.deaths ||
+      this.combat.status === 'victory'
     ) {
       this.syncCombat();
     }
-    if (this.combat.status === 'victory' && !this.victorySynced) {
-      this.victorySynced = true;
-      this.syncCombat();
-      if (!this.ui.modal || this.ui.modal.kind !== 'boss-cache') {
-        this.toast(`Tier cleared. Tier ${this.combat.tier} stands open.`);
-      }
+    if (this.combat.status === 'victory') {
+      this.combat.tier = Math.min(this.combat.tier, maxTierForZone(this.save));
+      this.save.tier = this.combat.tier;
+      continueAfterBoss(this.combat);
+      this.victorySynced = false;
     }
     this.notify(true);
   }

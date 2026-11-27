@@ -235,42 +235,25 @@ export function renderEnemyAilments(enemy: GameStore['combat']['enemies'][number
 
 export function enemyCardMarkup(store: GameStore): string {
   const enemies = store.combat.enemies;
-  if (!enemies.length) {
-    return `<div class="banner" style="top:120px;${store.combat.status === 'victory' ? '' : 'display:none'}">The pack gathers</div>`;
-  }
+  if (!enemies.length) return '';
   return enemies
     .map((enemy) => {
       const def = store.enemyDef(enemy);
-      const telegraph = enemy.slamTelegraph ?? 0;
-      const slamming = telegraph > 0;
+      const slamming = (enemy.slamTelegraph ?? 0) > 0;
       const frozen = (enemy.ailments.chill?.stacks ?? 0) >= 3;
       const atkPct = clamp((1 - enemy.attackTimer / Math.max(0.2, enemy.attackInterval)) * 100, 0, 100);
       const wardPct = (enemy.maxWard ?? 0) > 0 ? clamp(((enemy.ward ?? 0) / (enemy.maxWard ?? 1)) * 100, 0, 100) : 0;
-      const phaseLabel = enemy.boss ? `PHASE ${(enemy.phaseIndex ?? 0) + 1}` : '';
+      const displayName = enemy.boss && enemy.name.includes(' — ') ? enemy.name.split(' — ').pop()! : enemy.name;
       return `<div class="mob ${enemy.hp <= 0 ? 'dead' : ''} ${frozen ? 'frozen' : ''} ${enemy.boss ? 'boss' : ''} ${slamming ? 'telegraphing' : ''}" data-enemy-uid="${escapeHtml(enemy.uid)}" title="${escapeHtml(enemy.name)}">
         <div class="oval ${slamming ? 'slam-telegraph' : ''}" style="--c:${schoolColor(enemy.school)}">
           ${def ? assetImg(def.assetId, enemy.name) : escapeHtml(enemy.name.slice(0, 1))}
           ${sprite('w-oval', 'oval-frame', '0 0 80 104')}
-          <span class="diamond-badge tier-badge" title="Tier">T${store.combat.tier}</span>
-          <span class="diamond-badge hp-badge" title="Enemy HP">
-            ${sprite('w-diamond', 'diamond-svg', '0 0 24 24', '--f:#4a1012')}
-            <b data-mob-hp-text>${fmt(Math.ceil(enemy.hp))}</b>
-          </span>
-          <span class="diamond-badge atk-badge" title="Next enemy attack">
-            ${sprite('w-diamond', 'diamond-svg', '0 0 24 24', '--f:#2a2312')}
-            <b data-mob-atk-text>${frozen ? '❄' : `${Math.max(0, enemy.attackTimer).toFixed(1)}`}</b>
-          </span>
-          ${slamming ? '<span class="slam-badge">SLAM!</span>' : ''}
-          ${enemy.boss ? `<span class="phase-chip">${phaseLabel}</span>` : ''}
         </div>
-        ${slamming
-          ? `<div class="mob-warn" role="status">⚠ ${escapeHtml((enemy.slamName ?? 'HEAVY ATTACK').toUpperCase())} — ${telegraph.toFixed(1)}s</div>`
-          : ''}
-        <div class="ail" data-mob-ail>${renderEnemyAilments(enemy)}</div>
         <div class="hpbar"><b data-mob-hp style="width:${pct(enemy.hp, enemy.maxHp)}"></b></div>
         ${(enemy.maxWard ?? 0) > 0 ? `<div class="wardbar" title="Ward ${fmt(enemy.ward ?? 0)} / ${fmt(enemy.maxWard ?? 0)}"><b data-mob-ward style="width:${wardPct.toFixed(1)}%"></b></div>` : ''}
         <div class="atkbar ${enemy.attackTimer < 0.35 ? 'warn' : ''}"><b data-mob-atk style="width:${atkPct.toFixed(1)}%"></b></div>
-        <div class="name">${escapeHtml(enemy.name)}${enemy.boss ? `<span class="boss-tag">BOSS</span>` : ''}</div>
+        <div class="name">${escapeHtml(displayName)}${enemy.boss ? `<span class="boss-tag">BOSS</span>` : ''}</div>
+        <div class="ail" data-mob-ail>${renderEnemyAilments(enemy)}</div>
       </div>`;
     })
     .join('');
@@ -313,7 +296,8 @@ function arena(store: GameStore): string {
     <div class="badges" data-arena-badges>
       <span data-badge-status>${status}</span>
       <span>PACK <b data-badge-pack>${combat.enemies.filter((enemy) => enemy.hp > 0).length}/${combat.packSize}</b></span>
-      <span data-badge-keys-wrap class="${keyPulse ? 'key-pulse' : ''}">KEYS <b data-badge-keys>${combat.keys}/3</b></span>
+      <span data-badge-keys-wrap class="${keyPulse ? 'key-pulse' : ''}" ${canSummonBoss ? 'hidden' : ''}>KEYS <b data-badge-keys>${combat.keys}/3</b></span>
+      <button class="badge-boss ${keyPulse ? 'key-pulse' : ''}" data-action="summon-boss" ${canSummonBoss ? '' : 'hidden'} aria-label="Summon Tier ${combat.tier} Boss">⚔ SUMMON BOSS</button>
     </div>
     <span class="vnum l" data-vnum-hp>${fmt(player.hp)}</span>
     <div class="vial l ${player.ward > 0 ? 'warded' : ''}" data-vial-hp title="Health ${fmt(player.hp)} / ${fmt(stats.maxHp)} · Ward ${fmt(player.ward)} / ${fmt(stats.maxWard)}">
@@ -328,7 +312,6 @@ function arena(store: GameStore): string {
     </div>
     <div class="mobs" data-mobs>${enemyCardMarkup(store)}</div>
     <div class="combat-fx" id="combat-fx" aria-hidden="true"></div>
-    <button class="boss-summon" data-action="summon-boss" style="${canSummonBoss ? '' : 'display:none'}">⚔ Summon Tier ${combat.tier} Boss</button>
     ${skillBar(store)}
   </div>`;
 }
@@ -434,32 +417,24 @@ function ratePills(store: GameStore): string {
   return `<div class="pills">${cells.map(([label, value]) => `<div>${label}<b>${value}</b></div>`).join('')}</div>`;
 }
 
-function telemetryStrip(store: GameStore): string {
-  const combat = store.combat;
-  const dps = recentDps(combat, 5);
-  const incoming = combat.incomingDamage
-    .filter((sample) => sample.t >= combat.time - 5)
-    .reduce((sum, sample) => sum + sample.amount, 0) / 5;
-  const buffs = combat.player.buffs.slice(0, 3);
-  const chips = buffs.length
-    ? buffs.map((buff) => `<span class="tele-chip">${escapeHtml(buff.name)} <b>${buff.remaining.toFixed(1)}s</b></span>`).join('')
-    : `<span class="tele-chip muted">${escapeHtml(combat.doctrine)} doctrine</span>`;
-  return `<div class="telemetry" aria-label="Live combat telemetry">
-    <span class="tele-dps"><small>DPS</small><b data-tele-dps>${fmt(dps, 1)}</b></span>
-    <span class="tele-in"><small>INCOMING</small><b data-tele-in>${fmt(incoming, 1)}</b></span>
-    <span class="tele-buffs" data-tele-buffs>${chips}</span>
-  </div>`;
+function isLootLogEntry(kind: string, text: string): boolean {
+  if (kind === 'key' || kind === 'rare-drop') return true;
+  return /Boss Cache|Rift Key|MYTHIC|RARE drop/i.test(text);
 }
 
-function isGoldLootLog(kind: string, text: string): boolean {
-  if (kind === 'key' || kind === 'rare-drop') return true;
-  if (kind === 'boss' && (text.includes('falls') || text.includes('Cache'))) return true;
-  return /Rift Key|MYTHIC|RARE|Boss Cache/i.test(text);
+function logEntryClass(kind: string, text: string, rarity?: 'rare' | 'mythic'): string {
+  if (isLootLogEntry(kind, text)) {
+    return `log-entry log-loot${rarity === 'mythic' ? ' log-mythic' : ''}`;
+  }
+  if (kind === 'dodge') return 'log-entry log-dodge';
+  if (kind === 'death' || kind === 'kill') return 'log-entry log-death';
+  if (kind === 'boss') return 'log-entry log-boss';
+  if (kind === 'guard' || kind === 'ward') return 'log-entry log-guard';
+  return 'log-entry';
 }
 
 function logPanel(store: GameStore, tracker: CombatUiTracker): string {
   const filter = store.ui.logFilter;
-  const lootKinds = new Set(['key', 'kill', 'boss', 'rare-drop']);
   const combined = [
     ...tracker.recentDrops.map((drop) => ({
       t: drop.t,
@@ -476,26 +451,27 @@ function logPanel(store: GameStore, tracker: CombatUiTracker): string {
   ].sort((a, b) => b.t - a.t);
 
   const entries = combined
-    .filter((entry) => filter === 'all' || (filter === 'loot' ? lootKinds.has(entry.kind) : !lootKinds.has(entry.kind)))
-    .slice(0, 8);
+    .filter((entry) => {
+      if (filter === 'all') return true;
+      const loot = isLootLogEntry(entry.kind, entry.text);
+      return filter === 'loot' ? loot : !loot;
+    })
+    .slice(0, 18);
   const tabs: { id: 'all' | 'loot' | 'combat'; label: string }[] = [
     { id: 'all', label: 'ALL' },
-    { id: 'loot', label: 'LOOT & KEYS' },
     { id: 'combat', label: 'COMBAT' },
+    { id: 'loot', label: 'LOOT & KEYS' },
   ];
   return `<div class="frame pan">
-    <h4>War Log<span>${combined.length}</span></h4>
+    <h4>Activity Log<span>${combined.length}</span></h4>
     <div class="log-tabs" role="tablist">${tabs
       .map((tab) => `<button role="tab" aria-selected="${filter === tab.id}" class="${filter === tab.id ? 'active' : ''}" data-action="log-filter" data-filter="${tab.id}">${tab.label}</button>`)
       .join('')}</div>
     <div class="log">${entries.length
       ? entries
           .map((entry) => {
-            const isLoot = isGoldLootLog(entry.kind, entry.text);
-            const cls = isLoot
-              ? `log-entry log-loot${entry.rarity === 'mythic' ? ' log-mythic' : ''}`
-              : 'log-entry';
-            return `<div class="${cls}"><span class="muted">[${entry.t.toFixed(0)}]</span> ${escapeHtml(entry.text)}</div>`;
+            const cls = logEntryClass(entry.kind, entry.text, entry.rarity);
+            return `<div class="${cls}"><span class="muted">[${entry.t.toFixed(0)}s]</span> ${escapeHtml(entry.text)}</div>`;
           })
           .join('')
       : '<div class="muted">Nothing in this channel yet.</div>'}</div>
@@ -528,23 +504,17 @@ export function combatDashboardMarkup(store: GameStore): string {
     nowMs - store.ui.keyPulseAt < 2500;
   const logCount = combat.log.length + tracker.recentDrops.length;
 
-  const statusCard = combat.status === 'victory'
+  const statusCard = combat.status === 'dead'
     ? `<div class="frame pan" style="text-align:center">
-        <h4 style="justify-content:center">Tier Cleared</h4>
-        <p class="tiny muted" style="margin-bottom:6px">The Bound One is unmade.</p>
-        <button class="gbtn" data-action="next-tier">Descend to Tier ${Math.min(10, combat.tier)}</button>
+        <h4 style="justify-content:center">${combat.tier <= 1 ? 'Your Vessel Shattered' : 'The Spark Guttered'}</h4>
+        <p class="tiny muted">${combat.tier <= 1 ? `Reforming at Tier 1 in ${combat.deathTimer.toFixed(1)}s · Keys preserved` : `Reforming in ${combat.deathTimer.toFixed(1)}s · tier ${combat.tier}`}</p>
       </div>`
-    : combat.status === 'dead'
-      ? `<div class="frame pan" style="text-align:center">
-          <h4 style="justify-content:center">${combat.tier <= 1 ? 'Your Vessel Shattered' : 'The Spark Guttered'}</h4>
-          <p class="tiny muted">${combat.tier <= 1 ? `Reforming at Tier 1 in ${combat.deathTimer.toFixed(1)}s · Keys preserved` : `Reforming in ${combat.deathTimer.toFixed(1)}s · tier ${combat.tier}`}</p>
-        </div>`
-      : '';
+    : '';
 
   const tabBar = `<div class="subtabs" role="tablist" aria-label="Combat details">
+    <button role="tab" aria-selected="${tab === 'log'}" class="subtab ${tab === 'log' ? 'on' : ''} ${lootPulse ? 'loot-pulse' : ''}" data-action="combat-tab" data-tab="log">Activity Log (${logCount})${lootPulse ? '<span class="log-pip" aria-hidden="true"></span>' : ''}</button>
     <button role="tab" aria-selected="${tab === 'overview'}" class="subtab ${tab === 'overview' ? 'on' : ''}" data-action="combat-tab" data-tab="overview">Overview</button>
     <button role="tab" aria-selected="${tab === 'breakdown'}" class="subtab ${tab === 'breakdown' ? 'on' : ''}" data-action="combat-tab" data-tab="breakdown">Breakdown</button>
-    <button role="tab" aria-selected="${tab === 'log'}" class="subtab ${tab === 'log' ? 'on' : ''} ${lootPulse ? 'loot-pulse' : ''}" data-action="combat-tab" data-tab="log">War Log (${logCount})${lootPulse ? '<span class="log-pip" aria-hidden="true"></span>' : ''}</button>
   </div>`;
 
   let body = '';
@@ -565,14 +535,12 @@ export function combatDashboardMarkup(store: GameStore): string {
 
   return `${statusCard}
   ${tabBar}
-  ${body}
-  <p class="hint">${escapeHtml(combat.doctrine)} doctrine · ${store.ui.paused ? 'paused' : 'auto-casting'}${store.stats.keystones.has('ks_pendulum') ? ' · pendulum swaps bars' : ''}</p>`;
+  ${body}`;
 }
 
 export function combatScreen(store: GameStore): string {
   return `<section class="screen" data-screen="combat" aria-label="Combat">
     ${arena(store)}
-    ${telemetryStrip(store)}
     ${controlStrip(store)}
     <div id="combat-dash" class="combat-dash">${combatDashboardMarkup(store)}</div>
   </section>`;

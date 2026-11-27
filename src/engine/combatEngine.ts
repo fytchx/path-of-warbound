@@ -64,7 +64,7 @@ export interface Buff {
 
 export interface CombatEvent {
   t: number;
-  kind: 'hit' | 'crit' | 'ailment' | 'kill' | 'ward' | 'guard' | 'key' | 'death' | 'wave' | 'boss' | 'trigger' | 'cast';
+  kind: 'hit' | 'crit' | 'ailment' | 'kill' | 'ward' | 'guard' | 'dodge' | 'key' | 'death' | 'wave' | 'boss' | 'trigger' | 'cast';
   text: string;
 }
 
@@ -147,6 +147,8 @@ export interface CombatState {
     cast: { skillId: string; remaining: number; duration: number; power: number } | null;
     disciplineStacks: number;
     skillTimers: Record<string, number>;
+    /** Sim time each active skill was last started; drives repeat penalty and tie-breaks. */
+    lastCastAt: Record<string, number>;
     buffs: Buff[];
     lastDamageAt: number;
     deaths: number;
@@ -322,6 +324,7 @@ export function createCombat(options: CreateCombatOptions): CombatState {
       cast: null,
       disciplineStacks: 0,
       skillTimers: {},
+      lastCastAt: {},
       buffs: [],
       lastDamageAt: -10,
       deaths: 0,
@@ -440,6 +443,18 @@ function pushFx(
 function pushLog(state: CombatState, kind: CombatEvent['kind'], text: string): void {
   state.log.unshift({ t: Math.round(state.time * 10) / 10, kind, text });
   if (state.log.length > 60) state.log.length = 60;
+}
+
+export function appendCombatLog(state: CombatState, kind: CombatEvent['kind'], text: string): void {
+  pushLog(state, kind, text);
+}
+
+export function continueAfterBoss(state: CombatState): void {
+  state.bossActive = false;
+  state.bossDefeated = false;
+  state.status = 'running';
+  state.enemies = [];
+  spawnPack(state);
 }
 
 function armorReduction(armor: number, enemyLevel: number): number {
@@ -870,6 +885,7 @@ function castSkill(state: CombatState, skill: CombatSkill, power: number, trigge
   if (!triggered) {
     if (player.mana < skill.effectiveManaCost) return;
     player.mana -= skill.effectiveManaCost;
+    player.lastCastAt[skill.id] = state.time;
     if (skill.effectiveCastTime > 0) {
       const hasteBuff = 1 + player.buffs.reduce((sum, b) => sum + (b.castSpeed ?? b.attackSpeed ?? 0), 0);
       const duration = Math.max(0.3, skill.effectiveCastTime) / Math.max(0.4, hasteBuff);
@@ -878,7 +894,9 @@ function castSkill(state: CombatState, skill: CombatSkill, power: number, trigge
         player.cast = { skillId: skill.id, remaining: duration, duration, power };
         pushFx(state, 'cast', skill.school, living[0]?.uid, skill.name);
         pushLog(state, 'cast', `${skill.name} begins casting (${duration.toFixed(1)}s)`);
-        player.skillTimers[skill.id] = effectiveSkillRecovery(state, skill);
+        // Cooldown starts when the cast finishes, so a skill whose cooldown is shorter than its
+        // cast time cannot be re-selected the instant it lands and starve every other gem.
+        player.skillTimers[skill.id] = duration + effectiveSkillRecovery(state, skill);
         return;
       }
     }
@@ -1083,7 +1101,11 @@ export function scoreSkillUtility(state: CombatState, skill: CombatSkill): numbe
   }
   waste = clamp(waste, 0, 150);
 
-  return baseWeight * urgency * economy * synergy * doctrineWeight - waste;
+  // 7. Repeat penalty: a gem cast within the last 2s scores up to 20% lower, so equal-weight gems alternate.
+  const sinceLast = state.time - (player.lastCastAt[skill.id] ?? Number.NEGATIVE_INFINITY);
+  const repeat = sinceLast < 2 ? 0.8 + 0.1 * sinceLast : 1;
+
+  return baseWeight * urgency * economy * synergy * doctrineWeight * repeat - waste;
 }
 
 function payoffMultiplier(state: CombatState): number {
@@ -1118,6 +1140,40 @@ function disciplineMultiplier(state: CombatState): number {
   return 1 + 0.06 * state.player.disciplineStacks;
 }
 
+/** Zero-cooldown instant attacks. They are always ready, so they need a mana policy. */
+function isFillerSkill(skill: CombatSkill): boolean {
+  return (
+    skill.castTime <= 0 &&
+    skill.cooldown <= 0 &&
+    !skill.tags.includes('guard') &&
+    !skill.tags.includes('buff')
+  );
+}
+
+/**
+ * Mana a filler must leave behind so cooldown and timed gems are never starved:
+ * the costliest other usable gem, capped at 40% of max mana.
+ */
+function fillerManaReserve(state: CombatState, filler: CombatSkill): number {
+  const stats = state.playerStats;
+  let reserve = 0;
+  for (const other of stats.skills) {
+    if (other.id === filler.id || isFillerSkill(other)) continue;
+    if (other.manaReservation > 0 || other.triggerType) continue;
+    if (!isSkillBarValid(state, other)) continue;
+    if (other.maxDamage <= 0 && !other.tags.includes('guard') && !other.tags.includes('curse')) continue;
+    reserve = Math.max(reserve, other.effectiveManaCost);
+  }
+  return Math.min(reserve, stats.maxMana * 0.4);
+}
+
+function lastCastAt(state: CombatState, skill: CombatSkill): number {
+  return state.player.lastCastAt[skill.id] ?? Number.NEGATIVE_INFINITY;
+}
+
+/** Idle guard/curse scores sit near 4-6; real casts start above 10. */
+const MIN_CAST_SCORE = 8;
+
 function playerCastLoop(state: CombatState): void {
   const player = state.player;
   const stats = state.playerStats;
@@ -1133,6 +1189,7 @@ function playerCastLoop(state: CombatState): void {
       if ((player.skillTimers[skill.id] ?? 0) > 0) continue;
       if (player.mana < skill.effectiveManaCost) continue;
       if (skill.maxDamage <= 0 && !skill.tags.includes('guard') && !skill.tags.includes('buff')) continue;
+      if (isFillerSkill(skill) && player.mana - skill.effectiveManaCost < fillerManaReserve(state, skill)) continue;
       advanceDiscipline(state, skill.id);
       castSkill(state, skill, disciplineMultiplier(state));
     }
@@ -1171,12 +1228,14 @@ function playerCastLoop(state: CombatState): void {
   let bestScore = scoreSkillUtility(state, best);
   for (const skill of candidates.slice(1)) {
     const score = scoreSkillUtility(state, skill);
-    if (score > bestScore) {
+    const tied = Math.abs(score - bestScore) <= 0.01;
+    if (score > bestScore + 0.01 || (tied && lastCastAt(state, skill) < lastCastAt(state, best))) {
       best = skill;
       bestScore = score;
     }
   }
-  if (Number.isFinite(bestScore) && bestScore > 0) {
+  // Below the floor a gem is idle (a guard at full health, a curse that is still up): hold the mana.
+  if (Number.isFinite(bestScore) && bestScore >= MIN_CAST_SCORE) {
     advanceDiscipline(state, best.id);
     castSkill(state, best, disciplineMultiplier(state));
   }
@@ -1197,7 +1256,7 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
   player.dodgeCharge += stats.dodgePerHit;
   if (player.dodgeCharge >= 100) {
     player.dodgeCharge -= 100;
-    pushLog(state, 'ward', `Dodged ${enemy.name}${attackLabel ? ` (${attackLabel})` : ''}`);
+    pushLog(state, 'dodge', `Dodged ${enemy.name}${attackLabel ? ` (${attackLabel})` : ''}`);
     pushFx(state, 'mitigated', enemy.school, enemy.uid, 'DODGED');
     if (stats.mythic.dodgeAttackSpeedPct > 0) {
       const existing = player.buffs.find((b) => b.id === 'riftwalk');
@@ -1253,6 +1312,7 @@ function damagePlayer(state: CombatState, enemy: CombatEnemy, multiplier = 1, at
     const refund = incoming * (stats.mythic.damageTakenToWardPct / 100);
     player.ward = Math.min(stats.maxWard, player.ward + refund);
     pushFx(state, 'ward', enemy.school, enemy.uid, 'WARD');
+    if (refund >= 1) pushLog(state, 'ward', `Hollow Mirror refunds ${refund.toFixed(0)} Ward`);
   }
 
   if (incoming > 0) {
